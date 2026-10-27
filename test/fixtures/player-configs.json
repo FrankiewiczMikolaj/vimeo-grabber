@@ -1,0 +1,31 @@
+[
+  {
+    "video": { "id": 900001, "title": "Owned river study" },
+    "request": { "files": {
+      "dash": { "default_cdn": "primary", "cdns": {
+        "backup": { "url": "https://backup.vimeocdn.com/owned/master.json?token=dummy%2Bbackup&expires=1900000000" },
+        "primary": {
+          "url": "https://primary.vimeocdn.com/owned/master.json?token=dummy%2Bsig%2F%3D&x=1&x=2",
+          "avc_url": "https://primary.vimeocdn.com/owned/avc.mpd?token=dummy+avc&empty="
+        }
+      } },
+      "hls": { "default_cdn": "primary", "cdns": {
+        "primary": { "url": "https://primary.vimeocdn.com/owned/master.m3u8?token=dummy%2Fhls" }
+      } }
+    } }
+  },
+  {
+    "video": { "id": "900002" },
+    "request": { "files": {
+      "dash": { "default_cdn": "broken", "cdns": {
+        "broken": { "url": "javascript:dummy", "avc_url": false },
+        "alternate": { "url": "https://backup.vimeocdn.com/owned/alternate.mpd?sig=dummy%3D" }
+      } },
+      "hls": { "cdns": { "alternate": { "url": "https://backup.vimeocdn.com/owned/alternate.m3u8?sig=dummy%2B" } } }
+    } }
+  },
+  {
+    "video": { "id": 900003, "title": "Owned progressive-only study" },
+    "request": { "files": { "progressive": [{ "quality": "1080p", "url": "https://primary.vimeocdn.com/owned/movie.mp4" }] } }
+  }
+]
