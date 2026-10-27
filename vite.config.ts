@@ -6,7 +6,12 @@ export default defineConfig({
     manifest_version: 3,
     name: 'Vimeo Grabber',
     version: '0.1.0',
-    description: 'A Vimeo-only extension shell. Detection and downloads are not available yet.',
+    description: 'List and download one synthetic Vimeo fixture stream.',
     action: { default_popup: 'popup.html' },
+    permissions: ['downloads'],
+    content_scripts: [{
+      matches: ['https://vimeo.com/*', 'https://www.vimeo.com/*', 'https://player.vimeo.com/*'],
+      js: ['src/detect/content.ts'],
+    }],
   }) })],
 });

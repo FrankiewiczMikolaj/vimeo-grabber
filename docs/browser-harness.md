@@ -4,9 +4,9 @@ The harness loads the real unpacked MV3 build and discovers its extension ID in
 `chrome://extensions/`. Headless mode opens `action.default_popup` in a tab.
 Headed mode uses `chrome.action.openPopup()` and inspects the separate Chromium
 action popup target. Neither path is a physical toolbar click.
-Both check the scaffold heading/message, title and English document. The bootstrap
-tab records page/console errors and failed requests; its external requests are
-blocked. No Vimeo access or video fixtures are needed.
+Both check the heading, title and English document. The bootstrap tab records
+page/console errors and failed requests; its external requests are blocked.
+No Vimeo access or video fixtures are needed for this loading smoke.
 
 ## Run
 
@@ -53,13 +53,14 @@ Observed on Playwright 1.64.1 / Chromium 156.0.8078.4 (revision 1248), under xvf
 - **Plain popup URL:** retained only as the headless smoke and headed bootstrap.
   It is not evidence of toolbar activation.
 
-For the later fixture end-to-end slice, replace the initial blank tab with the
-fixture tab and focus it before this action entry. The CDP child session is the
-popup interaction seam, not a Playwright `Page`: the attempted
+For the fixture end-to-end slice, replace the initial blank tab with the fixture
+tab and focus it before this action entry. The CDP child session is the popup
+interaction seam, not a Playwright `Page`: the attempted
 `context.waitForEvent('page', {timeout: 3000})` timed out despite the new popup
-target. This run proves neither a user click nor an `activeTab` permission grant,
-content injection, or download activation. Do not use `openPopup` to assume those
-grants. Chrome documents the API's version restrictions in the
+target. This loading smoke does not prove download activation. The popup now
+uses narrowly matched Vimeo content scripts rather than `activeTab`: opening via
+the action API must not be treated as granting that permission. Chrome documents
+the API's version restrictions in the
 [action reference](https://developer.chrome.com/docs/extensions/reference/api/action#method-openPopup).
 
 ## Evidence and failures

@@ -123,7 +123,6 @@ async function exerciseAction(popupUrl) {
   assert.equal(diagnostics.popup.title, 'Vimeo Grabber');
   assert.equal(diagnostics.popup.lang, 'en');
   assert.equal(diagnostics.popup.heading, 'Vimeo Grabber');
-  assert.match(diagnostics.popup.text, /detection and downloads are not available yet/);
   assert.equal(diagnostics.popup.isPopup, true, 'target must be an actual extension popup view');
   assert.equal(diagnostics.popup.popupViews, 1);
   // Focus another tab: a real action popup must disappear, unlike the bootstrap tab.
@@ -192,7 +191,6 @@ try {
     await page.getByRole('heading', { name: 'Vimeo Grabber', exact: true }).waitFor();
     assert.equal(await page.title(), 'Vimeo Grabber');
     assert.equal(await page.locator('html').getAttribute('lang'), 'en');
-    assert.match(await page.locator('main').innerText(), /detection and downloads are not available yet/);
     await page.screenshot({ path: resolve(artifacts, 'popup.png'), fullPage: true });
   }
   assert.deepEqual(diagnostics.pageErrors, []);

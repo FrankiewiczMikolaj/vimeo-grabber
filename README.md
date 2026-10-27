@@ -1,7 +1,8 @@
 # Vimeo Grabber
 
-A Vimeo-only Chromium Manifest V3 extension shell. The English popup identifies
-this project. Video detection and downloads are not implemented.
+A Vimeo-only Chromium Manifest V3 extension. The English popup lists one explicitly
+synthetic fixture stream and saves its plain-text dummy file. Real Vimeo video
+extraction and downloads are not implemented.
 
 ## Linux development
 
@@ -20,9 +21,9 @@ smoke. It does not contact Vimeo. Run it before every push.
 
 The smoke uses Playwright **1.64.1**, `channel: 'chromium'`, and the installed
 Chromium browser. On a new Linux developer machine, provision the browser with
-`pnpm exec playwright install chromium`; this scaffold does not install system
-packages. The smoke saves `artifacts/popup.png` and removes its browser profile.
-The dedicated browser slice will add broader browser coverage.
+`pnpm exec playwright install chromium`; this project does not install system
+packages. The smoke saves `artifacts/headless/popup.png` and removes its browser
+profile. See [the harness entry and limits](docs/browser-harness.md).
 
 - `pnpm dev`: Vite development server.
 - `pnpm build`: production extension in `dist/`.
@@ -35,13 +36,16 @@ The dedicated browser slice will add broader browser coverage.
 Run `pnpm build`. Open `chrome://extensions`, enable Developer mode, select
 **Load unpacked**, and choose this checkout's `dist/` directory. Pin Vimeo Grabber
 and click its toolbar icon to open the popup. Rebuild and reload the extension
-after changes. The shell requests no permissions and makes no network requests.
+after changes. The extension requests `downloads` and runs a bundled detector only
+on HTTPS `vimeo.com`, `www.vimeo.com`, and `player.vimeo.com` pages. It needs no
+`activeTab`, `tabs`, scripting, or broad host permission. It makes no network
+requests. See [the fixture contract](docs/fixture-detection.md).
 
 ## Legal
 
 Only download content you have rights to. You install and use this project at
-your own risk. The author and contributors are not liable. No downloads are
-available in this scaffold. Distribution is planned through GitHub Releases,
+your own risk. The author and contributors are not liable. The synthetic fixture
+downloads plain text only. Distribution is planned through GitHub Releases,
 not browser stores.
 
 Licensed under the [MIT License](LICENSE).
