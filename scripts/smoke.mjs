@@ -453,8 +453,20 @@ try {
   await waitText('1920');
   // Real revocation API must invalidate qualities, not keep stale successful tracks.
   await evaluate("chrome.permissions.remove({origins:['https://owned.vimeocdn.com/*']})");
-  await waitText('Metadata access is needed');
-  assert.equal(await evaluate("document.querySelectorAll('.tracks li').length"), 0);
+  await evaluate(`new Promise((resolve,reject) => {
+    const deadline = Date.now()+8000;
+    const check = async () => {
+      const [tab] = await chrome.tabs.query({active:true,currentWindow:true});
+      const state = await chrome.runtime.sendMessage({type:'popup-state',tabId:tab.id});
+      const revoked = state.results.filter(candidate =>
+        candidate.manifest && new URL(candidate.manifest.url).origin === 'https://owned.vimeocdn.com');
+      if (revoked.length && !state.frames.some(frame => frame.status === 'pending') &&
+        revoked.every(candidate => candidate.status === 'permission-needed' && !candidate.tracks.length) &&
+        document.querySelectorAll('.tracks li').length === 0) return resolve(true);
+      if (Date.now()>deadline) return reject(new Error('Revoked-origin tracks did not clear'));
+      setTimeout(check,50);
+    }; check();
+  })`);
   await capture('revoked');
   await active.locator('iframe').evaluate(frame => frame.remove());
   await waitText('No Vimeo');
