@@ -3,7 +3,7 @@
 `parseHls(text, manifest, responseUrl = manifest.url)` in `src/detect/hls.ts`
 consumes a decoded master playlist and shared `ManifestReference`. It performs no
 fetch, key access, segment access, permission decision or runtime integration.
-The M1 runtime is unchanged. Run `node --test test/hls.test.mjs` for owned fixtures.
+Run `node --test test/hls.test.mjs` for owned fixtures.
 
 The result contains shared `DetectionStatus`, `tracks` and `audioGroups`.
 Each track implements shared `Track` with parser-local `uri` (resolved playlist URL)

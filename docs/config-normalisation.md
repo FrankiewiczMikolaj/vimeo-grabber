@@ -4,7 +4,7 @@
 `normalisePlayerConfig(config: unknown, source: DetectionSource): NormalisedVideo | null`.
 It consumes an already decoded player config, not a script, JSON string, or page wrapper.
 It performs no network access, DOM discovery, manifest parsing, or permission decisions.
-The M1 detector and runtime remain unchanged; this API is for subsequent M2 integration.
+The frame observer and worker resolver use this shared model for detection.
 
 ## Supported input and result
 

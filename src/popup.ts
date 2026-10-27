@@ -1,44 +1,225 @@
 import './popup.css';
-import type { DetectedStream } from './detect';
-import { downloadStream } from './download';
+import type { FramePublication } from './detect/frame-state';
+import type { DetectionStatus, NormalisedVideo, Track } from './detect/model';
 
+type Result = { video: NormalisedVideo; permissionOrigins: readonly string[] };
+type PopupState = { frames: readonly FramePublication[]; results: readonly Result[]; attemptedOrigins: readonly string[] };
+type PermissionState = {
+  granted: boolean | null;
+  requesting: boolean;
+  notice: 'denied' | 'error' | 'revoked' | null;
+};
 const status = document.querySelector<HTMLParagraphElement>('#status')!;
-const streams = document.querySelector<HTMLElement>('#streams')!;
+const videos = document.querySelector<HTMLElement>('#streams')!;
+const permissions = new Map<string, PermissionState>();
+let tabId: number;
+let snapshot: PopupState | null = null;
+let polling = false;
+let revision = 0;
+let rendered = '';
 
-async function loadStreams() {
+const labels: Record<DetectionStatus, string> = {
+  pending: 'Looking for qualities…',
+  found: 'Metadata found. This does not confirm playable or downloadable media.',
+  unavailable: 'Qualities are unavailable.',
+  'permission-needed': 'Metadata access is needed to inspect qualities.',
+  denied: 'Metadata access was denied. Qualities are unavailable.',
+  protected: 'Protected content. No usable tracks are offered.',
+  unsupported: 'This metadata format is not supported.',
+};
+
+function element<K extends keyof HTMLElementTagNameMap>(tag: K, text: string) {
+  const node = document.createElement(tag);
+  node.textContent = text;
+  return node;
+}
+
+// Permission requests must contain only an exact encountered HTTPS CDN origin.
+function cdnOrigin(value: string): string | null {
+  try {
+    const url = new URL(value);
+    return value === url.origin && url.protocol === 'https:' && !url.port &&
+      (url.hostname === 'vimeocdn.com' || url.hostname.endsWith('.vimeocdn.com'))
+      ? url.origin : null;
+  } catch { return null; }
+}
+
+function manifestOrigin(value: string): string | null {
+  try { return cdnOrigin(new URL(value).origin); } catch { return null; }
+}
+
+function originsFor(result: Result): string[] {
+  return [...new Set([
+    ...result.permissionOrigins.map(cdnOrigin),
+    ...result.video.manifests.map(item => manifestOrigin(item.url)),
+  ].filter((origin): origin is string => origin !== null))];
+}
+
+function permissionState(origin: string): PermissionState {
+  let state = permissions.get(origin);
+  if (!state) {
+    state = { granted: null, requesting: false, notice: null };
+    permissions.set(origin, state);
+  }
+  return state;
+}
+
+function trackItem(track: Track): HTMLLIElement {
+  const item = document.createElement('li');
+  const kinds = { video: 'Video', audio: 'Audio', combined: 'Combined video and audio' };
+  item.append(element('h3', `${kinds[track.kind]} · ${track.manifest.protocol.toUpperCase()}`));
+  const details = document.createElement('dl');
+  const fields: [string, string | number | null][] = [
+    ['Representation', track.id], ['Audio group', track.groupId],
+    ['Codec', track.codec], ['MIME type', track.mimeType],
+    ['Bandwidth', track.bandwidth === null ? null : `${track.bandwidth} bit/s`],
+    ['Width', track.width === null ? null : `${track.width} px`],
+    ['Height', track.height === null ? null : `${track.height} px`],
+    ['Frame rate', track.frameRate === null ? null : `${track.frameRate} fps`],
+    ['Language', track.language], ['Channels', track.channels],
+  ];
+  for (const [label, value] of fields) {
+    details.append(element('dt', label), element('dd', value === null || value === '' ? 'Unknown' : String(value)));
+  }
+  item.append(details);
+  return item;
+}
+
+function renderPermission(origin: string, encountered: boolean): HTMLElement {
+  const section = document.createElement('div');
+  section.className = 'permission';
+  const state = permissionState(origin);
+  if (state.notice === 'denied') {
+    section.append(element('p', `Access to ${origin} was not granted or was denied. Qualities remain unavailable for this origin.`));
+  } else if (state.notice === 'error') {
+    section.append(element('p', `Access to ${origin} could not be requested. No access was granted.`));
+  } else if (state.notice === 'revoked') {
+    section.append(element('p', `Metadata access to ${origin} was revoked. Detection is refreshing; earlier metadata may be out of date.`));
+  }
+  if (!encountered || state.granted === true) return section;
+  section.append(element('p', `Allow metadata access to ${origin} to inspect qualities. No media files are fetched.`));
+  const button = element('button', state.requesting ? 'Waiting for permission…' : `Allow ${origin}`);
+  button.type = 'button';
+  button.disabled = state.requesting;
+  button.addEventListener('click', () => {
+    // Keep the request in this gesture's click stack, without awaiting messaging.
+    // Chrome closes the action popup for its native permission dialog.
+    void chrome.runtime.sendMessage({ type: 'permission-attempt', tabId, origin });
+    let request: Promise<boolean>;
+    try {
+      request = chrome.permissions.request({ origins: [`${origin}/*`] });
+    } catch {
+      state.notice = 'error';
+      render();
+      return;
+    }
+    state.requesting = true;
+    revision++;
+    render();
+    void request.then(granted => {
+      state.granted = granted;
+      state.notice = granted ? null : 'denied';
+    }, () => {
+      state.notice = 'error';
+    }).finally(() => {
+      state.requesting = false;
+      revision++;
+      render();
+      void refresh();
+    });
+  });
+  section.append(button);
+  return section;
+}
+
+function render() {
+  if (!snapshot) return;
+  const next = JSON.stringify([snapshot, [...permissions]]);
+  if (next === rendered) return;
+  rendered = next;
+  const pending = snapshot.frames.some(frame => frame.status === 'pending');
+  const failed = snapshot.frames.some(frame => frame.status === 'error');
+  status.textContent = snapshot.results.length
+    ? `${snapshot.results.length} video${snapshot.results.length === 1 ? '' : 's'} detected.${pending ? ' Looking for more qualities…' : ''}${failed ? ' Some frames could not be inspected.' : ''}`
+    : pending ? 'Looking for Vimeo video metadata…'
+      : failed ? 'Some Vimeo frames could not be inspected. Reload the page to try again.'
+        : 'No Vimeo videos detected. Open a Vimeo page or a page with a Vimeo player. Reload existing pages after installing the extension.';
+  const cards = snapshot.results.map(result => {
+    const { video } = result;
+    const card = document.createElement('article');
+    card.append(element('h2', video.title?.trim() ? video.title : `Vimeo video ${video.id}`));
+    let source = 'Unknown';
+    try { source = new URL(video.source.frameUrl).hostname; } catch { /* Never render an unparsed URL. */ }
+    card.append(element('p', `Source: ${source} · Video ${video.id}`), element('p', labels[video.status]));
+    const origins = originsFor(result);
+    for (const origin of origins) {
+      const encountered = video.status === 'permission-needed' && result.permissionOrigins.includes(origin);
+      card.append(renderPermission(origin, encountered));
+    }
+    if (video.tracks.length) {
+      const tracks = document.createElement('ul');
+      tracks.className = 'tracks';
+      tracks.setAttribute('aria-label', 'Video and audio qualities');
+      tracks.append(...video.tracks.map(trackItem));
+      card.append(tracks);
+    } else {
+      card.append(element('p', 'No track metadata available. Unknown qualities are not estimated.'));
+    }
+    return card;
+  });
+  videos.replaceChildren(...cards);
+}
+
+async function poll() {
+  if (polling || tabId === undefined) return;
+  polling = true;
+  const currentRevision = revision;
+  try {
+    const next: PopupState = await chrome.runtime.sendMessage({ type: 'popup-state', tabId });
+    const origins = [...new Set(next.results.flatMap(originsFor))];
+    await Promise.all(origins.map(async origin => {
+      const granted = await chrome.permissions.contains({ origins: [`${origin}/*`] });
+      const state = permissionState(origin);
+      if (currentRevision !== revision || state.requesting) return;
+      if (state.granted !== null && granted !== state.granted) {
+        state.notice = granted ? null : 'revoked';
+      }
+      state.granted = granted;
+      if (!granted && state.notice === null && next.attemptedOrigins.includes(origin)) state.notice = 'denied';
+    }));
+    if (currentRevision !== revision) return;
+    snapshot = next;
+    render();
+  } catch {
+    snapshot = null;
+    rendered = '';
+    videos.replaceChildren();
+    status.textContent = 'Cannot inspect this page. Reload it and reopen the popup to try again.';
+  } finally { polling = false; }
+}
+
+async function refresh() {
+  try { await chrome.runtime.sendMessage({ type: 'refresh', tabId }); } catch { /* Poll reports worker failures. */ }
+  await poll();
+}
+
+function permissionChanged() {
+  revision++;
+  void refresh();
+}
+chrome.permissions.onAdded.addListener(permissionChanged);
+chrome.permissions.onRemoved.addListener(permissionChanged);
+
+async function start() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab?.id === undefined) throw new Error('No active tab');
-    const detected: DetectedStream[] = await chrome.tabs.sendMessage(
-      tab.id, 'detect-synthetic-streams', { frameId: 0 },
-    );
-    if (detected.length === 0) {
-      status.textContent = 'No synthetic fixture stream found on this page.';
-      return;
-    }
-    status.textContent = 'Synthetic plain-text fixture only. Not a real Vimeo video.';
-    const stream = detected[0];
-    const title = document.createElement('h2');
-    title.textContent = stream.title;
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = 'Download synthetic file';
-    button.addEventListener('click', async () => {
-      button.disabled = true;
-      status.textContent = 'Requesting download…';
-      try {
-        await downloadStream(stream);
-        status.textContent = 'Download started. Check Chromium Downloads for completion.';
-      } catch {
-        status.textContent = 'Download could not start. Please try again.';
-      } finally {
-        button.disabled = false;
-      }
-    });
-    streams.append(title, button);
+    tabId = tab.id;
+    await poll();
+    const timer = window.setInterval(() => { void poll(); }, 500);
+    window.addEventListener('pagehide', () => { window.clearInterval(timer); }, { once: true });
   } catch {
-    status.textContent = 'Cannot inspect this page. Open a supported Vimeo page and reload it, then reopen the popup.';
+    status.textContent = 'No active tab is available to inspect.';
   }
 }
-
-void loadStreams();
+void start();
