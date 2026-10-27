@@ -53,6 +53,18 @@ The same granted exact origin serves the additional owned DASH JSON and MPD
 fixtures. The popup asserts every video/audio field, including representation,
 group, codec, MIME type, bandwidth, dimensions, frame rate, language and channels.
 
+HLS succeeds before a second DASH origin is granted. Native Return activates
+the focused permission button; Escape denies and Tab then Return grants Chrome's
+dialog. The second grant resolves all CDN entries on that origin, including a
+separate DASH pair, malformed JSON and protected MPD. HLS remains usable after
+denial and revocation; only the separate DASH pair receives preference. Every
+track must retain its own candidate's manifest.
+The AVC repair fixture supplies generic `url` and H.264 `avc_url` for each DASH
+CDN. It includes disabled DRM containers and returns inline base64 init only for
+`base64_init=1`. The compiled resolver and action proof check AVC preference,
+retained generic alternatives, untouched signed query bytes and original provenance.
+An explicit `base64_init=0` case stays clear without init; positive DRM regressions remain.
+
 An unrelated top page nests another unrelated page with Vimeo players. It also
 contains an inline decoy config that must not become a result. The matrix has five
 unique video IDs, an unavailable duplicate of a valid ID, malformed-first JSON
@@ -92,10 +104,11 @@ Screenshots: `permission-needed.png`, `denied.png`, `qualities.png`,
 `audio-footer.png`, `worker-rebuilt.png`, `revoked.png`, `removed.png` and
 `navigated.png` cover the existing scenarios. `dash-nested.png`, `dash-mpd.png`,
 `unavailable-states.png`, `tab-isolated.png`, `tab-restored.png` and
-`stale-response.png` cover the additional matrix. `diagnostics.json` records dummy
-request URLs, exact matrix fields and popup text; `trace.zip` contains the owned
-page interactions. Native X11 Escape denies the prompt; Tab then Return selects
-Allow. Neither permissions nor requests are mocked.
+`stale-response.png` cover the additional matrix. `hls-first.png`, `dash-denied.png`,
+`dash-preferred.png` and `dash-revoked.png` cover the independent second origin.
+`diagnostics.json` records query-redacted request URLs, exact matrix fields and
+popup text; `trace.zip` contains owned page interactions and dummy queries.
+Neither permissions nor requests are mocked.
 The worker-rebuild check kills only this fresh profile's extension renderer,
 confirms the old worker context is lost, then opens the real action on the unchanged
 fixture tab. The check proves loss of the prior execution context, not a change in

@@ -36,3 +36,15 @@ export interface NormalisedVideo {
   readonly manifests: readonly ManifestReference[];
   readonly tracks: readonly Track[];
 }
+
+/** One source-bound metadata alternative. Null manifest records a config-only outcome. */
+export interface PlaybackCandidate {
+  readonly id: string;
+  readonly videoId: string;
+  readonly title: string | null;
+  readonly source: DetectionSource;
+  readonly manifest: ManifestReference | null;
+  readonly status: DetectionStatus;
+  readonly tracks: readonly Track[];
+  readonly permissionOrigins: readonly string[];
+}

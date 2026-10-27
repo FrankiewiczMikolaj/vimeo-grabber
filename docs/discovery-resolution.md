@@ -1,9 +1,9 @@
 # Discovery to quality resolution
 
 `src/detect/resolve.ts` exports `resolveDiscovery(discovery: PageDiscovery,
-frameUrl: string)`. It returns a promise of readonly `{ video: NormalisedVideo,
-permissionOrigins: readonly string[] }` results. The extension caller must
-first authenticate the Chrome sender and its frame URL. This module is not a
+frameUrl: string)`. It returns readonly `PlaybackCandidate[]`. Each candidate has
+`id`, `videoId`, `title`, `source`, `manifest`, `status`, `tracks`, and `permissionOrigins`.
+The extension caller must first authenticate the Chrome sender and its frame URL. This module is not a
 runtime entrypoint, message validator, permission prompt or tab/frame store.
 
 Normalised inline videos are admitted directly through `MetadataTransport.inline`;
@@ -15,16 +15,19 @@ later caller mutations from authorising unrelated manifests.
 
 Alternatives run sequentially: inline videos in discovery order, then distinct
 config URLs in discovery order. Each video's manifest references keep their order.
-An exact reference is attempted at most once per video; a found video stops further
-alternatives for that ID without skipping other videos. There are no retry loops,
-child-playlist fetches or media requests. DASH `.json`, DASH `.mpd` and HLS `.m3u8`
-use the existing parsers and retain the supplied manifest references and queries.
+Every protocol/CDN/URL alternative is resolved, even after another succeeds.
+Identity includes video ID, source frame/config URL and the complete manifest
+reference. Only an identical candidate from the same source is deduplicated.
+A null manifest records a config-only unavailable or permission-needed outcome.
+There are no retry loops, child-playlist fetches or media requests. DASH `.json`,
+DASH `.mpd` and HLS `.m3u8` retain the supplied manifest references and queries.
 
-Failed paths do not erase stronger results. Status precedence is found, protected,
-permission-needed, unsupported, denied, unavailable, pending. Unknown track fields
-stay null. Missing grants accumulate only encountered exact origins per video,
-including when a later alternative succeeds. A caller may rerun after a grant;
-this function never requests one. Signed URLs stay in memory, not diagnostics.
+Status, tracks and missing origins belong to that candidate, with no video-level
+status precedence or first-success projection. Unknown track fields stay null.
+Failed, malformed or protected candidates cannot erase a usable sibling. Chrome
+grants apply only to the same exact origin; this function never requests one.
+Signed URLs and candidate IDs stay in memory, not diagnostics or rendered text.
+Track URL/init/segment fields and download behavior are unchanged.
 
 `mise exec -- node --test test/resolve.test.mjs test/metadata.test.mjs` compiles the
 actual resolver and transport into disposable MV3 workers in offline Chromium.

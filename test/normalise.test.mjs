@@ -16,8 +16,8 @@ test('owned config preserves identity, provenance, preferred CDN and every signe
   assert.equal(result.status, 'found');
   const files = configs[0].request.files;
   assert.deepEqual(result.manifests, [
-    { protocol: 'dash', cdn: 'primary', url: files.dash.cdns.primary.url },
     { protocol: 'dash', cdn: 'primary', url: files.dash.cdns.primary.avc_url },
+    { protocol: 'dash', cdn: 'primary', url: files.dash.cdns.primary.url },
     { protocol: 'dash', cdn: 'backup', url: files.dash.cdns.backup.url },
     { protocol: 'hls', cdn: 'primary', url: files.hls.cdns.primary.url },
   ]);
@@ -42,7 +42,7 @@ test('changed input drives output without mutation or guessed progressive qualit
   const result = normalise(input);
   assert.equal(result.id, input.video.id);
   assert.equal(result.title, input.video.title);
-  assert.equal(result.manifests[0].url, input.request.files.dash.cdns.primary.url);
+  assert.ok(result.manifests.some(reference => reference.url === input.request.files.dash.cdns.primary.url));
   assert.deepEqual(input, before);
   assert.deepEqual(normalise(configs[2]), {
     id: '900003', title: 'Owned progressive-only study', source,
@@ -63,5 +63,17 @@ test('unsupported roots, identities and fields cannot fabricate metadata', () =>
     assert.equal(result.title, null);
     assert.equal(result.status, 'unavailable');
     assert.deepEqual(result.manifests, []);
+  }
+});
+
+test('only positive config protection declarations suppress clear alternatives', () => {
+  assert.equal(normalise({ ...configs[0], drm: { enabled: false, widevine: {} } }).status, 'found');
+  for (const config of [
+    { ...configs[0], drm: { enabled: true } },
+    { ...configs[0], video: { ...configs[0].video, encrypted: true } },
+  ]) {
+    const result = normalise(config);
+    assert.equal(result.status, 'protected');
+    assert.equal(result.manifests.length, 4);
   }
 });

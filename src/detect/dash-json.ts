@@ -1,4 +1,5 @@
 import type { DetectionStatus, ManifestReference, Track } from './model';
+import { hasProtection } from './protection.ts';
 
 type Fields = Record<string, unknown>;
 const fields = (value: unknown): Fields =>
@@ -9,12 +10,6 @@ const positive = (value: unknown): number | null =>
   typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
 const integer = (value: unknown): number | null =>
   positive(value) !== null && Number.isSafeInteger(value) ? value as number : null;
-const protectedFields = (entry: Fields): boolean => ['drm', 'content_protection'].some(key => {
-  const value = entry[key];
-  if (Array.isArray(value)) return value.length > 0;
-  if (typeof value === 'object' && value !== null) return Object.keys(value).length > 0;
-  return value !== undefined && value !== null && value !== false && value !== '';
-});
 
 function resolve(value: unknown, base?: string): string | null {
   if (typeof value !== 'string' || value.trim() !== value) return null;
@@ -44,7 +39,7 @@ export function parseDashJson(
   const response = resolve(responseUrl);
   if (manifest.protocol !== 'dash' || response === null) return { status: 'unsupported', tracks: [] };
   const rootBase = root.base_url === undefined ? response : resolve(root.base_url, response);
-  const rootProtected = protectedFields(root);
+  const rootProtected = hasProtection(root);
   let protectedData = rootProtected;
   const tracks: DashJsonTrack[] = [];
   const supported = Array.isArray(root.video) || Array.isArray(root.audio);
@@ -53,7 +48,7 @@ export function parseDashJson(
     if (!Array.isArray(entries)) continue;
     for (const value of entries) {
       const entry = fields(value);
-      const protectedTrack = rootProtected || protectedFields(entry);
+      const protectedTrack = rootProtected || hasProtection(entry);
       protectedData ||= protectedTrack;
       const id = text(entry.id) ?? (integer(entry.id) !== null ? String(entry.id) : null);
       if (id === null) continue;
