@@ -131,7 +131,7 @@ try {
   await active.frames().find(frame => frame.url().startsWith('https://player.vimeo.com/'))
     .evaluate(() => {
       globalThis.history.pushState({}, '', '/video/20?h=owned');
-      const script = document.querySelector('script[type="application/json"]');
+      const script = globalThis.document.querySelector('script[type="application/json"]');
       const config = JSON.parse(script.textContent);
       config.video.title = 'Updated owned video';
       script.textContent = JSON.stringify(config);
@@ -204,9 +204,9 @@ try {
   await waitText('No Vimeo');
   await capture('removed');
   await active.evaluate(() => {
-    const frame = document.createElement('iframe');
+    const frame = globalThis.document.createElement('iframe');
     frame.src = 'https://player.vimeo.com/video/20';
-    document.body.append(frame);
+    globalThis.document.body.append(frame);
   });
   await waitText('owned.vimeocdn.com');
   await active.locator('iframe').evaluate(frame => { frame.src = 'https://example.com/empty'; });
