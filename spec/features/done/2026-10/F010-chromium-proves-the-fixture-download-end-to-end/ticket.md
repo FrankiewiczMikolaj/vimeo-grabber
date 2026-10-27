@@ -1,5 +1,6 @@
 ---
 opened: 2026-10-27
+landed: 2026-10-27
 ---
 
 # F010 · Chromium proves the fixture download end to end

@@ -30,25 +30,23 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 ## TRACK
 
-- M1 Walking skeleton: owned synthetic Vimeo fixture, typed fixture detection, one popup stream, dummy Downloads API save, and real Chromium end-to-end proof.
+- M1 Walking skeleton is owner-merged through PR #19: synthetic Vimeo fixture detection, popup listing, real Downloads API dummy save, and default real-action Chromium e2e.
 - M0 is owner-closed; Bob published v0.1.0 as a GitHub pre-release at cdc458a, and milestone M0 Foundation is closed.
 
 ## NOW
 
 <!-- Generated from spec/features/active/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
-- `F010-chromium-proves-the-fixture-download-end-to-end` (🟠 ACTIVE): Chromium proves the fixture download end to end
-
 ## NEXT
 
-- The popup and real Downloads API dummy save are owner-merged; prove the assembled fixture download in the default Chromium verification path.
-- Finish M1 only after the persistent end-to-end draft passes both required checks and Mikołaj merges it.
-- Keep PRs small and draft, preserve both required workflows, and report the actual toolbar entry path without claiming direct popup URL navigation is a click.
+- Record the final merged M1 outcomes; do not begin M2 without the owner's direction.
+- Keep action API activation distinct from physical toolbar clicking; no live Vimeo extraction or real Downloads API rejection is claimed.
 
 ## PROVEN
 
 <!-- Generated from spec/features/done/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
+- `F010-chromium-proves-the-fixture-download-end-to-end` (🟢 PROVEN): Chromium proves the fixture download end to end; landed 2026-10-27
 - `F009-the-popup-lists-and-downloads-a-fixture-stream` (🟢 PROVEN): The popup lists and downloads a fixture stream; landed 2026-10-27
 - `F008-chromium-exercises-the-extension-toolbar-action` (🟢 PROVEN): Chromium exercises the extension toolbar action; landed 2026-10-27
 - `F007-a-synthetic-vimeo-page-exposes-one-detectable-stream` (🟢 PROVEN): A synthetic Vimeo page exposes one detectable stream; landed 2026-10-27
@@ -58,7 +56,7 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 - `F003-chromium-harness-proves-the-unpacked-extension` (🟢 PROVEN): Chromium harness proves the unpacked extension; landed 2026-10-27
 - `F002-pull-requests-produce-verified-extension-zip-artifacts` (🟢 PROVEN): Pull requests produce verified extension zip artifacts; landed 2026-10-27
 - `F001-vite-builds-a-chromium-extension-shell` (🟢 PROVEN): Vite builds a Chromium extension shell; landed 2026-10-27
-- 2026-10: 9 landed. spec/features/done/2026-10/
+- 2026-10: 10 landed. spec/features/done/2026-10/
 
 ## PARKED
 

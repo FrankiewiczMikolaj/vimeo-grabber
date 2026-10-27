@@ -1,0 +1,3 @@
+# Outcome
+
+Mikołaj merged persistent fixture end-to-end verification in PR #19 as `27bf562`. Default pnpm verify now opens the real Chromium action popup under xvfb, lists the offline fixture stream, clicks download, observes native completion, and checks the requested filename and exact 39 bytes. The same owned HTML on an unsupported origin produces no stream, button, extra download record, or extra saved file. A missing-content-script build failed with retained rendered diagnostics; local verification and both required PR checks passed. This proves action API activation, not physical toolbar clicking, live Vimeo extraction, or a Downloads API rejection.
