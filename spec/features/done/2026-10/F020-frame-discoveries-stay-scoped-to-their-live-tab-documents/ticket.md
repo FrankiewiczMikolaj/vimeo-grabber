@@ -1,5 +1,6 @@
 ---
 opened: 2026-10-27
+landed: 2026-10-27
 ---
 # F020 · Frame discoveries stay scoped to their live tab documents
 
