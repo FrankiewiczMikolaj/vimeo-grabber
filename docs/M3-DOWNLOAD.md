@@ -37,6 +37,24 @@ Bob performs the requested live checks in his browser.
    first use after install. Retain only acknowledgement state across updates;
    preserve the footer and show the notice for a fresh install/profile.
 
+## Track reference contract (#42)
+
+`Track.manifest` binds the track to its candidate's original protocol/CDN/URL;
+the enclosing candidate owns frame/config provenance. `Track.download` is a
+serialisable discriminated union: `playlist` with its own media-playlist `url`,
+`resources` with ordered `resources`, or `unavailable` with a reason (`protected`,
+`missing-initialization`, `unknown`, `unsafe`, `unsupported`). A resource is
+`{ role: 'initialization', kind: 'inline-base64', data }` or
+`{ role: 'initialization' | 'media', kind: 'url', url }`. Initialization is first,
+then media in declared order. Inline data stays bounded base64 text, not a byte
+buffer copied through popup polling. No locator is a permission grant.
+
+HLS variants and separate audio retain independent playlist URLs and audio group
+identity. DASH JSON stacks response/manifest/stream/resource bases with standard
+query replacement. MPD supports explicit complete SegmentList resources; a base
+directory, SegmentBase, template, byte range or partial inherited list is not
+guessed into a file. Detection `found` still means metadata, not download eligibility.
+
 ## Permissions and proof
 
 Keep the current Vimeo frame boundary and exact encountered CDN grants. Add only

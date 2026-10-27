@@ -131,7 +131,7 @@ test('compiled discovery resolver uses finite metadata fallback and real Chromiu
     assert.deepEqual(requests.slice(repairStart), [config('900008'),
       `${originalUrls[0]}&base64_init=1`, `${originalUrls[1]}&base64_init=1`, originalUrls[2], originalUrls[3]]);
     assert.ok(repaired.every(candidate => candidate.tracks.every(track =>
-      JSON.stringify(track.manifest) === JSON.stringify(candidate.manifest) && track.protected === false)));
+      JSON.stringify(track.manifest) === JSON.stringify(candidate.manifest) && track.download.reason !== 'protected')));
     assert.equal(dashAvcResponse(originalUrls[3]).video[0].init_segment, undefined);
     assert.ok(dashAvcResponse(requests[repairStart + 1]).video[0].init_segment);
     const protectedStart = requests.length;

@@ -1,5 +1,5 @@
 import { SaxesParser } from 'saxes';
-import type { DetectionStatus, ManifestReference, Track } from './model';
+import type { DetectionStatus, DownloadReference, DownloadResource, ManifestReference, Track } from './model';
 
 interface Element {
   name: string;
@@ -7,13 +7,9 @@ interface Element {
   children: Element[];
   text: string;
 }
-export interface MpdTrack extends Track {
-  /** Resolved first BaseURL at each level; not a segment or download URL. */
-  readonly baseUrl: string;
-}
 export interface MpdResult {
   readonly status: DetectionStatus;
-  readonly tracks: readonly MpdTrack[];
+  readonly tracks: readonly Track[];
 }
 const namespace = 'urn:mpeg:dash:schema:mpd:2011';
 const children = (node: Element, name: string) => node.children.filter(child => child.name === name);
@@ -23,6 +19,30 @@ const numeric = (value: string | undefined, rational = false): number | null => 
   const result = Number(n) / Number(d);
   return Number.isFinite(result) && result > 0 ? result : null;
 };
+
+function resources(list: Element | undefined, base: string, unsafe: boolean): DownloadReference {
+  if (unsafe) return { kind: 'unavailable', reason: 'unsafe' };
+  if (!list) return { kind: 'unavailable', reason: 'unsupported' };
+  const init = children(list, 'Initialization');
+  if (!init.length) return { kind: 'unavailable', reason: 'missing-initialization' };
+  const media = children(list, 'SegmentURL');
+  if (init.length !== 1 || !media.length) return { kind: 'unavailable', reason: 'unknown' };
+  const result: DownloadResource[] = [];
+  for (const [index, node] of [init[0], ...media].entries()) {
+    if (node.attrs.range || node.attrs.mediaRange || node.attrs.index || node.attrs.indexRange) {
+      return { kind: 'unavailable', reason: 'unsupported' };
+    }
+    const value = node.attrs[index === 0 ? 'sourceURL' : 'media'];
+    if (!value) return { kind: 'unavailable', reason: 'unknown' };
+    let url: URL;
+    try { url = new URL(value, base); }
+    catch { return { kind: 'unavailable', reason: 'unsafe' }; }
+    if (/\s|\\/.test(value) || url.protocol !== 'https:' ||
+        url.username || url.password || url.hash) return { kind: 'unavailable', reason: 'unsafe' };
+    result.push({ role: index === 0 ? 'initialization' : 'media', kind: 'url', url: url.href });
+  }
+  return { kind: 'resources', resources: result };
+}
 
 /** Pure metadata parser. The caller owns response URL authorization and fetching. */
 export function parseDashMpd(xml: string, manifest: ManifestReference,
@@ -55,10 +75,11 @@ export function parseDashMpd(xml: string, manifest: ManifestReference,
     parser.write(xml).close();
     if (!root || root.name !== 'MPD') return invalid;
     if (protectedContent) return { status: 'protected', tracks: [] };
-    const tracks: MpdTrack[] = [];
+    const tracks: Track[] = [];
     let skipped = false;
     const visit = (node: Element, inherited: Record<string, string>, parentUrl: string,
-      parentChannels: string | null, groupId: string | null, path: string) => {
+      parentChannels: string | null, groupId: string | null, path: string,
+      inheritedList?: Element, unsafe = false) => {
       const components = children(node, 'ContentComponent');
       const kinds = new Set(components.map(child => child.attrs.contentType).filter(Boolean));
       const languages = new Set(components.map(child => child.attrs.lang).filter(Boolean));
@@ -73,7 +94,14 @@ export function parseDashMpd(xml: string, manifest: ManifestReference,
       }
       if (kinds.has('video') && kinds.has('audio')) attrs.contentType = 'combined';
       const base = children(node, 'BaseURL')[0]?.text.trim();
-      const baseUrl = base ? new URL(base, parentUrl).href : parentUrl;
+      const resolvedBase = new URL(base || parentUrl, parentUrl);
+      const baseUrl = resolvedBase.href;
+      unsafe ||= /\\/.test(base ?? parentUrl) || resolvedBase.protocol !== 'https:' ||
+        !!resolvedBase.username || !!resolvedBase.password || !!resolvedBase.hash;
+      const addressing = node.children.filter(child =>
+        ['SegmentList', 'SegmentBase', 'SegmentTemplate'].includes(child.name));
+      const list = addressing.length ? addressing.length === 1 && addressing[0].name === 'SegmentList'
+        ? addressing[0] : undefined : inheritedList;
       const channelNode = children(node, 'AudioChannelConfiguration')[0];
       const channels = channelNode ? channelNode.attrs.value || null : parentChannels;
       if (node.name === 'AdaptationSet') groupId = node.attrs.id || null;
@@ -83,7 +111,8 @@ export function parseDashMpd(xml: string, manifest: ManifestReference,
         const kind = mediaType === 'video' || mediaType === 'audio' || mediaType === 'combined' ? mediaType : null;
         if (!kind) { skipped = true; return; }
         tracks.push({
-          id: node.attrs.id || path, groupId, kind, manifest, baseUrl,
+          id: node.attrs.id || path, groupId, kind, manifest,
+          download: resources(list, baseUrl, unsafe),
           codec: attrs.codecs || null, mimeType, bandwidth: numeric(attrs.bandwidth),
           width: numeric(attrs.width), height: numeric(attrs.height),
           frameRate: numeric(attrs.frameRate, true), language: attrs.lang || null, channels,
@@ -92,7 +121,7 @@ export function parseDashMpd(xml: string, manifest: ManifestReference,
       }
       node.children.forEach((child, index) => {
         if (['Period', 'AdaptationSet', 'Representation'].includes(child.name)) {
-          visit(child, attrs, baseUrl, channels, groupId, `${path}/${index}`);
+          visit(child, attrs, baseUrl, channels, groupId, `${path}/${index}`, list, unsafe);
         }
       });
     };

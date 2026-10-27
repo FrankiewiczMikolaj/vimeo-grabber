@@ -12,7 +12,7 @@ const variant = (attrs = '', uri = 'child.m3u8') => `#EXTM3U\n#EXT-X-STREAM-INF:
 test('owned qualities link exact audio metadata and preserve provenance and query semantics', () => {
   const result = parseHls(fixture, manifest, base);
   assert.equal(result.status, 'found');
-  assert.deepEqual(result.tracks.map(t => [t.id, t.kind, t.groupId, t.uri]), [
+  assert.deepEqual(result.tracks.map(t => [t.id, t.kind, t.groupId, t.download.kind === 'playlist' ? t.download.url : null]), [
     ['variant:0', 'video', 'stereo', 'https://owned.vimeocdn.com/path/low/index.m3u8'],
     ['variant:1', 'video', 'stereo', 'https://owned.vimeocdn.com/high.m3u8?sig=explicit&empty='],
     ['audio:0', 'audio', 'stereo', 'https://owned.vimeocdn.com/audio/en.m3u8?sig=%2f+%3d&x=&x=2'],
