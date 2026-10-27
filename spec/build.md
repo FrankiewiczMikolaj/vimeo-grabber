@@ -45,10 +45,10 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 ## NEXT
 
-- Shared config/model normalisation is owner-merged; run DASH JSON and HLS parsers from latest main on disjoint source/test/fixture/docs files.
-- Both parsers consume src/detect/model.ts without modifying it; retain input manifest provenance and document parser-local resolved URI data when needed.
-- Standard MPD follows as its own small ticket; keep existing runtime, permissions and shared scripts unchanged in the parser drafts.
-- Continue with discovery, fetch/frame runtime, popup cutover and offline e2e under docs/M2-DETECTION.md, max two workers and both required checks.
+- HLS is owner-merged; standard MPD draft PR #28 has passed both checks and awaits human review.
+- DASH JSON draft PR #27 remains under a focused smoke-completion repair; preserve strict native download assertions.
+- Run pure multi-path config discovery on disjoint files while the smoke repair finishes; no runtime, permission or download cutover in that slice.
+- Continue with fetch/frame runtime, popup cutover and offline e2e under docs/M2-DETECTION.md, max two workers and both required checks.
 - Keep Vimeo-only frame access, offline CI and metadata-only fetching; real media downloading remains M3.
 
 ## PROVEN

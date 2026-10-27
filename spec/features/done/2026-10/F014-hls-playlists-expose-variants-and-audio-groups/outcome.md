@@ -1,0 +1,3 @@
+# Outcome
+
+Mikołaj merged HLS metadata parsing in PR #26 as `b3481b3`. The pure parser returns variant qualities and linked audio rendition metadata while preserving manifest provenance, quoted attributes, and relative/query URL semantics. Owned regressions and compiled execution in Chromium proved external/in-band/combined audio handling, malformed-input rejection, advertised protection, and zero network requests. Local pnpm verify passed fourteen unit tests and the existing real action-popup/native-download smoke, and both required PR checks passed. Live Vimeo compatibility, child-playlist protection, runtime integration, and media downloading are not claimed.
