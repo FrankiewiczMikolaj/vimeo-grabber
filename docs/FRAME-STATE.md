@@ -2,7 +2,7 @@
 
 `src/worker.ts` composes `src/detect/frame-state.ts` with the metadata resolver.
 Its resolver takes `(PageDiscovery, authoritativeFrameUrl)` and returns readonly
-`{ video: NormalisedVideo, permissionOrigins: readonly string[] }[]`.
+`PlaybackCandidate[]` (see [candidate resolution](discovery-resolution.md)).
 The resolver is trusted worker code. It must apply metadata admission before any
 fetch; this broker does not fetch or grant permissions. Payload video IDs identify
 videos only, never tabs, frames or documents.
@@ -43,11 +43,11 @@ removal or clear invalidates the old completion, including old errors.
 `publish` returns false for invalid/unregistered reports and true for admitted work,
 not a promise that the document remains live or resolution succeeds.
 
-`videos(tab)` prefers a whole live `found` result with tracks for each video ID.
-Equivalent results use the lowest frame ID. It does not combine tracks, source URLs
-or permission origins across documents.
-When that frame disappears, the next live result supplies all provenance. Resolver
-outputs must preserve their authoritative source and exact permission origins.
+`candidates(tab)` retains every live document's candidates, including identical
+video IDs and URLs in separate frames. It adds `frameId` and `documentId`, and
+scopes candidate `id` to that frame/document lifetime. Removing a frame removes
+only its candidates. No tracks, sources, statuses or permission origins are merged.
+Resolver outputs preserve their authoritative source and exact missing origins.
 
 Admission limits: 32 videos, 64 config URLs, 32 manifests/video, 256 tracks/video,
 8192 characters/string, 262144 serialized characters and traversal budget,
@@ -60,7 +60,7 @@ its receipts, CDN allowlist and exact-origin permission checks remain mandatory.
 `mise exec -- node --test test/frame-state.test.mjs` builds the core and loads it
 in an offline Chromium MV3 worker. A real content script proves Chrome sender
 admission. Deferred resolutions exercise replacement, invalidation, errors,
-whole-result deduplication, tab isolation and restart-style rebuilding. The test
+candidate/document identity, tab isolation and restart-style rebuilding. The test
 owns and removes its temporary extension/profile; no live metadata or media is used.
 
 The content script connects before reporting. Chrome port sender fields authenticate
@@ -79,3 +79,10 @@ tab-scoped in-memory record that a request was attempted; reopening checks actua
 Chrome permission state and says “not granted or was denied” if still ungranted.
 It never infers that an abandoned or failed request was an explicit refusal.
 Grant/revocation events replay reports and invalidate earlier resolution results.
+
+The popup counts unique video IDs but renders each candidate independently.
+For each video, the first found DASH candidate with both separate video and audio
+is marked preferred and listed first. HLS remains visible. A DASH video-only
+candidate and a separate audio-only candidate cannot form a preferred pair.
+Permission controls depend on each candidate's missing origin, never another
+candidate's success. Denial/revocation notices are shared only for that exact origin.

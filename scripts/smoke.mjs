@@ -104,6 +104,8 @@ try {
   const dash = await readFile('test/fixtures/dash-json.json', 'utf8');
   const mpd = await readFile('test/fixtures/dash-mpd.mpd', 'utf8');
   const secondDash = { ...config, request: { files: { ...config.request.files, dash: { cdns: {
+    videoOnly: { url: 'https://second.vimeocdn.com/video-only.json' },
+    audioOnly: { url: 'https://second.vimeocdn.com/audio-only.json' },
     separate: { url: 'https://second.vimeocdn.com/dash.json?sig=dummy' },
     malformed: { url: 'https://second.vimeocdn.com/malformed.json' },
     protected: { url: 'https://second.vimeocdn.com/protected.mpd' },
@@ -143,6 +145,8 @@ try {
     if (url === 'https://example.com/empty') return route.fulfill({ contentType: 'text/html', body: '<title>Empty owned page</title>' });
     if (url === 'https://player.vimeo.com/video/20') return route.fulfill({ contentType: 'text/html', body: `<title>Owned player</title><script type="application/json">${JSON.stringify(config)}</script>` });
     if (url === 'https://owned.vimeocdn.com/master.m3u8?sig=dummy') return route.fulfill({ contentType: 'application/vnd.apple.mpegurl', body: master });
+    if (url === 'https://second.vimeocdn.com/video-only.json') return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ video: JSON.parse(dash).video }) });
+    if (url === 'https://second.vimeocdn.com/audio-only.json') return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ audio: JSON.parse(dash).audio }) });
     if (url === 'https://second.vimeocdn.com/dash.json?sig=dummy') return route.fulfill({ contentType: 'application/json', body: dash });
     if (url === 'https://second.vimeocdn.com/malformed.json') return route.fulfill({ contentType: 'application/json', body: '{' });
     if (url === 'https://second.vimeocdn.com/protected.mpd') return route.fulfill({ contentType: 'application/dash+xml', body: '<MPD><ContentProtection schemeIdUri="urn:owned"/></MPD>' });
@@ -234,6 +238,7 @@ try {
   await open();
   await waitText('1920');
   await waitText('pl');
+  await evaluate("document.querySelector('#streams .tracks').closest('article').scrollIntoView(); true");
   await capture('qualities');
   const tracks = await evaluate("[...document.querySelector('#streams article .tracks').querySelectorAll('li')].map(item => [...item.querySelectorAll('dd')].map(field => field.textContent))");
   assert.deepEqual(tracks.map(t => [t[1], t[4], t[5], t[6], t[7], t[8], t[9]]), [
@@ -246,13 +251,14 @@ try {
   await capture('audio-footer');
   // HLS has succeeded. A different exact origin must remain requestable.
   await waitText('Allow https://second.vimeocdn.com');
-  await evaluate("document.querySelector('#streams button').scrollIntoView(); true");
+  await evaluate("document.querySelector('#streams button').closest('article').scrollIntoView(); true");
   await capture('hls-first');
   await activatePermission();
   await new Promise(r => setTimeout(r, 700)); key('Escape');
   await open();
   await waitText('Access to https://second.vimeocdn.com was not granted or was denied');
   await waitText('1920');
+  await evaluate("document.querySelector('#streams button').closest('article').scrollIntoView(); true");
   await capture('dash-denied');
   await activatePermission();
   await new Promise(r => setTimeout(r, 700)); key('Tab'); key('Return');
@@ -266,6 +272,7 @@ try {
   assert.equal(await evaluate("chrome.permissions.contains({origins:['https://unseen.vimeocdn.com/*']})"), false);
   assert.equal(await evaluate("document.querySelector('#streams article').innerText.includes('Preferred: separate DASH')"), true);
   assert.ok(candidates.some(candidate => candidate.manifest?.protocol === 'hls' && candidate.status === 'found'));
+  assert.equal(await evaluate("document.querySelector('#streams article').innerText.includes('CDN separate')"), true);
   assert.deepEqual(candidates.filter(candidate => candidate.manifest?.cdn === 'separate').map(candidate => candidate.tracks.map(track => track.kind)),
     [['video', 'video', 'audio', 'audio']]);
   assert.deepEqual(candidates.filter(candidate => ['malformed', 'protected'].includes(candidate.manifest?.cdn)).map(candidate => candidate.status),
@@ -280,7 +287,7 @@ try {
   await waitText('1920');
   assert.equal(await evaluate("document.body.innerText.includes('Preferred: separate DASH')"), false);
   assert.equal(await evaluate("chrome.permissions.contains({origins:['https://owned.vimeocdn.com/*']})"), true);
-  await evaluate("document.querySelector('#streams button').scrollIntoView(); true");
+  await evaluate("document.querySelector('#streams button').closest('article').scrollIntoView(); true");
   await capture('dash-revoked');
   diagnostics.independentCandidates = candidates.map(candidate => ({
     videoId: candidate.videoId, protocol: candidate.manifest?.protocol, cdn: candidate.manifest?.cdn,
