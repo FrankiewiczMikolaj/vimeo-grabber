@@ -11,7 +11,8 @@ import { chromium } from 'playwright';
 const extension = resolve(process.env.SMOKE_EXTENSION_DIR ?? 'dist');
 const artifacts = resolve(process.env.SMOKE_ARTIFACT_DIR ?? 'artifacts/headed');
 await mkdir(artifacts, { recursive: true });
-for (const name of ['permission-needed', 'denied', 'qualities', 'audio-footer', 'worker-rebuilt', 'revoked', 'removed', 'navigated', 'failure']) {
+for (const name of ['permission-needed', 'denied', 'qualities', 'audio-footer', 'worker-rebuilt', 'revoked', 'removed', 'navigated',
+  'dash-nested', 'dash-mpd', 'unavailable-states', 'tab-isolated', 'tab-restored', 'stale-response', 'failure']) {
   await rm(resolve(artifacts, `${name}.png`), { force: true });
 }
 const diagnostics = { requests: [], unexpected: [], cleanup: false, entry: 'chrome.action.openPopup' };
@@ -57,9 +58,15 @@ async function evaluate(expression) {
 }
 async function waitText(text) {
   await evaluate(`new Promise((resolve,reject) => {
-    const deadline = Date.now()+10000;
-    const check = () => document.body.innerText.includes(${JSON.stringify(text)}) ? resolve(true)
-      : Date.now()>deadline ? reject(new Error(document.body.innerText)) : setTimeout(check,50);
+    const deadline = Date.now()+8000;
+    const check = () => {
+      if (document.body.innerText.includes(${JSON.stringify(text)})) return resolve(true);
+      if (Date.now()>deadline) {
+        document.querySelector('#streams article:last-child')?.scrollIntoView();
+        return reject(new Error('Missing popup text: '+${JSON.stringify(text)}+'\\n'+document.body.innerText));
+      }
+      setTimeout(check,50);
+    };
     check();
   })`);
 }
@@ -72,6 +79,14 @@ async function clickPermission() {
   })()`);
   await command('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
   await command('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
+}
+async function fixtureResponse(promise) {
+  let timer;
+  try {
+    return await Promise.race([promise, new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('Held metadata response timed out')), 10000);
+    })]);
+  } finally { clearTimeout(timer); }
 }
 try {
   const manifest = JSON.parse(await readFile(`${extension}/manifest.json`, 'utf8'));
@@ -86,7 +101,36 @@ try {
     default_cdn: 'unsupported', cdns: { unsupported: { url: 'https://unsupported.example/master.m3u8' },
       owned: { url: 'https://owned.vimeocdn.com/master.m3u8?sig=dummy' } },
   } } } };
-  await context.route('**/*', route => {
+  const dash = await readFile('test/fixtures/dash-json.json', 'utf8');
+  const mpd = await readFile('test/fixtures/dash-mpd.mpd', 'utf8');
+  const metadata = new Map([
+    ['dash.json', ['application/json', dash]],
+    ['dash.mpd', ['application/dash+xml', mpd]],
+    ['protected.mpd', ['application/dash+xml', '<MPD><ContentProtection schemeIdUri="urn:owned"/></MPD>']],
+    ['unsupported.json', ['application/json', '{}']],
+    ['malformed.json', ['application/json', '{']],
+    ['held.json', ['application/json', dash]],
+  ]);
+  const ownedConfig = (id, names) => ({ video: { id, title: `Owned ${id}` },
+    request: { files: { dash: { cdns: Object.fromEntries(names.map((name, index) =>
+      [String(index), { url: `https://owned.vimeocdn.com/${name}` }])) } } } });
+  const configs = new Map([
+    ['31', ownedConfig(31, ['malformed.json', 'dash.json'])],
+    ['32', ownedConfig(32, ['dash.mpd'])],
+    ['33', ownedConfig(33, ['protected.mpd'])],
+    ['34', ownedConfig(34, ['unsupported.json'])],
+    ['35', ownedConfig(35, ['malformed.json'])],
+    ['36', ownedConfig(36, ['held.json'])],
+  ]);
+  let held;
+  const heldStarted = new Promise(resolve => { held = resolve; });
+  let release;
+  const heldResponse = new Promise(resolve => { release = resolve; });
+  let delivered;
+  const heldDelivered = new Promise(resolve => { delivered = resolve; });
+  const player = id => `<iframe src="https://player.vimeo.com/video/${id}"></iframe>`;
+  const inline = config => `<script type="application/json">${JSON.stringify(config)}</script>`;
+  await context.route('**/*', async route => {
     const url = route.request().url();
     if (url.startsWith('chrome-extension://')) return route.continue();
     diagnostics.requests.push(url);
@@ -95,13 +139,32 @@ try {
     if (url === 'https://player.vimeo.com/video/20') return route.fulfill({ contentType: 'text/html', body: `<title>Owned player</title><script type="application/json">${JSON.stringify(config)}</script>` });
     if (url === 'https://owned.vimeocdn.com/master.m3u8?sig=dummy') return route.fulfill({ contentType: 'application/vnd.apple.mpegurl', body: master });
     if (/^https:\/\/player\.vimeo\.com\/video\/20\/config(?:\?h=owned)?$/.test(url)) return route.fulfill({ contentType: 'application/json', body: JSON.stringify(config) });
+    if (url === 'https://example.com/matrix') return route.fulfill({ contentType: 'text/html',
+      body: `<title>Owned matrix</title>${inline(ownedConfig(999, ['dash.json']))}<iframe src="https://example.com/nested"></iframe>${['31?duplicate', '33', '34', '35'].map(player).join('')}` });
+    if (url === 'https://example.com/nested') return route.fulfill({ contentType: 'text/html',
+      body: `<title>Owned nested frames</title>${player('31')}` });
+    const frame = /^https:\/\/player\.vimeo\.com\/video\/(31|32|33|34|35|36)(\?duplicate)?$/.exec(url);
+    if (frame) return route.fulfill({ contentType: 'text/html', body: frame[2]
+      ? inline({ video: { id: 31 }, request: { files: { progressive: [] } } })
+      : frame[1] === '32' ? '<title>Config fallback only</title>' : inline(configs.get(frame[1])) });
+    const fallback = /^https:\/\/player\.vimeo\.com\/video\/(31|32|33|34|35|36)\/config(\?duplicate)?$/.exec(url);
+    if (fallback) return route.fulfill({ contentType: 'application/json', body: fallback[2]
+      ? JSON.stringify({ video: { id: 31 }, request: { files: { progressive: [] } } })
+      : process.env.SMOKE_BREAK_DETECTION === '1' && fallback[1] === '32' ? '{' : JSON.stringify(configs.get(fallback[1])) });
+    const owned = metadata.get(url.replace('https://owned.vimeocdn.com/', ''));
+    if (owned && url.startsWith('https://owned.vimeocdn.com/')) {
+      if (url.endsWith('/held.json')) { held(); await heldResponse; }
+      await route.fulfill({ contentType: owned[0], body: owned[1] });
+      if (url.endsWith('/held.json')) delivered();
+      return;
+    }
     diagnostics.unexpected.push(url); return route.abort();
   });
   const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
   const id = new URL(worker.url()).host;
   let bootstrap = await context.newPage();
   await bootstrap.goto(`chrome-extension://${id}/${manifest.action.default_popup}`);
-  const active = context.pages()[0];
+  let active = context.pages()[0];
   await active.goto('https://example.com/fixture');
   let session = await context.newCDPSession(bootstrap);
   async function open() {
@@ -195,6 +258,84 @@ try {
   assert.equal(await evaluate("chrome.permissions.contains({origins:['https://owned.vimeocdn.com/*']})"), true);
   assert.equal(await evaluate("document.querySelectorAll('#streams img').length"), 0);
   assert.ok(diagnostics.requests.includes('https://owned.vimeocdn.com/master.m3u8?sig=dummy'));
+  // One matrix combines independent IDs, nested frames, unavailable duplicates,
+  // malformed-first fallback, config-only discovery and an unrelated inline decoy.
+  await active.goto('https://example.com/matrix');
+  await open();
+  await waitText('4 videos detected.');
+  await active.frames().find(frame => frame.url() === 'https://example.com/nested').evaluate(() => {
+    const frame = globalThis.document.createElement('iframe');
+    frame.src = 'https://player.vimeo.com/video/32';
+    globalThis.document.body.append(frame);
+  });
+  await waitText('5 videos detected.');
+  await waitText('5000000 bit/s');
+  await waitText('Protected content.');
+  await waitText('This metadata format is not supported.');
+  const cards = await evaluate(`[...document.querySelectorAll('#streams article')].map(card => ({
+    source: card.querySelector('p').textContent, status: card.querySelectorAll('p')[1].textContent,
+    tracks: [...card.querySelectorAll('.tracks li')].map(item =>
+      [item.querySelector('h3').textContent, ...[...item.querySelectorAll('dd')].map(field => field.textContent)])
+  }))`);
+  const byId = id => cards.find(card => card.source.endsWith('Video ' + id));
+  assert.deepEqual(cards.map(card => card.source).sort(), [31, 32, 33, 34, 35].map(id => `Source: player.vimeo.com · Video ${id}`));
+  assert.deepEqual(byId(31).tracks, [
+    ['Video · DASH', 'video-360', 'Unknown', 'avc1.4d401e', 'video/mp4', '650000 bit/s', '640 px', '360 px', '29.97 fps', 'Unknown', 'Unknown'],
+    ['Video · DASH', 'video-1080', 'Unknown', 'avc1.640028', 'video/mp4', '4200000 bit/s', '1920 px', '1080 px', '60 fps', 'Unknown', 'Unknown'],
+    ['Audio · DASH', 'audio-en', 'Unknown', 'mp4a.40.2', 'audio/mp4', '128000 bit/s', 'Unknown', 'Unknown', 'Unknown', 'en', '2'],
+    ['Audio · DASH', 'audio-pl', 'Unknown', 'mp4a.40.2', 'audio/mp4', '192000 bit/s', 'Unknown', 'Unknown', 'Unknown', 'pl', '5.1'],
+  ]);
+  assert.deepEqual(byId(32).tracks, [
+    ['Video · DASH', 'high', 'picture', 'avc1.640028', 'video/mp4', '5000000 bit/s', '1920 px', '1080 px', '29.97002997002997 fps', 'Unknown', 'Unknown'],
+    ['Video · DASH', 'low', 'picture', 'avc1.42001e', 'video/mp4', '900000 bit/s', '640 px', '360 px', '24 fps', 'Unknown', 'Unknown'],
+    ['Audio · DASH', 'english', 'sound', 'mp4a.40.2', 'audio/mp4', '128000 bit/s', 'Unknown', 'Unknown', 'Unknown', 'en', '2'],
+    ['Audio · DASH', 'polish', 'sound', 'mp4a.40.2', 'audio/mp4', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'pl', '6'],
+  ]);
+  assert.equal(byId(33).status, 'Protected content. No usable tracks are offered.');
+  assert.equal(byId(34).status, 'This metadata format is not supported.');
+  assert.equal(byId(35).status, 'This metadata format is not supported.');
+  for (const id of [33, 34, 35]) assert.deepEqual(byId(id).tracks, []);
+  diagnostics.matrix = cards;
+  await capture('dash-nested');
+  await evaluate("[...document.querySelectorAll('#streams article')].find(card => card.querySelector('p').textContent.endsWith('Video 32')).scrollIntoView(); true");
+  await capture('dash-mpd');
+  await evaluate("[...document.querySelectorAll('#streams article')].find(card => card.querySelector('p').textContent.endsWith('Video 33')).scrollIntoView(); true");
+  await capture('unavailable-states');
+  const matrixTab = active;
+  active = await context.newPage();
+  await active.goto('https://example.com/empty');
+  await open();
+  await waitText('No Vimeo');
+  assert.equal(await evaluate("document.querySelectorAll('#streams article').length"), 0);
+  await capture('tab-isolated');
+  active = matrixTab;
+  await open();
+  await waitText('5000000 bit/s');
+  assert.equal(await evaluate("document.querySelectorAll('#streams article').length"), 5);
+  await capture('tab-restored');
+  // Hold a real transport response across document replacement. Release it only
+  // after the new document has published its own successful result.
+  await active.goto('https://player.vimeo.com/video/36');
+  await fixtureResponse(heldStarted);
+  await active.goto('https://player.vimeo.com/video/32');
+  await open();
+  await waitText('5000000 bit/s');
+  release();
+  await fixtureResponse(heldDelivered);
+  await evaluate(`new Promise((resolve,reject) => {
+    const until = Date.now()+1500;
+    const check = () => {
+      const text = document.body.innerText;
+      if (text.includes('Video 36') || !text.includes('Video 32')) return reject(new Error(text));
+      if (Date.now()>=until) return resolve(true);
+      setTimeout(check,50);
+    }; check();
+  })`);
+  await capture('stale-response');
+  diagnostics.heldResponseReleasedAfterNavigation = true;
+  await active.goto('https://example.com/fixture');
+  await open();
+  await waitText('1920');
   // Real revocation API must invalidate qualities, not keep stale successful tracks.
   await evaluate("chrome.permissions.remove({origins:['https://owned.vimeocdn.com/*']})");
   await waitText('Metadata access is needed');
@@ -233,4 +374,4 @@ try {
   await writeFile(resolve(artifacts, 'diagnostics.json'), JSON.stringify(diagnostics, null, 2));
 }
 if (failure) { console.error(failure); process.exitCode = 1; }
-else console.log(`PASS: real action popup, child-frame qualities, exact-origin grant/deny/revoke, removal, metadata-only fallback; ${artifacts}`);
+else console.log(`PASS: real action popup, HLS/DASH JSON/MPD, nested IDs, tab isolation, stale response, exact-origin grant/deny/revoke, worker rebuild, removal; ${artifacts}`);
