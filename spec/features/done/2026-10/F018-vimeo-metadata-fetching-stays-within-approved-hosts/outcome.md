@@ -1,0 +1,3 @@
+# Outcome
+
+Mikołaj merged bounded metadata transport in PR #33 as `f19312d`. Config HTTP and trusted-inline receipts bind manifest requests to approved provenance and real exact-origin Chrome permission checks. Requests omit credentials, reject redirects, retain query bytes in memory and enforce an eight-second deadline and one-MiB response limit. The compiled module passed offline Chromium service-worker proof with actual permission denials; local verification passed twenty-nine tests and headed native smoke, and all required PR checks passed. Runtime sender validation, prompts, parser dispatch and live Vimeo compatibility remain separate M2 work.

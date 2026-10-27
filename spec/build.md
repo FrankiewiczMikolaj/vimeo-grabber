@@ -38,15 +38,17 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 <!-- Generated from spec/features/active/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
+- `F020-frame-discoveries-stay-scoped-to-their-live-tab-documents` (🟠 ACTIVE): Frame discoveries stay scoped to their live tab documents
+- `F019-discovered-vimeo-configs-resolve-to-track-qualities` (🟠 ACTIVE): Discovered Vimeo configs resolve to track qualities
 - `F011-real-vimeo-videos-expose-their-video-and-audio-qualities` (🟠 ACTIVE): Real Vimeo videos expose their video and audio qualities
 
 ## NEXT
 
-- HLS, DASH JSON and standard MPD are owner-merged; the strict native-download smoke now awaits actual completion rather than an async Playwright predicate.
-- Discovery is owner-merged; implement frame observation and validated metadata transport on disjoint source/test/docs files using the existing model/discovery contracts.
-- Observation owns no network code; transport owns no observers or message handlers; neither changes production permissions, runtime entrypoints, shared modules or the popup.
-- Keep the MPD component-metadata correction in PR #31 independent; its quality report is not an extra review lane or merge gate.
-- After these APIs merge, wire tab/frame aggregation, permission prompts, parser dispatch and the detection-only popup cutover with offline e2e.
+- Observation and bounded transport are owner-merged; resolve discovered configs into qualities and build authenticated, navigation-safe frame aggregation on disjoint files.
+- Resolution owns metadata admission/parser dispatch; aggregation owns sender/envelope validation and document lifetimes, using an async resolution callback rather than importing unfinished code.
+- Both use `PageDiscovery` plus authoritative frame URL and resolve to readonly `{ video: NormalisedVideo, permissionOrigins: readonly string[] }[]`.
+- Keep runtime entrypoints, manifest permissions, popup and the current smoke unchanged until these APIs merge; then activate cross-frame reporting, exact-origin prompts and the detection-only popup together.
+- Replace the superseded synthetic download smoke during popup cutover, then expand offline Chromium e2e for nested frames, navigation, restart and grant/deny/revoke; never retain a fake download control for the old test.
 - Keep Vimeo-only frame access, offline CI and metadata-only fetching; real media downloading remains M3.
 
 ## PROVEN
