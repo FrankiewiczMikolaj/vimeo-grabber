@@ -1,8 +1,9 @@
 # Vimeo Grabber
 
-A Vimeo-only Chromium Manifest V3 extension. The English popup lists one explicitly
-synthetic fixture stream and saves its plain-text dummy file. Real Vimeo video
-extraction and downloads are not implemented.
+A Vimeo-only Chromium Manifest V3 extension. The English popup lists discovered
+Vimeo videos, video/audio/combined qualities, and unknown metadata from matching
+live frames, including players embedded on other sites. This is detection only:
+no media files are fetched and there is no download action.
 
 ## Linux development
 
@@ -22,7 +23,7 @@ smoke. It does not contact Vimeo. Run it before every push.
 The smoke uses Playwright **1.64.1**, `channel: 'chromium'`, and the installed
 Chromium browser. On a new Linux developer machine, provision the browser with
 `pnpm exec playwright install chromium`; this project does not install system
-packages. The smoke saves `artifacts/headless/popup.png` and removes its browser
+packages. The smoke retains actual action-popup screenshots and removes its browser
 profile. See [the harness entry and limits](docs/browser-harness.md).
 
 - `pnpm dev`: Vite development server.
@@ -36,16 +37,22 @@ profile. See [the harness entry and limits](docs/browser-harness.md).
 Run `pnpm build`. Open `chrome://extensions`, enable Developer mode, select
 **Load unpacked**, and choose this checkout's `dist/` directory. Pin Vimeo Grabber
 and click its toolbar icon to open the popup. Rebuild and reload the extension
-after changes. The extension requests `downloads` and runs a bundled detector only
-on HTTPS `vimeo.com`, `www.vimeo.com`, and `player.vimeo.com` pages. It needs no
-`activeTab`, `tabs`, scripting, or broad host permission. It makes no network
-requests. See [the fixture contract](docs/fixture-detection.md).
+after changes. Reload existing Vimeo pages after installation. Detection runs only
+on HTTPS `vimeo.com`, `www.vimeo.com`, and `player.vimeo.com` frames, including
+matching child frames under unrelated sites. The extension requires
+`https://player.vimeo.com/*` for player-config metadata. When discovered metadata
+needs CDN access, the popup can request that exact encountered HTTPS origin on
+`vimeocdn.com` after you click its permission button. Denying access leaves the
+video visible without those qualities. Revoking access refreshes detection.
+No `downloads`, `activeTab`, `tabs`, scripting, or broad site permission is used.
+Signed config and manifest URLs stay in memory and are not displayed.
+See [the detection boundary](docs/M2-DETECTION.md).
 
 ## Legal
 
 Only download content you have rights to. You install and use this project at
-your own risk. The author and contributors are not liable. The synthetic fixture
-downloads plain text only. Distribution is planned through GitHub Releases,
+your own risk. The author and contributors are not liable. This detection-only
+build does not download media. Distribution is planned through GitHub Releases,
 not browser stores.
 
 Licensed under the [MIT License](LICENSE).

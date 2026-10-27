@@ -6,12 +6,16 @@ export default defineConfig({
     manifest_version: 3,
     name: 'Vimeo Grabber',
     version: '0.1.0',
-    description: 'List and download one synthetic Vimeo fixture stream.',
+    description: 'List Vimeo video and audio qualities from metadata. No media downloads.',
     action: { default_popup: 'popup.html' },
-    permissions: ['downloads'],
+    background: { service_worker: 'src/worker.ts', type: 'module' },
+    permissions: [],
+    host_permissions: ['https://player.vimeo.com/*'],
+    optional_host_permissions: ['https://*.vimeocdn.com/*'],
     content_scripts: [{
       matches: ['https://vimeo.com/*', 'https://www.vimeo.com/*', 'https://player.vimeo.com/*'],
       js: ['src/detect/content.ts'],
+      all_frames: true,
     }],
   }) })],
 });

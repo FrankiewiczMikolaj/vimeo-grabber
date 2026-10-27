@@ -1,316 +1,236 @@
 import assert from 'node:assert/strict';
 import { Buffer } from 'node:buffer';
-import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
-import { isAbsolute, relative, resolve, sep } from 'node:path';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import process from 'node:process';
-import { clearTimeout, setTimeout } from 'node:timers';
+import { URL } from 'node:url';
+import { setTimeout, clearTimeout } from 'node:timers';
+import { execFileSync } from 'node:child_process';
 import { chromium } from 'playwright';
 
 const extension = resolve(process.env.SMOKE_EXTENSION_DIR ?? 'dist');
-const headed = process.env.SMOKE_HEADED === '1';
-const artifacts = resolve(process.env.SMOKE_ARTIFACT_DIR ?? `artifacts/${headed ? 'headed' : 'headless'}`);
+const artifacts = resolve(process.env.SMOKE_ARTIFACT_DIR ?? 'artifacts/headed');
 await mkdir(artifacts, { recursive: true });
-// Clear old evidence so a failed run cannot appear to have a current screenshot.
-for (const name of ['popup.png', 'unsupported.png', 'failure.png', 'failure-tab.png', 'trace.zip', 'diagnostics.json', 'download.json', 'vimeo-grabber-synthetic.txt']) {
-  await rm(resolve(artifacts, name), { force: true });
+for (const name of ['permission-needed', 'denied', 'qualities', 'audio-footer', 'worker-rebuilt', 'revoked', 'removed', 'navigated', 'failure']) {
+  await rm(resolve(artifacts, `${name}.png`), { force: true });
 }
-const diagnostics = {
-  mode: headed ? 'headed' : 'headless',
-  entry: 'chrome.action.openPopup (not a physical toolbar click)',
-  extension,
-  profile: null,
-  pageErrors: [],
-  consoleErrors: [],
-  externalRequests: [],
-  failedRequests: [],
-  browserLog: [],
-  cleanup: false,
-};
+const diagnostics = { requests: [], unexpected: [], cleanup: false, entry: 'chrome.action.openPopup' };
+const profile = await mkdtemp(resolve(artifacts, 'profile-'));
 let context;
-let page;
-let tracing = false;
-let actionCommand;
-let downloads;
 let failure;
-
-async function readBuild() {
-  try {
-    const manifest = JSON.parse(await readFile(resolve(extension, 'manifest.json'), 'utf8'));
-    assert.equal(manifest.manifest_version, 3, 'expected manifest_version 3');
-    assert.equal(manifest.name, 'Vimeo Grabber', 'expected Vimeo Grabber');
-    const popup = manifest.action?.default_popup;
-    assert.equal(typeof popup, 'string', 'action.default_popup must name the built popup');
-    assert.ok(popup.length > 0 && !isAbsolute(popup), 'popup must be a relative file');
-    const root = await realpath(extension);
-    const file = await realpath(resolve(root, popup));
-    const local = relative(root, file);
-    assert.ok(local !== '..' && !local.startsWith(`..${sep}`) && !isAbsolute(local),
-      'popup must stay inside the extension build');
-    await readFile(file);
-    return popup;
-  } catch (error) {
-    throw new Error(`Invalid extension build at ${extension}: ${error.message}. Run pnpm build first.`, { cause: error });
-  }
+let command;
+let sequence = 0;
+// Native X11 key events operate Chrome's permission bubble, not a permission mock.
+function key(name) {
+  execFileSync('python3', ['-c', `import ctypes,sys
+x=ctypes.CDLL('libX11.so.6'); t=ctypes.CDLL('libXtst.so.6')
+x.XOpenDisplay.restype=ctypes.c_void_p; d=x.XOpenDisplay(None)
+x.XStringToKeysym.argtypes=[ctypes.c_char_p]; x.XStringToKeysym.restype=ctypes.c_ulong
+x.XKeysymToKeycode.argtypes=[ctypes.c_void_p,ctypes.c_ulong]; x.XKeysymToKeycode.restype=ctypes.c_uint
+k=x.XKeysymToKeycode(d,x.XStringToKeysym(sys.argv[1].encode()))
+t.XTestFakeKeyEvent.argtypes=[ctypes.c_void_p,ctypes.c_uint,ctypes.c_int,ctypes.c_ulong]
+x.XFlush.argtypes=[ctypes.c_void_p]
+t.XTestFakeKeyEvent(d,k,1,0); t.XTestFakeKeyEvent(d,k,0,0); x.XFlush(d)
+`, name]);
 }
-
-// Chromium's action popup is a CDP page target, but Playwright does not emit a
-// BrowserContext page for it. Use a non-flattened child session for this target.
-async function popupCommand(session, sessionId, method, params = {}) {
-  const id = ++popupCommand.id;
+function childCommand(session, sessionId, method, params = {}) {
+  const id = ++sequence;
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => finish(new Error(`${method} timed out`)), 10_000);
+    const timer = setTimeout(() => finish(new Error(`${method} timed out`)), 10000);
     const receive = event => {
       if (event.sessionId !== sessionId) return;
       const message = JSON.parse(event.message);
-      if (message.id !== id) return;
-      finish(message.error && new Error(JSON.stringify(message.error)), message.result);
+      if (message.id === id) finish(message.error && new Error(JSON.stringify(message.error)), message.result);
     };
     function finish(error, result) {
-      clearTimeout(timer);
-      session.off('Target.receivedMessageFromTarget', receive);
-      if (error) reject(error);
-      else resolve(result);
+      clearTimeout(timer); session.off('Target.receivedMessageFromTarget', receive);
+      if (error) reject(error); else resolve(result);
     }
     session.on('Target.receivedMessageFromTarget', receive);
-    session.send('Target.sendMessageToTarget', {
-      sessionId, message: JSON.stringify({ id, method, params }),
-    }).catch(finish);
+    session.send('Target.sendMessageToTarget', { sessionId, message: JSON.stringify({ id, method, params }) }).catch(finish);
   });
 }
-popupCommand.id = 0;
-
-async function exerciseAction(popupUrl, activeTab, supported) {
-  const session = await context.newCDPSession(page);
-  await session.send('Browser.setDownloadBehavior', { behavior: 'default' });
-  diagnostics.chromium = await session.send('Browser.getVersion');
-  await activeTab.bringToFront();
-  const before = await session.send('Target.getTargets');
-  // Retain the exact API exception on unsupported platforms. Never fall back to navigation.
-  diagnostics.actionApi = await session.send('Runtime.evaluate', {
-    expression: 'chrome.action.openPopup().then(() => "opened")',
-    awaitPromise: true, returnByValue: true, userGesture: false,
-  });
-  assert.equal(diagnostics.actionApi.exceptionDetails, undefined, 'action API failed; see diagnostics');
-  assert.equal(diagnostics.actionApi.result.value, 'opened');
-  const after = await session.send('Target.getTargets');
-  const target = after.targetInfos.find(target => target.url === popupUrl &&
-    !before.targetInfos.some(previous => previous.targetId === target.targetId));
-  assert.ok(target, 'openPopup must create a new target, not reuse the bootstrap tab');
-  diagnostics.popupTarget = target;
-  const { sessionId } = await session.send('Target.attachToTarget', {
-    targetId: target.targetId, flatten: false,
-  });
-  const command = (method, params) => popupCommand(session, sessionId, method, params);
-  actionCommand = command;
-  const evaluate = async expression => {
-    const result = await command('Runtime.evaluate', {
-      expression, awaitPromise: true, returnByValue: true,
-    });
-    assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails));
-    return result.result.value;
-  };
-  // Wait for the asynchronous content-script reply, not a fixed rendering delay.
-  await evaluate(`new Promise((resolve, reject) => {
-    const deadline = Date.now() + 5000;
-    const check = () => {
-      if (document.querySelector('#status')?.textContent &&
-          !document.querySelector('#status').textContent.startsWith('Looking')) return resolve(true);
-      if (Date.now() >= deadline) return reject(new Error('Popup did not settle'));
-      setTimeout(check, 20);
-    };
-    check();
-  })`);
-  const state = await evaluate(`({
-    title: document.querySelector('#streams h2')?.textContent,
-    buttons: document.querySelectorAll('button').length,
-    isPopup: chrome.extension.getViews({type: 'popup'}).includes(window),
-    text: document.querySelector('main').innerText
-  })`);
-  diagnostics[supported ? 'fixturePopup' : 'unsupportedPopup'] = state;
-  // Chromium can expose the DOM before sizing the native action surface.
-  await evaluate(`new Promise((resolve, reject) => {
-    const deadline = Date.now() + 5000;
-    const check = () => {
-      if (innerWidth >= 300 && innerHeight >= 100) return resolve(true);
-      if (Date.now() >= deadline) return reject(new Error('Action surface did not resize'));
-      setTimeout(check, 20);
-    };
-    check();
-  })`);
-  const screenshot = await command('Page.captureScreenshot', { format: 'png' });
-  await writeFile(resolve(artifacts, supported ? 'popup.png' : 'unsupported.png'),
-    Buffer.from(screenshot.data, 'base64'));
-  assert.equal(state.isPopup, true, 'target must be an actual extension popup view');
-  if (supported) {
-    assert.equal(state.title, 'Synthetic Vimeo dummy stream');
-    assert.equal(state.buttons, 1);
-    await evaluate("document.querySelector('button').click()");
-    // waitForFunction treats an async predicate's Promise as truthy before it settles.
-    const item = await page.evaluate(() => new Promise((resolve, reject) => {
-      const cleanup = () => {
-        clearTimeout(timer);
-        globalThis.chrome.downloads.onCreated.removeListener(check);
-        globalThis.chrome.downloads.onChanged.removeListener(check);
-      };
-      const check = async () => {
-        try {
-          const items = await globalThis.chrome.downloads.search({});
-          if (items.length === 1 && items[0].state === 'complete') {
-            cleanup();
-            resolve(items[0]);
-          }
-        } catch (error) {
-          cleanup();
-          reject(error);
-        }
-      };
-      const timer = setTimeout(() => {
-        cleanup();
-        reject(new Error('Native download did not complete within 10 seconds'));
-      }, 10_000);
-      globalThis.chrome.downloads.onCreated.addListener(check);
-      globalThis.chrome.downloads.onChanged.addListener(check);
-      void check();
-    }));
-    assert.equal(item.filename, resolve(downloads, 'vimeo-grabber-synthetic.txt'));
-    assert.equal(item.state, 'complete');
-    const bytes = await readFile(item.filename);
-    assert.deepEqual(bytes, Buffer.from('Vimeo Grabber owned synthetic fixture.\n'));
-    assert.equal(bytes.length, 39);
-    // Retain a byte-for-byte evidence copy; item.filename above proves the native path.
-    await writeFile(resolve(artifacts, 'vimeo-grabber-synthetic.txt'), bytes);
-    diagnostics.download = { ...item, bytes: bytes.length, content: bytes.toString() };
-    await writeFile(resolve(artifacts, 'download.json'), `${JSON.stringify(diagnostics.download, null, 2)}\n`);
-  } else {
-    assert.equal(state.title, undefined);
-    assert.equal(state.buttons, 0);
-    assert.equal(await page.evaluate(async () => (await globalThis.chrome.downloads.search({})).length), 1);
-    assert.deepEqual(await readdir(downloads), ['vimeo-grabber-synthetic.txt']);
-    assert.deepEqual(await readFile(resolve(downloads, 'vimeo-grabber-synthetic.txt')),
-      Buffer.from('Vimeo Grabber owned synthetic fixture.\n'));
-  }
-  // Focus another tab: a real action popup must disappear, unlike the bootstrap tab.
-  await session.send('Target.setDiscoverTargets', { discover: true });
-  const destroyed = new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      session.off('Target.targetDestroyed', listener);
-      reject(new Error('action popup did not close on focus change'));
-    }, 5_000);
-    const listener = event => {
-      if (event.targetId !== target.targetId) return;
-      clearTimeout(timer);
-      session.off('Target.targetDestroyed', listener);
-      resolve(event);
-    };
-    session.on('Target.targetDestroyed', listener);
-  });
-  [diagnostics.popupDestroyed] = await Promise.all([destroyed, page.bringToFront()]);
-  assert.equal(await page.evaluate(() => globalThis.chrome.extension.getViews({ type: 'popup' }).length), 0);
-  diagnostics.bootstrapSurvived = !page.isClosed();
-  await session.detach();
-  actionCommand = undefined;
+async function evaluate(expression) {
+  const result = await command('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+  assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails));
+  return result.result.value;
 }
-
+async function waitText(text) {
+  await evaluate(`new Promise((resolve,reject) => {
+    const deadline = Date.now()+10000;
+    const check = () => document.body.innerText.includes(${JSON.stringify(text)}) ? resolve(true)
+      : Date.now()>deadline ? reject(new Error(document.body.innerText)) : setTimeout(check,50);
+    check();
+  })`);
+}
+async function clickPermission() {
+  const point = await evaluate(`(() => {
+    const button = document.querySelector('#streams button');
+    button.scrollIntoView();
+    const r = button.getBoundingClientRect();
+    return {x:r.x+r.width/2, y:r.y+r.height/2};
+  })()`);
+  await command('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
+  await command('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
+}
 try {
-  const popup = await readBuild();
-  diagnostics.profile = await mkdtemp(resolve(artifacts, 'chromium-'));
-  downloads = await mkdtemp(resolve(artifacts, 'downloads-'));
-  await mkdir(resolve(diagnostics.profile, 'Default'));
-  await writeFile(resolve(diagnostics.profile, 'Default/Preferences'), JSON.stringify({
-    download: { default_directory: downloads, prompt_for_download: false },
-  }));
-  context = await chromium.launchPersistentContext(diagnostics.profile, {
-    channel: 'chromium',
-    headless: !headed,
-    acceptDownloads: false,
-    timeout: 15_000,
-    logger: {
-      isEnabled: () => true,
-      log: (name, severity, message) => diagnostics.browserLog.push({ name, severity, message }),
-    },
-    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`],
-    viewport: { width: 340, height: 320 },
-  });
-  context.setDefaultTimeout(10_000);
+  const manifest = JSON.parse(await readFile(`${extension}/manifest.json`, 'utf8'));
+  assert.ok(!manifest.permissions?.includes('downloads'));
+  assert.deepEqual(manifest.host_permissions, ['https://player.vimeo.com/*']);
+  assert.deepEqual(manifest.optional_host_permissions, ['https://*.vimeocdn.com/*']);
+  context = await chromium.launchPersistentContext(profile, { channel: 'chromium', headless: false,
+    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`] });
   await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
-  tracing = true;
-  page = await context.newPage();
-  await page.goto('chrome://extensions/');
-  const card = page.locator('extensions-item').filter({ hasText: 'Vimeo Grabber' });
-  await card.waitFor();
-  const id = await card.getAttribute('id');
-  assert.match(id, /^[a-p]{32}$/);
-  diagnostics.extensionId = id;
-  const origin = `chrome-extension://${id}/`;
-  for (const tab of context.pages()) {
-    tab.on('pageerror', error => diagnostics.pageErrors.push(error.message));
-    tab.on('console', message => {
-      if (message.type() === 'error') diagnostics.consoleErrors.push(message.text());
-    });
-    tab.on('requestfailed', request => diagnostics.failedRequests.push({
-      url: request.url(), error: request.failure()?.errorText,
-    }));
-  }
-  const fixture = await readFile('test/fixtures/synthetic-vimeo.html', 'utf8');
-  // Fulfill only owned HTML. Every other external request is blocked and fails the run.
+  const master = await readFile('test/fixtures/hls-master.m3u8', 'utf8');
+  const config = { video: { id: 20, title: '<img src=x onerror=alert(1)> Owned video' }, request: { files: { hls: {
+    default_cdn: 'unsupported', cdns: { unsupported: { url: 'https://unsupported.example/master.m3u8' },
+      owned: { url: 'https://owned.vimeocdn.com/master.m3u8?sig=dummy' } },
+  } } } };
   await context.route('**/*', route => {
     const url = route.request().url();
-    if (url.startsWith(origin)) return route.continue();
-    if (url === 'https://vimeo.com/fixture' || url === 'https://example.com/fixture') {
-      return route.fulfill({ contentType: 'text/html', body: fixture });
-    }
-    diagnostics.externalRequests.push(url);
-    return route.abort();
+    if (url.startsWith('chrome-extension://')) return route.continue();
+    diagnostics.requests.push(url);
+    if (url === 'https://example.com/fixture') return route.fulfill({ contentType: 'text/html', body: '<title>Unrelated top page</title><iframe src="https://player.vimeo.com/video/20"></iframe>' });
+    if (url === 'https://example.com/empty') return route.fulfill({ contentType: 'text/html', body: '<title>Empty owned page</title>' });
+    if (url === 'https://player.vimeo.com/video/20') return route.fulfill({ contentType: 'text/html', body: `<title>Owned player</title><script type="application/json">${JSON.stringify(config)}</script>` });
+    if (url === 'https://owned.vimeocdn.com/master.m3u8?sig=dummy') return route.fulfill({ contentType: 'application/vnd.apple.mpegurl', body: master });
+    if (/^https:\/\/player\.vimeo\.com\/video\/20\/config(?:\?h=owned)?$/.test(url)) return route.fulfill({ contentType: 'application/json', body: JSON.stringify(config) });
+    diagnostics.unexpected.push(url); return route.abort();
   });
-  await page.goto(`${origin}${popup}`);
-  const activeTab = context.pages()[0];
-  await activeTab.goto('https://vimeo.com/fixture');
-  await exerciseAction(`${origin}${popup}`, activeTab, true);
-  await activeTab.goto('https://example.com/fixture');
-  await exerciseAction(`${origin}${popup}`, activeTab, false);
-  assert.deepEqual(diagnostics.pageErrors, []);
-  assert.deepEqual(diagnostics.consoleErrors, []);
-  assert.deepEqual(diagnostics.externalRequests, []);
-  assert.deepEqual(diagnostics.failedRequests, []);
-} catch (error) {
-  failure = error;
-  diagnostics.error = error.stack;
-  if (actionCommand) {
-    await actionCommand('Page.captureScreenshot', { format: 'png' })
-      .then(image => writeFile(resolve(artifacts, 'failure.png'), Buffer.from(image.data, 'base64')))
-      .catch(error => { diagnostics.actionScreenshotError = error.message; });
+  const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
+  const id = new URL(worker.url()).host;
+  let bootstrap = await context.newPage();
+  await bootstrap.goto(`chrome-extension://${id}/${manifest.action.default_popup}`);
+  const active = context.pages()[0];
+  await active.goto('https://example.com/fixture');
+  let session = await context.newCDPSession(bootstrap);
+  async function open() {
+    await active.bringToFront();
+    const result = await session.send('Runtime.evaluate', { expression: 'chrome.action.openPopup()', awaitPromise: true });
+    assert.equal(result.exceptionDetails, undefined);
+    const { targetInfos } = await session.send('Target.getTargets');
+    const target = targetInfos.find(t => t.url === `chrome-extension://${id}/${manifest.action.default_popup}` && t.targetId !== session.targetId);
+    // Bootstrap has the same URL, so select the actual popup view by attaching candidates.
+    for (const candidate of targetInfos.filter(t => t.url === target.url)) {
+      const { sessionId } = await session.send('Target.attachToTarget', { targetId: candidate.targetId, flatten: false });
+      command = (method, params) => childCommand(session, sessionId, method, params);
+      if (await evaluate("chrome.extension.getViews({type:'popup'}).includes(window)")) return;
+    }
+    throw new Error('No real action popup');
   }
-  if (page && !page.isClosed()) {
-    await page.screenshot({ path: resolve(artifacts, 'failure-tab.png'), timeout: 3_000 })
-      .catch(error => { diagnostics.screenshotError = error.message; });
+  async function capture(name) {
+    const image = await command('Page.captureScreenshot', { format: 'png' });
+    await writeFile(resolve(artifacts, `${name}.png`), Buffer.from(image.data, 'base64'));
+    diagnostics[name] = await evaluate('document.body.innerText');
+  }
+  await open();
+  await waitText('owned.vimeocdn.com');
+  assert.equal(await evaluate("document.querySelectorAll('#streams img').length"), 0);
+  assert.equal(await evaluate("typeof chrome.downloads"), 'undefined');
+  await capture('permission-needed');
+  await active.frames().find(frame => frame.url().startsWith('https://player.vimeo.com/'))
+    .evaluate(() => {
+      globalThis.history.pushState({}, '', '/video/20?h=owned');
+      const script = globalThis.document.querySelector('script[type="application/json"]');
+      const config = JSON.parse(script.textContent);
+      config.video.title = 'Updated owned video';
+      script.textContent = JSON.stringify(config);
+    });
+  await evaluate(`(async () => {
+    const [tab] = await chrome.tabs.query({active:true,currentWindow:true});
+    const deadline = Date.now()+5000;
+    let last;
+    while (Date.now()<deadline) {
+      const state = await chrome.runtime.sendMessage({type:'popup-state',tabId:tab.id});
+      last = state;
+      if (state.results[0]?.video.title === 'Updated owned video'
+        && state.results[0].video.source.frameUrl === 'https://player.vimeo.com/video/20') return true;
+      await new Promise(r=>setTimeout(r,50));
+    }
+    throw new Error('Same-document navigation did not rebuild authoritative provenance: '+JSON.stringify(last));
+  })()`);
+  diagnostics.sameDocumentRebuilt = true;
+  // A real user-gesture click invokes chrome.permissions.request; Escape denies it.
+  await clickPermission();
+  await new Promise(r => setTimeout(r, 700));
+  key('Escape');
+  await open();
+  await waitText('denied');
+  await capture('denied');
+  await clickPermission();
+  await new Promise(r => setTimeout(r, 700));
+  key('Tab'); key('Return');
+  await open();
+  await waitText('1920');
+  await waitText('pl');
+  await capture('qualities');
+  const tracks = await evaluate("[...document.querySelectorAll('.tracks li')].map(item => [...item.querySelectorAll('dd')].map(field => field.textContent))");
+  assert.deepEqual(tracks.map(t => [t[1], t[4], t[5], t[6], t[7], t[8], t[9]]), [
+    ['stereo', '1200000 bit/s', '640 px', '360 px', '29.97 fps', 'Unknown', 'Unknown'],
+    ['stereo', '4800000 bit/s', '1920 px', '1080 px', '60 fps', 'Unknown', 'Unknown'],
+    ['stereo', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'en', '2'],
+    ['stereo', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'pl', '6/JOC'],
+  ]);
+  await evaluate('window.scrollTo(0,document.body.scrollHeight); true');
+  await capture('audio-footer');
+  const internals = await context.newPage();
+  await internals.goto('chrome://serviceworker-internals/');
+  const renderer = Number(await internals.locator('.serviceworker-item').filter({ hasText: `chrome-extension://${id}/` })
+    .locator('.serviceworker-pid .value').innerText());
+  assert.ok(Number.isSafeInteger(renderer) && renderer > 1);
+  // Kill only the renderer of this fresh owned extension profile to exercise cold
+  // rebuild. Prove execution-context loss, not Playwright Worker object identity.
+  process.kill(renderer, 'SIGKILL');
+  await assert.rejects(worker.evaluate(() => 1), /restarted|closed|destroyed|crash/i);
+  diagnostics.workerStopped = true;
+  await internals.close();
+  await bootstrap.close();
+  bootstrap = await context.newPage();
+  await bootstrap.goto(`chrome-extension://${id}/${manifest.action.default_popup}`);
+  session = await context.newCDPSession(bootstrap);
+  await open();
+  await waitText('1920');
+  await capture('worker-rebuilt');
+  assert.equal(await evaluate("document.querySelectorAll('#streams button').length"), 0);
+  assert.equal(await evaluate("chrome.permissions.contains({origins:['https://owned.vimeocdn.com/*']})"), true);
+  assert.equal(await evaluate("document.querySelectorAll('#streams img').length"), 0);
+  assert.ok(diagnostics.requests.includes('https://owned.vimeocdn.com/master.m3u8?sig=dummy'));
+  // Real revocation API must invalidate qualities, not keep stale successful tracks.
+  await evaluate("chrome.permissions.remove({origins:['https://owned.vimeocdn.com/*']})");
+  await waitText('Metadata access is needed');
+  assert.equal(await evaluate("document.querySelectorAll('.tracks li').length"), 0);
+  await capture('revoked');
+  await active.locator('iframe').evaluate(frame => frame.remove());
+  await waitText('No Vimeo');
+  await capture('removed');
+  await active.evaluate(() => {
+    const frame = globalThis.document.createElement('iframe');
+    frame.src = 'https://player.vimeo.com/video/20';
+    globalThis.document.body.append(frame);
+  });
+  await waitText('owned.vimeocdn.com');
+  await active.locator('iframe').evaluate(frame => { frame.src = 'https://example.com/empty'; });
+  await waitText('No Vimeo');
+  await capture('navigated');
+  assert.deepEqual(diagnostics.unexpected, []);
+  await session.detach();
+} catch (error) {
+  failure = error; diagnostics.error = error.stack;
+  if (command) {
+    try {
+      diagnostics.failureText = await evaluate('document.body.innerText');
+      const image = await command('Page.captureScreenshot', { format: 'png' });
+      await writeFile(resolve(artifacts, 'failure.png'), Buffer.from(image.data, 'base64'));
+    } catch { /* Preserve original failure. */ }
   }
 } finally {
-  try {
-    if (tracing) await context.tracing.stop({ path: resolve(artifacts, 'trace.zip') });
-  } catch (error) {
-    diagnostics.traceError = error.message;
-    failure ??= error;
+  if (context) {
+    await context.tracing.stop({ path: resolve(artifacts, 'trace.zip') }).catch(() => {});
+    await context.close();
   }
-  try {
-    await context?.close();
-  } catch (error) {
-    diagnostics.closeError = error.message;
-    failure ??= error;
-  } finally {
-    try {
-      if (diagnostics.profile) await rm(diagnostics.profile, { recursive: true, force: true });
-      if (downloads) await rm(downloads, { recursive: true, force: true });
-      diagnostics.cleanup = true;
-    } catch (error) {
-      diagnostics.cleanupError = error.message;
-      failure ??= error;
-    }
-    await writeFile(resolve(artifacts, 'diagnostics.json'), `${JSON.stringify(diagnostics, null, 2)}\n`);
-  }
+  await rm(profile, { recursive: true, force: true });
+  diagnostics.cleanup = true;
+  await writeFile(resolve(artifacts, 'diagnostics.json'), JSON.stringify(diagnostics, null, 2));
 }
-if (failure) {
-  console.error(`FAIL: ${failure.message}\nDiagnostics: ${artifacts}`);
-  process.exitCode = 1;
-} else {
-  console.log(`PASS: ${diagnostics.mode} fixture → real action popup → native 39-byte download; unsupported page blocked; ${artifacts}`);
-}
+if (failure) { console.error(failure); process.exitCode = 1; }
+else console.log(`PASS: real action popup, child-frame qualities, exact-origin grant/deny/revoke, removal, metadata-only fallback; ${artifacts}`);

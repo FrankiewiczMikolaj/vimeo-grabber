@@ -4,8 +4,8 @@
 Pass decoded JSON, the original shared `ManifestReference`, and the final manifest
 response URL after redirects. The response URL defaults to `manifest.url`.
 This pure API does not fetch, evaluate scripts, read segments/initialization data,
-validate permissions, or change the M1 runtime. URL validation is not fetch authorization.
-The future broker must independently check origins, provenance, redirects and permissions.
+or validate permissions. URL validation is not fetch authorization.
+The metadata transport independently checks origins, provenance, redirects and permissions.
 
 ## Supported metadata
 

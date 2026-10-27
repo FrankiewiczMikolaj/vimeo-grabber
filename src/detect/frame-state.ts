@@ -31,11 +31,11 @@ function config(v: unknown): boolean {
   const u = url(v);
   return !!u && u.origin === 'https://player.vimeo.com' && /^\/video\/[1-9]\d*\/config$/.test(u.pathname);
 }
-function manifest(v: unknown): boolean {
+function manifest(v: unknown, alternative = false): boolean {
   if (!record(v) || !keys(v, ['protocol', 'cdn', 'url'])) return false;
   const u = url(v.url);
   return (v.protocol === 'dash' || v.protocol === 'hls') && text(v.cdn)
-    && !!u && (u.hostname === 'vimeocdn.com' || u.hostname.endsWith('.vimeocdn.com'));
+    && !!u && (alternative || u.hostname === 'vimeocdn.com' || u.hostname.endsWith('.vimeocdn.com'));
 }
 function video(v: unknown, frameUrl: string): boolean {
   return record(v) && keys(v, ['id', 'title', 'source', 'status', 'manifests', 'tracks'])
@@ -44,7 +44,7 @@ function video(v: unknown, frameUrl: string): boolean {
     && v.source.frameUrl === frameUrl && (v.source.configUrl === null || config(v.source.configUrl))
     && typeof v.status === 'string'
     && ['pending', 'found', 'unavailable', 'permission-needed', 'denied', 'protected', 'unsupported'].includes(v.status)
-    && Array.isArray(v.manifests) && v.manifests.length <= 32 && v.manifests.every(manifest)
+    && Array.isArray(v.manifests) && v.manifests.length <= 32 && v.manifests.every(m => manifest(m, true))
     && Array.isArray(v.tracks) && v.tracks.length <= 256 && v.tracks.every(t => record(t)
       && keys(t, ['id', 'groupId', 'kind', 'manifest', 'codec', 'mimeType', 'bandwidth', 'width', 'height', 'frameRate', 'language', 'channels'])
       && text(t.id) && nullableText(t.groupId) && typeof t.kind === 'string' && ['video', 'audio', 'combined'].includes(t.kind)
