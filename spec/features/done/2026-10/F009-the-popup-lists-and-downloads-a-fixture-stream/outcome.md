@@ -1,0 +1,3 @@
+# Outcome
+
+Mikołaj merged the popup stream and real dummy-download interaction in PR #17 as `67428a4`. Narrow Vimeo content-script messaging runs the detector in the page context, and the popup renders titles as text with the rights footer intact. Actual headed Chromium action-popup proof completed a Downloads API save of `vimeo-grabber-synthetic.txt` with the exact 39 fixture bytes; empty and unsupported pages exposed no download control. Local verification and both required PR checks passed. A real Downloads API rejection was not induced; persistent fixture end-to-end coverage is the remaining M1 slice.
