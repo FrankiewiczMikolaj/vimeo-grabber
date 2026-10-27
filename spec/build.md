@@ -41,8 +41,8 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 ## NEXT
 
-- The synthetic fixture detector and real action-popup harness are owner-merged; wire the popup and real Downloads API dummy save from latest main.
-- After popup/download merges, prove the complete fixture download in Chromium through the real action popup where feasible.
+- The popup and real Downloads API dummy save are owner-merged; prove the assembled fixture download in the default Chromium verification path.
+- Finish M1 only after the persistent end-to-end draft passes both required checks and Mikołaj merges it.
 - Keep PRs small and draft, preserve both required workflows, and report the actual toolbar entry path without claiming direct popup URL navigation is a click.
 
 ## PROVEN
