@@ -30,7 +30,7 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 ## TRACK
 
-- M1 Walking skeleton: owned synthetic Vimeo fixture, typed fixture detection, one popup stream, dummy Downloads API save, and real Chromium end-to-end proof.
+- M1 Walking skeleton is owner-merged through PR #19: synthetic Vimeo fixture detection, popup listing, real Downloads API dummy save, and default real-action Chromium e2e.
 - M0 is owner-closed; Bob published v0.1.0 as a GitHub pre-release at cdc458a, and milestone M0 Foundation is closed.
 
 ## NOW
@@ -39,9 +39,8 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 ## NEXT
 
-- The synthetic fixture detector and real action-popup harness are owner-merged; wire the popup and real Downloads API dummy save from latest main.
-- After popup/download merges, prove the complete fixture download in Chromium through the real action popup where feasible.
-- Keep PRs small and draft, preserve both required workflows, and report the actual toolbar entry path without claiming direct popup URL navigation is a click.
+- Record the final merged M1 outcomes; do not begin M2 without the owner's direction.
+- Keep action API activation distinct from physical toolbar clicking; no live Vimeo extraction or real Downloads API rejection is claimed.
 
 ## PROVEN
 
