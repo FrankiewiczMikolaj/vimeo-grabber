@@ -61,5 +61,5 @@ Inspect `chrome.downloads.search` for completion and read the saved bytes.
 `node --test test/detect.test.mjs` checks config values, mutation, origin bounds,
 and rejection cases. `pnpm unit` also checks the exact permissions, Vimeo match
 scope, default CSP, and bundled popup boundary. Real Chromium is required to
-prove page-context messaging and the saved download. Persistent fixture e2e is
-the next integration slice; the default smoke checks extension loading only.
+prove page-context messaging and the saved download. The default `pnpm verify`
+now runs that end-to-end scenario; see [the harness guide](browser-harness.md).
