@@ -38,23 +38,25 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 <!-- Generated from spec/features/active/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
-- `F018-vimeo-metadata-fetching-stays-within-approved-hosts` (🟠 ACTIVE): Vimeo metadata fetching stays within approved hosts
-- `F017-vimeo-frames-publish-fresh-discovery-snapshots` (🟠 ACTIVE): Vimeo frames publish fresh discovery snapshots
+- `F020-frame-discoveries-stay-scoped-to-their-live-tab-documents` (🟠 ACTIVE): Frame discoveries stay scoped to their live tab documents
+- `F019-discovered-vimeo-configs-resolve-to-track-qualities` (🟠 ACTIVE): Discovered Vimeo configs resolve to track qualities
 - `F011-real-vimeo-videos-expose-their-video-and-audio-qualities` (🟠 ACTIVE): Real Vimeo videos expose their video and audio qualities
 
 ## NEXT
 
-- HLS, DASH JSON and standard MPD are owner-merged; the strict native-download smoke now awaits actual completion rather than an async Playwright predicate.
-- Discovery is owner-merged; implement frame observation and validated metadata transport on disjoint source/test/docs files using the existing model/discovery contracts.
-- Observation owns no network code; transport owns no observers or message handlers; neither changes production permissions, runtime entrypoints, shared modules or the popup.
-- Keep the MPD component-metadata correction in PR #31 independent; its quality report is not an extra review lane or merge gate.
-- After these APIs merge, wire tab/frame aggregation, permission prompts, parser dispatch and the detection-only popup cutover with offline e2e.
+- Observation and bounded transport are owner-merged; resolve discovered configs into qualities and build authenticated, navigation-safe frame aggregation on disjoint files.
+- Resolution owns metadata admission/parser dispatch; aggregation owns sender/envelope validation and document lifetimes, using an async resolution callback rather than importing unfinished code.
+- Both use `PageDiscovery` plus authoritative frame URL and resolve to readonly `{ video: NormalisedVideo, permissionOrigins: readonly string[] }[]`.
+- Keep runtime entrypoints, manifest permissions, popup and the current smoke unchanged until these APIs merge; then activate cross-frame reporting, exact-origin prompts and the detection-only popup together.
+- Replace the superseded synthetic download smoke during popup cutover, then expand offline Chromium e2e for nested frames, navigation, restart and grant/deny/revoke; never retain a fake download control for the old test.
 - Keep Vimeo-only frame access, offline CI and metadata-only fetching; real media downloading remains M3.
 
 ## PROVEN
 
 <!-- Generated from spec/features/done/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
+- `F018-vimeo-metadata-fetching-stays-within-approved-hosts` (🟢 PROVEN): Vimeo metadata fetching stays within approved hosts; landed 2026-10-27
+- `F017-vimeo-frames-publish-fresh-discovery-snapshots` (🟢 PROVEN): Vimeo frames publish fresh discovery snapshots; landed 2026-10-27
 - `F016-vimeo-pages-expose-config-and-fallback-candidates` (🟢 PROVEN): Vimeo pages expose config and fallback candidates; landed 2026-10-27
 - `F015-dash-mpd-representations-retain-inherited-track-metadata` (🟢 PROVEN): DASH MPD representations retain inherited track metadata; landed 2026-10-27
 - `F014-hls-playlists-expose-variants-and-audio-groups` (🟢 PROVEN): HLS playlists expose variants and audio groups; landed 2026-10-27
@@ -63,9 +65,7 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 - `F010-chromium-proves-the-fixture-download-end-to-end` (🟢 PROVEN): Chromium proves the fixture download end to end; landed 2026-10-27
 - `F009-the-popup-lists-and-downloads-a-fixture-stream` (🟢 PROVEN): The popup lists and downloads a fixture stream; landed 2026-10-27
 - `F008-chromium-exercises-the-extension-toolbar-action` (🟢 PROVEN): Chromium exercises the extension toolbar action; landed 2026-10-27
-- `F007-a-synthetic-vimeo-page-exposes-one-detectable-stream` (🟢 PROVEN): A synthetic Vimeo page exposes one detectable stream; landed 2026-10-27
-- `F006-code-and-dependencies-receive-security-checks` (🟢 PROVEN): Code and dependencies receive security checks; landed 2026-10-27
-- 2026-10: 15 landed. spec/features/done/2026-10/
+- 2026-10: 17 landed. spec/features/done/2026-10/
 
 ## PARKED
 
