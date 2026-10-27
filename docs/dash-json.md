@@ -25,12 +25,17 @@ The metadata transport independently checks origins, provenance, redirects and p
   the base query; path references replace it; explicit duplicate/empty/escaped query
   values remain intact. Only HTTPS without user information is returned. This permits
   metadata URLs on any host, but does not authorize access to them.
-- Nonempty `drm` or `content_protection` declarations mark protection at root or entry
-  level. Root protection is inherited. Protection on malformed entries still counts.
+- `drm`, `content_protection`, `encryption` and `encrypted` require a positive
+  declaration: an active flag or nonempty scheme/method/system/key/license value.
+  Known DRM-system objects are inspected for those values, not merely their existence.
+  Empty objects/arrays, disabled flags and clear/none values do not mark protection.
+  Root protection is inherited; protection on malformed entries still counts.
   `status` is `protected` if advertised, otherwise `found` with tracks, `unavailable`
   for recognized empty/unusable arrays, or `unsupported` for other shapes. Non-DASH
   provenance or an invalid response URL returns `unsupported` with no tracks.
   Clear siblings remain visible when the aggregate status is `protected`.
+  Missing, empty or unrequested `init_segment` is never a protection signal.
+  Inline init stays metadata only; this slice does not decode or add it to Track.
 
 Unknown fields are ignored. Standard MPD, other protection vocabularies, rational
 frame-rate strings, media addresses and segment parsing are not supported. `found`

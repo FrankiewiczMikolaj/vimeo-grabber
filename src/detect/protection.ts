@@ -8,7 +8,7 @@ function declaration(value: unknown): boolean {
   if (Array.isArray(value)) return value.some(declaration);
   if (typeof value !== 'object' || value === null) return false;
   const entry = value as Fields;
-  return ['enabled', 'encrypted', 'scheme', 'schemeIdUri', 'system', 'key_system',
+  return ['enabled', 'encrypted', 'scheme', 'schemeIdUri', 'method', 'system', 'key_system',
     'license_url', 'key_id', 'kid', 'pssh', 'widevine', 'playready', 'fairplay', 'clearkey']
     .some(key => declaration(entry[key]));
 }

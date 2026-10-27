@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { Buffer } from 'node:buffer';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { URL } from 'node:url';
 import test from 'node:test';
 import { chromium } from 'playwright';
 import { build } from 'vite';

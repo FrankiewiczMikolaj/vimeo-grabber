@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { URL } from 'node:url';
 
 const tracks = JSON.parse(await readFile(new URL('./dash-json.json', import.meta.url), 'utf8'));
 export const avcConfig = JSON.parse(await readFile(new URL('./dash-avc-config.json', import.meta.url), 'utf8'));

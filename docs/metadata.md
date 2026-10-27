@@ -17,6 +17,11 @@ It does not change production permissions or connect detected URLs to downloads.
   Cloned receipts, unrelated references and later caller mutations cannot expand it.
   Only HTTPS `vimeocdn.com` or its subdomains, without a non-default port, qualify.
   DASH `.json`/`.mpd` and HLS `.m3u8` endpoints have explicit content-type allowlists.
+  Only after admission, a DASH JSON request appends `base64_init=1` if no
+  `base64_init` parameter exists. Existing query bytes, ordering, duplicates,
+  empty values and explicit option values remain unchanged. HLS and MPD URLs
+  are untouched. The original manifest reference remains candidate/track provenance;
+  the derived request URL cannot be supplied as a new reference using the old receipt.
 
 Inline data and source provenance are supplied by a trusted extension caller.
 A receipt is not proof of a Chrome sender's identity: do not expose these methods

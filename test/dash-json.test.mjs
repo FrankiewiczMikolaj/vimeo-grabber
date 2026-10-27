@@ -76,7 +76,8 @@ test('missing or empty init and inactive DRM containers do not declare protectio
     assert.equal(result.status, 'found');
     assert.deepEqual(result.tracks.map(track => track.protected), [false, false]);
   }
-  for (const indication of [{ encrypted: true }, { encryption: { scheme: 'cenc' } }, { drm: true }]) {
+  for (const indication of [{ encrypted: true }, { encryption: { scheme: 'cenc' } },
+    { encryption: { method: 'AES-128' } }, { drm: true }]) {
     assert.equal(parse({ ...fixture, ...indication }).status, 'protected');
     assert.equal(parse({ video: [{ ...fixture.video[0], ...indication }] }).tracks[0].protected, true);
   }

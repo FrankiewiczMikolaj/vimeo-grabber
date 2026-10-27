@@ -59,6 +59,11 @@ dialog. The second grant resolves all CDN entries on that origin, including a
 separate DASH pair, malformed JSON and protected MPD. HLS remains usable after
 denial and revocation; only the separate DASH pair receives preference. Every
 track must retain its own candidate's manifest.
+The AVC repair fixture supplies generic `url` and H.264 `avc_url` for each DASH
+CDN. It includes disabled DRM containers and returns inline base64 init only for
+`base64_init=1`. The compiled resolver and action proof check AVC preference,
+retained generic alternatives, untouched signed query bytes and original provenance.
+An explicit `base64_init=0` case stays clear without init; positive DRM regressions remain.
 
 An unrelated top page nests another unrelated page with Vimeo players. It also
 contains an inline decoy config that must not become a result. The matrix has five
