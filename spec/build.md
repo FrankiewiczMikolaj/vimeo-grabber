@@ -30,7 +30,7 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 ## TRACK
 
-- M3 plan is owner-merged; implement independent candidates, Track URLs, separate files, Linux ffmpeg command and one-time notice in that order.
+- M3 plan is owner-merged; Track references are merged, paired downloads are next, then Linux command; notice may run alongside downloads only on disjoint files.
 - M2 is owner-closed; v0.3.0 is a GitHub pre-release at c9f2177, with live HLS page/embed evidence and DASH/notice gaps deferred to M3.
 - M1 is owner-closed; v0.2.0 is a GitHub pre-release at 90b88f2 and milestone M1 Walking skeleton is closed.
 
@@ -43,10 +43,10 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 ## NEXT
 
 - Candidates (#41) are owner-merged; preserve the issue comments on genuine DRM and separate-HLS fallback; Mikołaj chooses a non-DRM live DASH example.
-- Add explicit Track download references with stacked DASH base resolution and inline init before media (#42).
-- Save selected video and audio as two real files with correct ordered bytes and browser completion (#45).
+- Track references (#42) are owner-merged in PR #49 at b4ccfb5; F026 prepares one-click quality pairs and Audio only (#45).
+- Save exactly two completed files per quality click, one for Audio only, and retain completed files with honest partial-failure state (#45).
 - Generate the safely quoted Linux ffmpeg command from actual absolute download paths (#43).
-- Finish the one-time install disclaimer and retained acknowledgement last (#44).
+- Hold notice (#44) behind download integration while popup, worker, manifest and browser-harness changes overlap.
 - Use offline fixtures as CI truth; request Bob's live checks after candidates and downloads; at most two disjoint workers, fixed Codex Sol medium, no owner-merge bypass.
 
 ## PROVEN
@@ -67,7 +67,7 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 ## PARKED
 
-- (none)
+- Bob/Mikołaj paused M3 starts with about 5% Codex 5h left; save preparation only, no jobs, no saved reset or provider switch, resume only on Bob's instruction after the expected 04:15 reset.
 
 ## DROPPED
 
