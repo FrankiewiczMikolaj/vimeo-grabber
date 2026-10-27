@@ -4,7 +4,7 @@ import { normalisePlayerConfig } from './normalise';
 export const METADATA_LIMIT = 1_048_576;
 export const METADATA_TIMEOUT = 8_000;
 export type MetadataResult =
-  | { readonly status: 'fetched'; readonly text: string }
+  | { readonly status: 'fetched'; readonly text: string; readonly responseUrl: string }
   | { readonly status: 'permission-needed'; readonly origin: string }
   | { readonly status: 'failed'; readonly reason: 'source' | 'permission' | 'network' |
       'redirect' | 'http' | 'content-type' | 'size' | 'timeout' };
@@ -122,7 +122,7 @@ export class MetadataTransport {
         parts.push(decoder.decode(value, { stream: true }));
       }
       parts.push(decoder.decode());
-      return { status: 'fetched', text: parts.join('') };
+      return { status: 'fetched', text: parts.join(''), responseUrl: response.url || url };
     } catch { return fail(controller.signal.aborted ? 'timeout' : 'network'); }
     finally {
       clearTimeout(timer);

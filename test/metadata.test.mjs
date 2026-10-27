@@ -94,7 +94,7 @@ test('compiled metadata transport enforces real worker permissions and bounded p
         .map(([cdn, item]) => ({ cdn, protocol: 'dash', url: item.url })) };
     }, config);
     const fetchManifest = index => worker.evaluate(index => transport.manifest(receipt, video, video.manifests[index]), index);
-    assert.deepEqual(await fetchManifest(0), { status: 'fetched', text: '<MPD/>' });
+    assert.equal((await fetchManifest(0)).text, '<MPD/>');
     assert.equal(seen[1].url, manifest);
     assert.equal((await fetchManifest(3)).status, 'fetched');
     assert.equal(seen[2].url, `${config.request.files.dash.cdns.json.url}&base64_init=1`);

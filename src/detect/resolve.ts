@@ -43,9 +43,10 @@ export async function resolveDiscovery(
       }
       let parsed: Pick<PlaybackCandidate, 'status' | 'tracks'>;
       try {
-        parsed = reference.protocol === 'hls' ? parseHls(response.text, reference)
+        parsed = reference.protocol === 'hls' ? parseHls(response.text, reference, response.responseUrl)
           : new URL(reference.url).pathname.endsWith('.json')
-            ? parseDashJson(JSON.parse(response.text), reference) : parseDashMpd(response.text, reference);
+            ? parseDashJson(JSON.parse(response.text), reference, response.responseUrl)
+            : parseDashMpd(response.text, reference, response.responseUrl);
       } catch { parsed = { status: 'unsupported', tracks: [] }; }
       results.set(result.id, { ...result, ...parsed });
     }
