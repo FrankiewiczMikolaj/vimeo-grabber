@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
+import { Buffer } from 'node:buffer';
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
+import { clearTimeout, setTimeout } from 'node:timers';
 import { chromium } from 'playwright';
 
 const extension = resolve(process.env.SMOKE_EXTENSION_DIR ?? 'dist');
@@ -49,6 +51,102 @@ async function readBuild() {
   }
 }
 
+// Chromium's action popup is a CDP page target, but Playwright does not emit a
+// BrowserContext page for it. Use a non-flattened child session for this target.
+async function popupCommand(session, sessionId, method, params = {}) {
+  const id = ++popupCommand.id;
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => finish(new Error(`${method} timed out`)), 10_000);
+    const receive = event => {
+      if (event.sessionId !== sessionId) return;
+      const message = JSON.parse(event.message);
+      if (message.id !== id) return;
+      finish(message.error && new Error(JSON.stringify(message.error)), message.result);
+    };
+    function finish(error, result) {
+      clearTimeout(timer);
+      session.off('Target.receivedMessageFromTarget', receive);
+      if (error) reject(error);
+      else resolve(result);
+    }
+    session.on('Target.receivedMessageFromTarget', receive);
+    session.send('Target.sendMessageToTarget', {
+      sessionId, message: JSON.stringify({ id, method, params }),
+    }).catch(finish);
+  });
+}
+popupCommand.id = 0;
+
+async function exerciseAction(popupUrl) {
+  diagnostics.entry = 'chrome.action.openPopup (not a physical click or keyboard action)';
+  const session = await context.newCDPSession(page);
+  diagnostics.chromium = await session.send('Browser.getVersion');
+  diagnostics.activation = await page.evaluate(async () => {
+    try {
+      return { commands: await globalThis.chrome.commands.getAll() };
+    } catch (error) {
+      return { keyboardProbeError: error.message };
+    }
+  });
+  const activeTab = context.pages()[0];
+  await activeTab.bringToFront();
+  const before = await session.send('Target.getTargets');
+  // Retain the exact API exception on unsupported platforms. Never fall back to navigation.
+  diagnostics.actionApi = await session.send('Runtime.evaluate', {
+    expression: 'chrome.action.openPopup().then(() => "opened")',
+    awaitPromise: true, returnByValue: true, userGesture: false,
+  });
+  assert.equal(diagnostics.actionApi.exceptionDetails, undefined, 'action API failed; see diagnostics');
+  assert.equal(diagnostics.actionApi.result.value, 'opened');
+  const after = await session.send('Target.getTargets');
+  const target = after.targetInfos.find(target => target.url === popupUrl &&
+    !before.targetInfos.some(previous => previous.targetId === target.targetId));
+  assert.ok(target, 'openPopup must create a new target, not reuse the bootstrap tab');
+  diagnostics.popupTarget = target;
+  const { sessionId } = await session.send('Target.attachToTarget', {
+    targetId: target.targetId, flatten: false,
+  });
+  const command = (method, params) => popupCommand(session, sessionId, method, params);
+  const rendered = await command('Runtime.evaluate', {
+    expression: `JSON.stringify({
+      title: document.title, lang: document.documentElement.lang,
+      heading: document.querySelector('h1')?.textContent,
+      text: document.querySelector('main')?.innerText,
+      popupViews: chrome.extension.getViews({type: 'popup'}).length,
+      isPopup: chrome.extension.getViews({type: 'popup'}).includes(window),
+      width: innerWidth, height: innerHeight
+    })`, returnByValue: true,
+  });
+  diagnostics.popup = JSON.parse(rendered.result.value);
+  const screenshot = await command('Page.captureScreenshot', { format: 'png' });
+  await writeFile(resolve(artifacts, 'popup.png'), Buffer.from(screenshot.data, 'base64'));
+  assert.equal(diagnostics.popup.title, 'Vimeo Grabber');
+  assert.equal(diagnostics.popup.lang, 'en');
+  assert.equal(diagnostics.popup.heading, 'Vimeo Grabber');
+  assert.match(diagnostics.popup.text, /detection and downloads are not available yet/);
+  assert.equal(diagnostics.popup.isPopup, true, 'target must be an actual extension popup view');
+  assert.equal(diagnostics.popup.popupViews, 1);
+  // Focus another tab: a real action popup must disappear, unlike the bootstrap tab.
+  await session.send('Target.setDiscoverTargets', { discover: true });
+  const destroyed = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      session.off('Target.targetDestroyed', listener);
+      reject(new Error('action popup did not close on focus change'));
+    }, 5_000);
+    const listener = event => {
+      if (event.targetId !== target.targetId) return;
+      clearTimeout(timer);
+      session.off('Target.targetDestroyed', listener);
+      resolve(event);
+    };
+    session.on('Target.targetDestroyed', listener);
+  });
+  [diagnostics.popupDestroyed] = await Promise.all([destroyed, page.bringToFront()]);
+  assert.equal(await page.evaluate(() => globalThis.chrome.extension.getViews({ type: 'popup' }).length), 0);
+  diagnostics.bootstrapSurvived = !page.isClosed();
+  await session.detach();
+}
+
 try {
   const popup = await readBuild();
   diagnostics.profile = await mkdtemp(resolve(artifacts, 'chromium-'));
@@ -88,11 +186,15 @@ try {
     return route.abort();
   });
   await page.goto(`${origin}${popup}`);
-  await page.getByRole('heading', { name: 'Vimeo Grabber', exact: true }).waitFor();
-  assert.equal(await page.title(), 'Vimeo Grabber');
-  assert.equal(await page.locator('html').getAttribute('lang'), 'en');
-  assert.match(await page.locator('main').innerText(), /detection and downloads are not available yet/);
-  await page.screenshot({ path: resolve(artifacts, 'popup.png'), fullPage: true });
+  if (headed) {
+    await exerciseAction(`${origin}${popup}`);
+  } else {
+    await page.getByRole('heading', { name: 'Vimeo Grabber', exact: true }).waitFor();
+    assert.equal(await page.title(), 'Vimeo Grabber');
+    assert.equal(await page.locator('html').getAttribute('lang'), 'en');
+    assert.match(await page.locator('main').innerText(), /detection and downloads are not available yet/);
+    await page.screenshot({ path: resolve(artifacts, 'popup.png'), fullPage: true });
+  }
   assert.deepEqual(diagnostics.pageErrors, []);
   assert.deepEqual(diagnostics.consoleErrors, []);
   assert.deepEqual(diagnostics.externalRequests, []);
