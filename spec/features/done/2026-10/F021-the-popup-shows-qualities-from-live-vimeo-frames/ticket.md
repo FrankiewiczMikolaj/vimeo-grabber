@@ -1,5 +1,6 @@
 ---
 opened: 2026-10-27
+landed: 2026-10-27
 ---
 # F021 · The popup shows qualities from live Vimeo frames
 

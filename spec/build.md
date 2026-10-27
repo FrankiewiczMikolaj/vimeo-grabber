@@ -38,7 +38,7 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 <!-- Generated from spec/features/active/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
-- `F021-the-popup-shows-qualities-from-live-vimeo-frames` (🟠 ACTIVE): The popup shows qualities from live Vimeo frames
+- `F022-chromium-proves-cross-frame-detection-without-media-downloads` (🟠 ACTIVE): Chromium proves cross-frame detection without media downloads
 - `F011-real-vimeo-videos-expose-their-video-and-audio-qualities` (🟠 ACTIVE): Real Vimeo videos expose their video and audio qualities
 
 ## NEXT
@@ -54,6 +54,7 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 <!-- Generated from spec/features/done/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
+- `F021-the-popup-shows-qualities-from-live-vimeo-frames` (🟢 PROVEN): The popup shows qualities from live Vimeo frames; landed 2026-10-27
 - `F020-frame-discoveries-stay-scoped-to-their-live-tab-documents` (🟢 PROVEN): Frame discoveries stay scoped to their live tab documents; landed 2026-10-27
 - `F019-discovered-vimeo-configs-resolve-to-track-qualities` (🟢 PROVEN): Discovered Vimeo configs resolve to track qualities; landed 2026-10-27
 - `F018-vimeo-metadata-fetching-stays-within-approved-hosts` (🟢 PROVEN): Vimeo metadata fetching stays within approved hosts; landed 2026-10-27
@@ -63,8 +64,7 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 - `F014-hls-playlists-expose-variants-and-audio-groups` (🟢 PROVEN): HLS playlists expose variants and audio groups; landed 2026-10-27
 - `F013-dash-manifests-expose-separate-video-and-audio-tracks` (🟢 PROVEN): DASH manifests expose separate video and audio tracks; landed 2026-10-27
 - `F012-vimeo-configs-normalise-into-a-shared-detection-model` (🟢 PROVEN): Vimeo configs normalise into a shared detection model; landed 2026-10-27
-- `F010-chromium-proves-the-fixture-download-end-to-end` (🟢 PROVEN): Chromium proves the fixture download end to end; landed 2026-10-27
-- 2026-10: 19 landed. spec/features/done/2026-10/
+- 2026-10: 20 landed. spec/features/done/2026-10/
 
 ## PARKED
 
