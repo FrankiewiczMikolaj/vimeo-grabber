@@ -13,7 +13,7 @@
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "unit": "node --test test/*.test.mjs",
-    "smoke": "node scripts/smoke.mjs",
+    "smoke": "xvfb-run -a env SMOKE_HEADED=1 node scripts/smoke.mjs",
     "verify": "pnpm lint && pnpm typecheck && pnpm build && pnpm unit && pnpm smoke"
   },
   "devDependencies": {
