@@ -43,3 +43,5 @@ Only download content you have rights to. You install and use this project at
 your own risk. The author and contributors are not liable. No downloads are
 available in this scaffold. Distribution is planned through GitHub Releases,
 not browser stores.
+
+Licensed under the [MIT License](LICENSE).
