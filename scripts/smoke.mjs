@@ -145,11 +145,33 @@ async function exerciseAction(popupUrl, activeTab, supported) {
     assert.equal(state.title, 'Synthetic Vimeo dummy stream');
     assert.equal(state.buttons, 1);
     await evaluate("document.querySelector('button').click()");
-    await page.waitForFunction(async () => {
-      const items = await globalThis.chrome.downloads.search({});
-      return items.length === 1 && items[0].state === 'complete';
-    });
-    const [item] = await page.evaluate(() => globalThis.chrome.downloads.search({}));
+    // waitForFunction treats an async predicate's Promise as truthy before it settles.
+    const item = await page.evaluate(() => new Promise((resolve, reject) => {
+      const cleanup = () => {
+        clearTimeout(timer);
+        globalThis.chrome.downloads.onCreated.removeListener(check);
+        globalThis.chrome.downloads.onChanged.removeListener(check);
+      };
+      const check = async () => {
+        try {
+          const items = await globalThis.chrome.downloads.search({});
+          if (items.length === 1 && items[0].state === 'complete') {
+            cleanup();
+            resolve(items[0]);
+          }
+        } catch (error) {
+          cleanup();
+          reject(error);
+        }
+      };
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new Error('Native download did not complete within 10 seconds'));
+      }, 10_000);
+      globalThis.chrome.downloads.onCreated.addListener(check);
+      globalThis.chrome.downloads.onChanged.addListener(check);
+      void check();
+    }));
     assert.equal(item.filename, resolve(downloads, 'vimeo-grabber-synthetic.txt'));
     assert.equal(item.state, 'complete');
     const bytes = await readFile(item.filename);
