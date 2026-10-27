@@ -28,8 +28,6 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 <!-- Generated from spec/features/active/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
-- `F001-vite-builds-a-chromium-extension-shell` (🟠 ACTIVE): Vite builds a Chromium extension shell
-
 ## NEXT
 
 - After the extension scaffold, open separate browser harness, CI artifact, GitHub hygiene, MIT license, and security draft PRs; browser proof precedes M1.
@@ -37,6 +35,9 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 ## PROVEN
 
 <!-- Generated from spec/features/done/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
+
+- `F001-vite-builds-a-chromium-extension-shell` (🟢 PROVEN): Vite builds a Chromium extension shell; landed 2026-10-27
+- 2026-10: 1 landed. spec/features/done/2026-10/
 
 ## PARKED
 
