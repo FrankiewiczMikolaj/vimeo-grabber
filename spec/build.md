@@ -19,7 +19,7 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 - **Review ownership:** Mikołaj reviews and merges personally; do not open an independent reviewer lane unless asked
 - **Max workers:** 2
 - **Timeout:** 90m default unless a ticket says otherwise
-- **PR metadata:** every M1 PR and issue uses milestone `M1 Walking skeleton` (2); all PRs stay draft for Mikołaj's review.
+- **PR metadata:** every M2 PR and issue uses milestone `M2 Detection` (3); all PRs stay draft for Mikołaj's review.
 
 ## Repository setup
 
@@ -30,17 +30,21 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 ## TRACK
 
-- M1 Walking skeleton is owner-merged through PR #19: synthetic Vimeo fixture detection, popup listing, real Downloads API dummy save, and default real-action Chromium e2e.
+- M2 Detection targets v0.3.0: real Vimeo videos and popup qualities through multiple config paths and DASH/HLS metadata; no real media downloads.
+- M1 is owner-closed; v0.2.0 is a GitHub pre-release at 90b88f2 and milestone M1 Walking skeleton is closed.
 - M0 is owner-closed; Bob published v0.1.0 as a GitHub pre-release at cdc458a, and milestone M0 Foundation is closed.
 
 ## NOW
 
 <!-- Generated from spec/features/active/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
+- `F011-real-vimeo-videos-expose-their-video-and-audio-qualities` (🟠 ACTIVE): Real Vimeo videos expose their video and audio qualities
+
 ## NEXT
 
-- Record the final merged M1 outcomes; do not begin M2 without the owner's direction.
-- Keep action API activation distinct from physical toolbar clicking; no live Vimeo extraction or real Downloads API rejection is claimed.
+- Review the single M2 detection planning draft before implementation; design and permission boundaries live in docs/M2-DETECTION.md.
+- After the plan merges, deliver small numbered config/parser/runtime/popup/e2e drafts from latest main with max two workers and both required checks.
+- Keep Vimeo-only frame access, offline CI and metadata-only fetching; real media downloading remains M3.
 
 ## PROVEN
 
