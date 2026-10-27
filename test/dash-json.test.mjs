@@ -66,3 +66,18 @@ test('advertised protection remains explicit and does not discard clear siblings
   assert.deepEqual(parse({ drm: { scheme: 'unknown' } }), { status: 'protected', tracks: [] });
   assert.equal(parse({ ...fixture, drm: {}, content_protection: [] }).status, 'found');
 });
+
+test('missing or empty init and inactive DRM containers do not declare protection', () => {
+  for (const init_segment of [undefined, '', 'AAAAHGZ0eXBpc29t']) {
+    const result = parse({ drm: { enabled: false, widevine: {}, playready: null },
+      content_protection: [{ scheme: '', encrypted: false }], encryption: { enabled: false },
+      video: [{ ...fixture.video[0], init_segment, drm: { enabled: false } }],
+      audio: [{ ...fixture.audio[0], init_segment }] });
+    assert.equal(result.status, 'found');
+    assert.deepEqual(result.tracks.map(track => track.protected), [false, false]);
+  }
+  for (const indication of [{ encrypted: true }, { encryption: { scheme: 'cenc' } }, { drm: true }]) {
+    assert.equal(parse({ ...fixture, ...indication }).status, 'protected');
+    assert.equal(parse({ video: [{ ...fixture.video[0], ...indication }] }).tracks[0].protected, true);
+  }
+});

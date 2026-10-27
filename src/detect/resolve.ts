@@ -16,7 +16,7 @@ export async function resolveDiscovery(
   const candidate = (video: NormalisedVideo, manifest: ManifestReference | null): PlaybackCandidate => ({
     id: JSON.stringify([video.id, video.source.frameUrl, video.source.configUrl, manifest]),
     videoId: video.id, title: video.title, source: video.source, manifest,
-    status: 'unavailable', tracks: [], permissionOrigins: [],
+    status: video.status === 'protected' ? 'protected' : 'unavailable', tracks: [], permissionOrigins: [],
   });
   const saveConfig = (video: NormalisedVideo, response?: MetadataResult) => {
     const result = candidate(video, null);
@@ -28,6 +28,10 @@ export async function resolveDiscovery(
     for (const reference of video.manifests) {
       const result = candidate(video, reference);
       if (results.has(result.id)) continue;
+      if (result.status === 'protected') {
+        results.set(result.id, result);
+        continue;
+      }
       const response = await transport.manifest(receipt, video, reference);
       if (response.status === 'permission-needed') {
         results.set(result.id, { ...result, status: response.status, permissionOrigins: [response.origin] });

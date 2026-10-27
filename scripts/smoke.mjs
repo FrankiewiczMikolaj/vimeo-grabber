@@ -7,6 +7,7 @@ import { URL } from 'node:url';
 import { setTimeout, clearTimeout } from 'node:timers';
 import { execFileSync } from 'node:child_process';
 import { chromium } from 'playwright';
+import { avcConfig, dashAvcResponse } from '../test/fixtures/dash-avc-response.mjs';
 
 const extension = resolve(process.env.SMOKE_EXTENSION_DIR ?? 'dist');
 const artifacts = resolve(process.env.SMOKE_ARTIFACT_DIR ?? 'artifacts/headed');
@@ -103,12 +104,17 @@ try {
   } } } };
   const dash = await readFile('test/fixtures/dash-json.json', 'utf8');
   const mpd = await readFile('test/fixtures/dash-mpd.mpd', 'utf8');
+  const fixtureUrls = Object.values(avcConfig.request.files.dash.cdns).flatMap(entry => [entry.url, entry.avc_url]);
+  const allowedAvc = new Set([...fixtureUrls, ...fixtureUrls.filter(url => !url.includes('base64_init=')).map(url => `${url}&base64_init=1`)]);
+  diagnostics.initMetadata = [];
   const secondDash = { ...config, request: { files: { ...config.request.files, dash: { cdns: {
     videoOnly: { url: 'https://second.vimeocdn.com/video-only.json' },
     audioOnly: { url: 'https://second.vimeocdn.com/audio-only.json' },
-    separate: { url: 'https://second.vimeocdn.com/dash.json?sig=dummy' },
+    ...avcConfig.request.files.dash.cdns,
     malformed: { url: 'https://second.vimeocdn.com/malformed.json' },
     protected: { url: 'https://second.vimeocdn.com/protected.mpd' },
+  } }, hls: { ...config.request.files.hls, cdns: { ...config.request.files.hls.cdns,
+    sameOrigin: { url: 'https://second.vimeocdn.com/master.m3u8?sig=dummy' },
   } } } } };
   const metadata = new Map([
     ['dash.json', ['application/json', dash]],
@@ -117,7 +123,7 @@ try {
     ['unsupported.json', ['application/json', '{}']],
     ['malformed.json', ['application/json', '{']],
     ['held.json', ['application/json', dash]],
-  ]);
+  ].map(([path, body]) => [path.endsWith('.json') ? `${path}?base64_init=1` : path, body]));
   const ownedConfig = (id, names) => ({ video: { id, title: `Owned ${id}` },
     request: { files: { dash: { cdns: Object.fromEntries(names.map((name, index) =>
       [String(index), { url: `https://owned.vimeocdn.com/${name}` }])) } } } });
@@ -145,10 +151,17 @@ try {
     if (url === 'https://example.com/empty') return route.fulfill({ contentType: 'text/html', body: '<title>Empty owned page</title>' });
     if (url === 'https://player.vimeo.com/video/20') return route.fulfill({ contentType: 'text/html', body: `<title>Owned player</title><script type="application/json">${JSON.stringify(config)}</script>` });
     if (url === 'https://owned.vimeocdn.com/master.m3u8?sig=dummy') return route.fulfill({ contentType: 'application/vnd.apple.mpegurl', body: master });
-    if (url === 'https://second.vimeocdn.com/video-only.json') return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ video: JSON.parse(dash).video }) });
-    if (url === 'https://second.vimeocdn.com/audio-only.json') return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ audio: JSON.parse(dash).audio }) });
-    if (url === 'https://second.vimeocdn.com/dash.json?sig=dummy') return route.fulfill({ contentType: 'application/json', body: dash });
-    if (url === 'https://second.vimeocdn.com/malformed.json') return route.fulfill({ contentType: 'application/json', body: '{' });
+    if (url === 'https://second.vimeocdn.com/master.m3u8?sig=dummy') return route.fulfill({ contentType: 'application/vnd.apple.mpegurl', body: master });
+    if (allowedAvc.has(url)) {
+      const body = dashAvcResponse(url);
+      diagnostics.initMetadata.push({ path: new URL(url).pathname,
+        requested: new URL(url).searchParams.get('base64_init') === '1',
+        provided: body.video.every(track => typeof track.init_segment === 'string') });
+      return route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) });
+    }
+    if (url === 'https://second.vimeocdn.com/video-only.json?base64_init=1') return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ video: JSON.parse(dash).video }) });
+    if (url === 'https://second.vimeocdn.com/audio-only.json?base64_init=1') return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ audio: JSON.parse(dash).audio }) });
+    if (url === 'https://second.vimeocdn.com/malformed.json?base64_init=1') return route.fulfill({ contentType: 'application/json', body: '{' });
     if (url === 'https://second.vimeocdn.com/protected.mpd') return route.fulfill({ contentType: 'application/dash+xml', body: '<MPD><ContentProtection schemeIdUri="urn:owned"/></MPD>' });
     if (/^https:\/\/player\.vimeo\.com\/video\/20\/config(?:\?h=owned)?$/.test(url)) return route.fulfill({ contentType: 'application/json', body: JSON.stringify(secondDash) });
     if (url === 'https://example.com/matrix') return route.fulfill({ contentType: 'text/html',
@@ -165,9 +178,9 @@ try {
       : process.env.SMOKE_BREAK_DETECTION === '1' && fallback[1] === '32' ? '{' : JSON.stringify(configs.get(fallback[1])) });
     const owned = metadata.get(url.replace('https://owned.vimeocdn.com/', ''));
     if (owned && url.startsWith('https://owned.vimeocdn.com/')) {
-      if (url.endsWith('/held.json')) { held(); await heldResponse; }
+      if (new URL(url).pathname === '/held.json') { held(); await heldResponse; }
       await route.fulfill({ contentType: owned[0], body: owned[1] });
-      if (url.endsWith('/held.json')) delivered();
+      if (new URL(url).pathname === '/held.json') delivered();
       return;
     }
     diagnostics.unexpected.push(url); return route.abort();
@@ -272,9 +285,18 @@ try {
   assert.equal(await evaluate("chrome.permissions.contains({origins:['https://unseen.vimeocdn.com/*']})"), false);
   assert.equal(await evaluate("document.querySelector('#streams article').innerText.includes('Preferred: separate DASH')"), true);
   assert.ok(candidates.some(candidate => candidate.manifest?.protocol === 'hls' && candidate.status === 'found'));
+  assert.ok(candidates.some(candidate => candidate.manifest?.cdn === 'sameOrigin' && candidate.status === 'found'));
   assert.equal(await evaluate("document.querySelector('#streams article').innerText.includes('CDN separate')"), true);
   assert.deepEqual(candidates.filter(candidate => candidate.manifest?.cdn === 'separate').map(candidate => candidate.tracks.map(track => track.kind)),
-    [['video', 'video', 'audio', 'audio']]);
+    [['video', 'video', 'audio', 'audio'], ['video', 'video', 'audio', 'audio']]);
+  const preferred = candidates.find(candidate => candidate.manifest?.cdn === 'separate');
+  assert.equal(preferred.manifest.url, avcConfig.request.files.dash.cdns.separate.avc_url);
+  assert.ok(diagnostics.requests.includes(`${avcConfig.request.files.dash.cdns.separate.avc_url}&base64_init=1`));
+  assert.equal(diagnostics.requests.includes(avcConfig.request.files.dash.cdns.separate.avc_url), false);
+  assert.equal(preferred.tracks[0].codec, 'avc1.4d401e');
+  assert.ok(diagnostics.initMetadata.some(item => !item.requested && !item.provided));
+  assert.ok(diagnostics.initMetadata.some(item => item.requested && item.provided));
+  assert.ok(diagnostics.initMetadata.every(item => item.requested === item.provided));
   assert.deepEqual(candidates.filter(candidate => ['malformed', 'protected'].includes(candidate.manifest?.cdn)).map(candidate => candidate.status),
     ['unsupported', 'protected']);
   for (const candidate of candidates) {

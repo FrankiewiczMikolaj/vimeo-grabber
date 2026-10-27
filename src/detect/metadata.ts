@@ -78,7 +78,13 @@ export class MetadataTransport {
       : reference.protocol === 'dash' && /\.json$/.test(url.pathname) ? ['application/json']
         : reference.protocol === 'dash' && /\.mpd$/.test(url.pathname)
           ? ['application/dash+xml', 'application/xml', 'text/xml'] : [];
-    return types.length ? this.request(reference.url, types) : fail('source');
+    let requestUrl = reference.url;
+    if (reference.protocol === 'dash' && types[0] === 'application/json' && !url.searchParams.has('base64_init')) {
+      // Append without URLSearchParams serialization: signed query bytes must stay intact.
+      const separator = !requestUrl.includes('?') ? '?' : /[?&]$/.test(requestUrl) ? '' : '&';
+      requestUrl += `${separator}base64_init=1`;
+    }
+    return types.length ? this.request(requestUrl, types) : fail('source');
   }
 
   private async request(url: string, types: readonly string[]): Promise<MetadataResult> {

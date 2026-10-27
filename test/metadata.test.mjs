@@ -47,6 +47,7 @@ test('compiled metadata transport enforces real worker permissions and bounded p
     const config = { video: { id: 900001 }, request: { files: { dash: { cdns: {
       owned: { url: manifest }, denied: { url: 'https://denied.vimeocdn.com/manifest.mpd' },
       media: { url: 'https://owned.vimeocdn.com/segment.m4s' },
+      json: { url: 'https://owned.vimeocdn.com/manifest.json?sig=dummy%2f+%20&x=&x=2' },
     } } } } };
     cdp.on('Target.receivedMessageFromTarget', event => {
       if (event.sessionId !== sessionId) return;
@@ -67,9 +68,10 @@ test('compiled metadata transport enforces real worker permissions and bounded p
         return;
       }
       const body = mode === 'size' ? 'x'.repeat(1_048_577)
-        : mode === 'malformed' ? '{' : isConfig ? JSON.stringify(config) : '<MPD/>';
+        : mode === 'malformed' ? '{' : isConfig ? JSON.stringify(config)
+          : new URL(request.url).pathname.endsWith('.json') ? '{"video":[{"id":"v"}]}' : '<MPD/>';
       void command('Fetch.fulfillRequest', { requestId, responseCode: mode === 'http' ? 403 : mode === 'redirect' ? 302 : 200,
-        responseHeaders: [{ name: 'Content-Type', value: mode === 'type' ? 'video/mp4' : isConfig ? 'application/json' : 'application/dash+xml' },
+        responseHeaders: [{ name: 'Content-Type', value: mode === 'type' ? 'video/mp4' : isConfig || new URL(request.url).pathname.endsWith('.json') ? 'application/json' : 'application/dash+xml' },
           ...(mode === 'redirect' ? [{ name: 'Location', value: 'https://unrelated.invalid/secret' }] : [])],
         body: Buffer.from(body).toString('base64'),
       });
@@ -94,6 +96,11 @@ test('compiled metadata transport enforces real worker permissions and bounded p
     const fetchManifest = index => worker.evaluate(index => transport.manifest(receipt, video, video.manifests[index]), index);
     assert.deepEqual(await fetchManifest(0), { status: 'fetched', text: '<MPD/>' });
     assert.equal(seen[1].url, manifest);
+    assert.equal((await fetchManifest(3)).status, 'fetched');
+    assert.equal(seen[2].url, `${config.request.files.dash.cdns.json.url}&base64_init=1`);
+    assert.deepEqual(await worker.evaluate(() => transport.manifest(receipt, video, {
+      ...video.manifests[3], url: `${video.manifests[3].url}&base64_init=1`,
+    })), { status: 'failed', reason: 'source' });
     assert.deepEqual(await fetchManifest(1), { status: 'permission-needed', origin: 'https://denied.vimeocdn.com' });
     const count = seen.length;
     assert.deepEqual(await fetchManifest(2), { status: 'failed', reason: 'source' });
@@ -141,7 +148,7 @@ test('compiled metadata transport enforces real worker permissions and bounded p
       frameUrl: 'https://player.vimeo.com/video/900001', configUrl: 'https://player.vimeo.com/video/900001/config',
     })), { status: 'permission-needed', origin: 'https://player.vimeo.com' });
     for (const request of seen) {
-      assert.match(request.url, /^https:\/\/(player\.vimeo\.com\/video\/900001\/config|owned\.vimeocdn\.com\/manifest\.mpd)\?/);
+      assert.match(request.url, /^https:\/\/(player\.vimeo\.com\/video\/900001\/config|owned\.vimeocdn\.com\/manifest\.(mpd|json))\?/);
       assert.equal(request.method, 'GET');
       assert.equal(Object.keys(request.headers).some(key => /^(cookie|authorization|referer)$/i.test(key)), false);
     }
