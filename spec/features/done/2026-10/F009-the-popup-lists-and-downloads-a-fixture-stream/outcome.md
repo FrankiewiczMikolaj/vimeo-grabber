@@ -1,3 +1,5 @@
 # Outcome
 
-Mikołaj merged popup stream listing and the real dummy-download interaction in PR #17 as `67428a4`. Narrow Vimeo content-script messaging runs detection in the page context; the popup renders declared titles as text and preserves the rights footer. Actual headed Chromium saved vimeo-grabber-synthetic.txt with the exact 39 fixture bytes, while empty and unsupported pages exposed no download control. Local verification and both required checks passed; a real Downloads API rejection was not induced. The final merged harness now exercises this path in default verification.
+Mikołaj merged the popup stream and real dummy-download interaction in PR #17 as `67428a4`. Narrow Vimeo content-script messaging runs the detector in the page context, and the popup renders titles as text with the rights footer intact. Actual headed Chromium action-popup proof completed a Downloads API save of `vimeo-grabber-synthetic.txt` with the exact 39 fixture bytes; empty and unsupported pages exposed no download control. Local verification and both required PR checks passed. A real Downloads API rejection was not induced; persistent fixture end-to-end coverage is the remaining M1 slice.
+
+That remaining slice subsequently landed in PR #19 as `27bf562`, placing the complete scenario in default verification.
