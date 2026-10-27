@@ -1,0 +1,3 @@
+# Outcome
+
+Mikołaj merged standard DASH MPD metadata parsing in PR #28 as `96aba9c`. Saxes supplies namespace-aware DOM-free parsing, including inherited track fields and nested BaseURL resolution; DTDs and external entities are rejected and declared protected content is not presented as usable tracks. The bundled parser ran in real Chromium ServiceWorkerGlobalScope with DOMParser absent, four expected tracks, zero fetch calls and zero requests. Local pnpm verify passed sixteen unit tests and the existing headed smoke, and both required PR checks passed. Runtime integration and live Vimeo compatibility remain separate M2 work.

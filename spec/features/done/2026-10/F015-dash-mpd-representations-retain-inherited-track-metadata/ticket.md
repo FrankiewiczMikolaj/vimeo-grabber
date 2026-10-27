@@ -1,5 +1,6 @@
 ---
 opened: 2026-10-27
+landed: 2026-10-27
 ---
 
 # F015 · DASH MPD representations retain inherited track metadata
