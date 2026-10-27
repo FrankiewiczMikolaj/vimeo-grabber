@@ -59,14 +59,24 @@ export function parseDashMpd(xml: string, manifest: ManifestReference,
     let skipped = false;
     const visit = (node: Element, inherited: Record<string, string>, parentUrl: string,
       parentChannels: string | null, groupId: string | null, path: string) => {
+      const components = children(node, 'ContentComponent');
+      const kinds = new Set(components.map(child => child.attrs.contentType).filter(Boolean));
+      const languages = new Set(components.map(child => child.attrs.lang).filter(Boolean));
       const attrs = { ...inherited, ...node.attrs };
+      if (!Object.hasOwn(node.attrs, 'lang') && languages.size === 1) {
+        attrs.lang = [...languages][0];
+      }
+      if (!node.attrs.contentType) {
+        const mimeKind = node.attrs.mimeType?.split('/')[0];
+        if (mimeKind === 'audio' || mimeKind === 'video') attrs.contentType = mimeKind;
+        else if (kinds.size === 1) attrs.contentType = [...kinds][0];
+      }
+      if (kinds.has('video') && kinds.has('audio')) attrs.contentType = 'combined';
       const base = children(node, 'BaseURL')[0]?.text.trim();
       const baseUrl = base ? new URL(base, parentUrl).href : parentUrl;
       const channelNode = children(node, 'AudioChannelConfiguration')[0];
       const channels = channelNode ? channelNode.attrs.value || null : parentChannels;
       if (node.name === 'AdaptationSet') groupId = node.attrs.id || null;
-      const components = children(node, 'ContentComponent').map(child => child.attrs.contentType);
-      if (components.includes('video') && components.includes('audio')) attrs.contentType = 'combined';
       if (node.name === 'Representation') {
         const mimeType = attrs.mimeType || null;
         const mediaType = attrs.contentType || mimeType?.split('/')[0];

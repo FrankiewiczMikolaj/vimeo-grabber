@@ -18,9 +18,12 @@ This slice does not connect the parser to the existing extension runtime.
   precedence. Read MIME, codec, bandwidth, dimensions, rational/decimal frame rate,
   language and channel value notation. Nonpositive/invalid numbers become `null`.
   Other absent metadata stays `null`. Language and channels are not guessed.
-- Kind comes from contentType or audio/video MIME. Explicit video and audio
-  ContentComponents mean combined. Unknown kind is skipped with `unsupported`
-  status, preserving other parsed tracks. No codec-based muxing inference occurs.
+- Kind comes from explicit contentType or audio/video MIME, then an unambiguous
+  ContentComponent kind, then inherited metadata. A single agreed component
+  language supplies a default; nearer explicit attributes remain authoritative.
+  Conflicting component languages do not choose a language. Explicit video and
+  audio ContentComponents remain combined. Unknown kind is skipped with
+  `unsupported` status, preserving other tracks; no codec-based inference occurs.
 - Representation IDs remain verbatim; missing IDs use a deterministic XML child
   index path. Group IDs are AdaptationSet IDs or `null`; IDs are not global.
 - `baseUrl` resolves the first direct BaseURL at each level with WHATWG URL rules.

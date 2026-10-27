@@ -41,6 +41,46 @@ test('unknowns stay null and missing IDs are stable without guessing media kind'
   assert.deepEqual(parseDashMpd('<MPD/>', manifest), { status: 'unavailable', tracks: [] });
 });
 
+test('single ContentComponent supplies audio kind and language with or without audio MIME', () => {
+  for (const mime of ['', ' mimeType="audio/mp4"']) {
+    const result = parseDashMpd(wrap(`<AdaptationSet${mime}>
+      <ContentComponent contentType="audio" lang="en"/>
+      <Representation id="component-audio" codecs="mp4a.40.2"/>
+    </AdaptationSet>`), manifest);
+    assert.equal(result.status, 'found');
+    assert.deepEqual(result.tracks.map(t => [t.id, t.kind, t.language]),
+      [['component-audio', 'audio', 'en']]);
+  }
+});
+
+test('nearer explicit attributes override component defaults and inherited metadata', () => {
+  const result = parseDashMpd(`<MPD><Period contentType="video" lang="de">
+    <AdaptationSet contentType="video" lang="pl">
+      <ContentComponent contentType="audio" lang="en"/>
+      <Representation id="adaptation"/>
+      <Representation id="representation" contentType="audio" lang="fr"/>
+    </AdaptationSet>
+    <AdaptationSet>
+      <ContentComponent contentType="audio" lang="en"/>
+      <Representation id="mime" mimeType="video/mp4" xml:lang="es"/>
+    </AdaptationSet>
+  </Period></MPD>`, manifest);
+  assert.equal(result.status, 'found');
+  assert.deepEqual(result.tracks.map(t => [t.id, t.kind, t.language]), [
+    ['adaptation', 'video', 'pl'], ['representation', 'audio', 'fr'], ['mime', 'video', 'es'],
+  ]);
+});
+
+test('conflicting component languages stay unknown instead of choosing one', () => {
+  const result = parseDashMpd(wrap(`<AdaptationSet>
+    <ContentComponent contentType="audio" lang="en"/>
+    <ContentComponent contentType="audio" lang="pl"/>
+    <Representation id="ambiguous"/>
+  </AdaptationSet>`), manifest);
+  assert.equal(result.status, 'found');
+  assert.deepEqual(result.tracks.map(t => [t.kind, t.language]), [['audio', null]]);
+});
+
 test('protection at any declared level prevents usable unprotected results', () => {
   for (const input of [xml.replace('<d:Period>', '<d:ContentProtection/><d:Period>'),
     xml.replace('<d:BaseURL>video/', '<d:ContentProtection/><d:BaseURL>video/'),
