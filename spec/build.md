@@ -23,8 +23,9 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 ## Repository setup
 
-- Mikołaj configured main deletion/force-push protection and linear history; PR-required and required status checks remain pending CI check names.
+- Mikołaj configured main deletion/force-push protection and linear history; PR-required and required status-check configuration remain owner tasks.
 - Milestones M0–M5 and Backlog v1.1+ exist; the public Project auto-adds open issues and PRs, so make no Projects or Administration API calls.
+- Observed successful checks: `Verify extension` (PR #3 run 40480741113) and `CodeQL JavaScript/TypeScript` (PR #7 run 40482301541, including completed results upload).
 
 ## TRACK
 
@@ -39,9 +40,9 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 ## NEXT
 
-- Run CI/artifact and browser harness as independent slices; CI retains `pnpm verify`, browser retains `pnpm smoke`, and neither edits the other's files.
-- Follow with GitHub hygiene, MIT license, and CodeQL/Dependabot drafts as the two worker slots open.
-- Keep browser proof before M1; tag v0.1.0 only after M0 checks and human merges finish.
+- Mikołaj reviews the MIT license draft (PR #6) and CodeQL/Dependabot draft (PR #7); all worker implementation slices have finished.
+- Confirm default-branch security activation and owner secret-scanning/push-protection settings after the security draft merges.
+- Run merged-main M0 checks after the remaining human merges; keep browser proof before M1 and defer v0.1.0 until M0 closes.
 
 ## PROVEN
 
