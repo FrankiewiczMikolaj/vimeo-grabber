@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<d:MPD xmlns:d="urn:mpeg:dash:schema:mpd:2011" xmlns:x="urn:ignored">
+  <d:BaseURL>../media/?root=1&amp;root=2</d:BaseURL>
+  <d:Period><d:BaseURL>period/</d:BaseURL>
+    <d:AdaptationSet id="picture" mimeType="video/mp4" codecs="avc1.640028" width="1920" height="1080" frameRate="30000/1001">
+      <d:BaseURL>video/</d:BaseURL><x:Representation id="ignore"/>
+      <d:Representation id="high" bandwidth="5000000"><d:BaseURL>high.mp4?sig=%2f+&amp;x=&amp;x=2</d:BaseURL></d:Representation>
+      <d:Representation id="low" bandwidth="900000" width="640" height="360" frameRate="24" codecs="avc1.42001e"><d:BaseURL>?quality=low</d:BaseURL></d:Representation>
+    </d:AdaptationSet>
+    <d:AdaptationSet id="sound" contentType="audio" mimeType="audio/mp4" codecs="mp4a.40.2" lang="en">
+      <d:AudioChannelConfiguration schemeIdUri="urn:mpeg:dash:23003:3:audio_channel_configuration:2011" value="2"/>
+      <d:Representation id="english" bandwidth="128000"/>
+      <d:Representation id="polish" xml:lang="pl"><d:AudioChannelConfiguration value="6"/><d:BaseURL>/audio/pl.mp4?token=dummy</d:BaseURL></d:Representation>
+    </d:AdaptationSet>
+  </d:Period>
+</d:MPD>
