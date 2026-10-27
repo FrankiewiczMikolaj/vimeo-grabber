@@ -23,8 +23,9 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 ## Repository setup
 
-- Mikołaj configured main deletion/force-push protection and linear history; PR-required and required status checks remain pending CI check names.
+- Mikołaj configured main deletion/force-push protection and linear history; PR-required and required status-check configuration remain owner tasks.
 - Milestones M0–M5 and Backlog v1.1+ exist; the public Project auto-adds open issues and PRs, so make no Projects or Administration API calls.
+- Observed successful checks: `Verify extension` (PR #3 run 40480741113) and `CodeQL JavaScript/TypeScript` (PR #7 run 40482301541, including completed results upload).
 
 ## TRACK
 
@@ -34,21 +35,24 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 <!-- Generated from spec/features/active/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
-- `F003-chromium-harness-proves-the-unpacked-extension` (🟠 ACTIVE): Chromium harness proves the unpacked extension
-- `F002-pull-requests-produce-verified-extension-zip-artifacts` (🟠 ACTIVE): Pull requests produce verified extension zip artifacts
+- `F006-code-and-dependencies-receive-security-checks` (🟠 ACTIVE): Code and dependencies receive security checks
+- `F005-the-project-ships-an-mit-license` (🟠 ACTIVE): The project ships an MIT license
 
 ## NEXT
 
-- Run CI/artifact and browser harness as independent slices; CI retains `pnpm verify`, browser retains `pnpm smoke`, and neither edits the other's files.
-- Follow with GitHub hygiene, MIT license, and CodeQL/Dependabot drafts as the two worker slots open.
-- Keep browser proof before M1; tag v0.1.0 only after M0 checks and human merges finish.
+- Mikołaj reviews the MIT license draft (PR #6) and CodeQL/Dependabot draft (PR #7); all worker implementation slices have finished.
+- Confirm default-branch security activation and owner secret-scanning/push-protection settings after the security draft merges.
+- Run merged-main M0 checks after the remaining human merges; keep browser proof before M1 and defer v0.1.0 until M0 closes.
 
 ## PROVEN
 
 <!-- Generated from spec/features/done/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
+- `F004-contributors-have-clear-github-entry-points` (🟢 PROVEN): Contributors have clear GitHub entry points; landed 2026-10-27
+- `F003-chromium-harness-proves-the-unpacked-extension` (🟢 PROVEN): Chromium harness proves the unpacked extension; landed 2026-10-27
+- `F002-pull-requests-produce-verified-extension-zip-artifacts` (🟢 PROVEN): Pull requests produce verified extension zip artifacts; landed 2026-10-27
 - `F001-vite-builds-a-chromium-extension-shell` (🟢 PROVEN): Vite builds a Chromium extension shell; landed 2026-10-27
-- 2026-10: 1 landed. spec/features/done/2026-10/
+- 2026-10: 4 landed. spec/features/done/2026-10/
 
 ## PARKED
 
