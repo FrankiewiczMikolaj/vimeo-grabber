@@ -43,11 +43,11 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 ## NEXT
 
-- Resolution and document-scoped aggregation are owner-merged, including preference for a live found result with tracks over an unavailable duplicate frame.
-- Activate all-frame reporting, authenticated document lifetimes, exact-origin metadata prompts and popup quality/audio listing in one coherent detection-only cutover.
-- Preserve valid fallback through unsupported manifest alternatives at the schema boundary; bounded transport remains the only fetch authority and keeps its CDN guard.
-- Remove obsolete M1 detector/download code, permission, fixtures and tests; replace the synthetic native-save smoke during cutover, never retain a fake control.
-- After the cutover merges, expand offline real-action Chromium e2e for nested frames, navigation, restart, fallback and exact-origin grant/deny/revoke.
+- Detection-only cross-frame popup is owner-merged in PR #39 at accepted head 423623a; never edit or push m2/popup-qualities again.
+- Reuse its passing real-action HLS, exact-origin deny/grant/revoke, removal/navigation and execution-context rebuild checks; add only missing offline scenario coverage.
+- Finish DASH JSON/MPD popup metadata, nested/multiple frames, tab isolation, malformed/protected states and held stale responses through the actual runtime.
+- The e2e slice owns harness, fixtures and coverage docs; any evidenced runtime fix gets a separate small draft from latest main, not a patch to the merged branch.
+- Close M2 only after the offline matrix and separately authorised real-page/embed compatibility evidence; fixtures alone do not prove live Vimeo support.
 - Keep Vimeo-only frame access, offline CI and metadata-only fetching; real media downloading remains M3.
 
 ## PROVEN
