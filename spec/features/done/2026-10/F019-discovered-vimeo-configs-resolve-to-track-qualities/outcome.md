@@ -1,0 +1,3 @@
+# Outcome
+
+Mikołaj merged discovery-to-quality resolution in PR #37 as `da659af`. Normalised inline videos and ordered config/manifest alternatives now resolve through actual bounded transport and DASH JSON, MPD and HLS parsers, retaining source references, independent video results and exact encountered permission origins. Offline Chromium proof and the post-commit thirty-one-test/native-smoke lane passed, as did required CI. The automated open-check warnings mistook relative evidence filenames for commands; direct inspection found the archived logs, runtime JSON and delivery boundary record under the job artifacts directory. Production runtime and popup activation remain the next M2 cutover.

@@ -38,15 +38,16 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 <!-- Generated from spec/features/active/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
+- `F021-the-popup-shows-qualities-from-live-vimeo-frames` (🟠 ACTIVE): The popup shows qualities from live Vimeo frames
 - `F011-real-vimeo-videos-expose-their-video-and-audio-qualities` (🟠 ACTIVE): Real Vimeo videos expose their video and audio qualities
 
 ## NEXT
 
-- Observation and bounded transport are owner-merged; resolve discovered configs into qualities and build authenticated, navigation-safe frame aggregation on disjoint files.
-- Resolution owns metadata admission/parser dispatch; aggregation owns sender/envelope validation and document lifetimes, using an async resolution callback rather than importing unfinished code.
-- Both use `PageDiscovery` plus authoritative frame URL and resolve to readonly `{ video: NormalisedVideo, permissionOrigins: readonly string[] }[]`.
-- Keep runtime entrypoints, manifest permissions, popup and the current smoke unchanged until these APIs merge; then activate cross-frame reporting, exact-origin prompts and the detection-only popup together.
-- Replace the superseded synthetic download smoke during popup cutover, then expand offline Chromium e2e for nested frames, navigation, restart and grant/deny/revoke; never retain a fake download control for the old test.
+- Resolution and document-scoped aggregation are owner-merged, including preference for a live found result with tracks over an unavailable duplicate frame.
+- Activate all-frame reporting, authenticated document lifetimes, exact-origin metadata prompts and popup quality/audio listing in one coherent detection-only cutover.
+- Preserve valid fallback through unsupported manifest alternatives at the schema boundary; bounded transport remains the only fetch authority and keeps its CDN guard.
+- Remove obsolete M1 detector/download code, permission, fixtures and tests; replace the synthetic native-save smoke during cutover, never retain a fake control.
+- After the cutover merges, expand offline real-action Chromium e2e for nested frames, navigation, restart, fallback and exact-origin grant/deny/revoke.
 - Keep Vimeo-only frame access, offline CI and metadata-only fetching; real media downloading remains M3.
 
 ## PROVEN
