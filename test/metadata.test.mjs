@@ -88,7 +88,7 @@ test('compiled metadata transport enforces real worker permissions and bounded p
     assert.equal((await load()).status, 'fetched');
     assert.equal(seen[0].url, 'https://player.vimeo.com/video/900001/config?h=dummy%2Bsecret&x=1+2');
     await worker.evaluate(config => {
-      globalThis.video = { id: '900001', source, manifests: Object.entries(config.request.files.dash.cdns)
+      globalThis.video = { id: '900001', title: null, status: 'found', tracks: [], source, manifests: Object.entries(config.request.files.dash.cdns)
         .map(([cdn, item]) => ({ cdn, protocol: 'dash', url: item.url })) };
     }, config);
     const fetchManifest = index => worker.evaluate(index => transport.manifest(receipt, video, video.manifests[index]), index);
@@ -99,7 +99,7 @@ test('compiled metadata transport enforces real worker permissions and bounded p
     assert.deepEqual(await fetchManifest(2), { status: 'failed', reason: 'source' });
     assert.deepEqual(await worker.evaluate(() => transport.manifest({ ...receipt }, video, video.manifests[0])), { status: 'failed', reason: 'source' });
     assert.deepEqual(await worker.evaluate(() => transport.manifest(receipt, video, { ...video.manifests[0], url: 'https://owned.vimeocdn.com/unrelated.mpd' })), { status: 'failed', reason: 'source' });
-    assert.equal(await worker.evaluate(() => transport.inline({ video: { id: 123 } }, { ...source, configUrl: null })), null);
+    assert.equal(await worker.evaluate(() => transport.inline({ ...video, id: 'invalid', source: { ...source, configUrl: null } })), null);
     for (const url of ['http://player.vimeo.com/video/900001/config', 'https://user:pass@player.vimeo.com/video/900001/config',
       'https://player.vimeo.com/video/900001/media', 'https://player.vimeo.com.evil.invalid/video/900001/config']) {
       assert.deepEqual(await worker.evaluate(url => transport.config({ ...source, configUrl: url }), url), { status: 'failed', reason: 'source' });
@@ -107,12 +107,19 @@ test('compiled metadata transport enforces real worker permissions and bounded p
     assert.equal(seen.length, count, 'rejected sources and denied permissions must issue no request');
     evidence.push('real optional-origin denial; forged receipt/reference; unsafe URL and media rejection; exact query preservation');
     const beforeInline = seen.length;
-    assert.equal(await worker.evaluate(async config => {
-      const inline = transport.inline(config, { ...source, configUrl: null });
+    assert.equal(await worker.evaluate(async () => {
+      const inline = transport.inline({ ...video, source: { ...source, configUrl: null } });
       return (await transport.manifest(inline, inline.video, inline.video.manifests[0])).status;
-    }, config), 'fetched');
+    }), 'fetched');
     assert.equal(seen.length, beforeInline + 1, 'inline provenance must not require a config HTTP request');
     evidence.push('inline config authorizes its manifest without config HTTP');
+    assert.deepEqual(await worker.evaluate(async () => {
+      const original = { ...video, source: { ...source, configUrl: null }, manifests: [{ ...video.manifests[0] }] };
+      const inline = transport.inline(original);
+      original.manifests[0].url = 'https://owned.vimeocdn.com/unrelated.mpd';
+      inline.video.manifests[0].url = original.manifests[0].url;
+      return transport.manifest(inline, inline.video, inline.video.manifests[0]);
+    }), { status: 'failed', reason: 'source' });
     for (const reason of ['redirect', 'http', 'content-type', 'size', 'timeout', 'network']) {
       mode = reason === 'content-type' ? 'type' : reason;
       assert.deepEqual(await load(), { status: 'failed', reason });

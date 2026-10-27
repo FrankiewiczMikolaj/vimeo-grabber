@@ -3,13 +3,14 @@
 `src/detect/metadata.ts` is a worker-safe API, not a runtime message endpoint.
 It does not change production permissions or connect detected URLs to downloads.
 
-- `config(source)` accepts a matching numeric Vimeo video/player frame and HTTPS
-  `player.vimeo.com/video/<id>/config` URL. A successful result contains fetched
-  text, not a claim that parsing or quality extraction succeeded.
-- `inline(config, source)` normalises trusted inline player-config data with the
-  existing normaliser. It returns `{ video }` as a worker-local provenance receipt,
-  or null for an invalid source/identity. `source.configUrl` may be null. It makes
-  no request and needs no player-config host grant.
+- `config(source)` accepts an authenticated HTTPS Vimeo frame and an HTTPS
+  `player.vimeo.com/video/<id>/config` URL. The returned config must have that ID
+  to authorise manifests. The frame may discover a different video through an iframe.
+  A successful result contains fetched text, not a claim that quality extraction succeeded.
+- `inline(video)` admits the normalised video published by discovery, not raw config
+  data. Its source must be an HTTPS Vimeo frame with null config URL and a numeric
+  video ID. It returns `{ video }` as a worker-local provenance receipt with a
+  private snapshot. It makes no request and needs no player-config host grant.
 - `manifest(receipt, video, reference)` accepts either the original fetched config
   result or an inline receipt from the same transport instance. The exact video
   identity/source and reference protocol/CDN/URL must match the receipt snapshot.

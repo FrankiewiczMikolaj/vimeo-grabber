@@ -1,0 +1,107 @@
+/* global Resolver, chrome */
+import assert from 'node:assert/strict';
+import { Buffer } from 'node:buffer';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import test from 'node:test';
+import { chromium } from 'playwright';
+import { build } from 'vite';
+
+const frameUrl = 'https://vimeo.com/900001';
+const cdn = 'https://owned.vimeocdn.com';
+const reference = (path, protocol = 'dash') => ({ protocol, cdn: 'owned', url: `${cdn}/${path}?sig=dummy%2Bsecret&x=1+2` });
+const inline = (id, manifests) => ({ id, title: `Video ${id}`, source: { frameUrl, configUrl: null }, status: 'found', manifests, tracks: [] });
+const config = (id, suffix = '') => `https://player.vimeo.com/video/${id}/config${suffix}`;
+
+test('compiled discovery resolver uses finite metadata fallback and real Chromium permissions', { timeout: 60_000 }, async () => {
+  const root = resolve('artifacts/resolver');
+  await mkdir(root, { recursive: true });
+  const extension = await mkdtemp(`${root}/extension-`);
+  const profile = await mkdtemp(`${root}/profile-`);
+  let context;
+  const requests = [];
+  const diagnostics = [];
+  const dash = reference('master.json');
+  const hls = reference('master.m3u8', 'hls');
+  const mpd = reference('master.mpd');
+  const denied = { ...dash, url: 'https://denied.vimeocdn.com/master.json?sig=dummy' };
+  const bodies = new Map([
+    [dash.url, ['application/json', JSON.stringify({ video: [{ id: 'v720', width: 1280, height: 720, bitrate: 2000000, codecs: 'avc1' }], audio: [{ id: 'a-fr', lang: 'fr', channels: 2 }] })]],
+    [hls.url, ['application/vnd.apple.mpegurl', '#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",NAME="English",LANGUAGE="en",URI="audio.m3u8"\n#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360,AUDIO="audio"\nvideo.m3u8']],
+    [mpd.url, ['application/dash+xml', '<MPD><Period><AdaptationSet contentType="audio" lang="de"><Representation id="a-de" bandwidth="96000"/></AdaptationSet></Period></MPD>']],
+    [reference('protected.mpd').url, ['application/dash+xml', '<MPD><Period><AdaptationSet><ContentProtection schemeIdUri="urn:dummy"/></AdaptationSet></Period></MPD>']],
+    [reference('unsupported.json').url, ['application/json', '{}']],
+    [reference('broken.json').url, ['application/json', '{']],
+    [config('900002', '?attempt=1'), ['application/json', '{']],
+    [config('900002', '?attempt=2'), ['application/json', JSON.stringify({ video: { id: 900002 }, request: { files: { hls: { cdns: { owned: { url: hls.url } } } } } })]],
+  ]);
+  try {
+    await build({ configFile: false, logLevel: 'error', build: { outDir: extension, emptyOutDir: false,
+      lib: { entry: resolve('src/detect/resolve.ts'), name: 'Resolver', formats: ['iife'], fileName: () => 'worker.js' } } });
+    await writeFile(`${extension}/manifest.json`, JSON.stringify({ manifest_version: 3, name: 'Offline resolver proof', version: '1.0',
+      background: { service_worker: 'worker.js' }, host_permissions: ['https://player.vimeo.com/*', `${cdn}/*`],
+      optional_host_permissions: ['https://denied.vimeocdn.com/*'] }));
+    context = await chromium.launchPersistentContext(profile, { channel: 'chromium', headless: true,
+      args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`] });
+    const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
+    worker.on('console', message => diagnostics.push(message.text()));
+    const cdp = await context.browser().newBrowserCDPSession();
+    const { targetInfos } = await cdp.send('Target.getTargets');
+    const { sessionId } = await cdp.send('Target.attachToTarget', { targetId: targetInfos.find(item => item.type === 'service_worker').targetId, flatten: false });
+    let id = 0;
+    const pending = new Map();
+    const command = (method, params = {}) => new Promise((resolve, reject) => {
+      const key = ++id;
+      pending.set(key, { resolve, reject });
+      void cdp.send('Target.sendMessageToTarget', { sessionId, message: JSON.stringify({ id: key, method, params }) }).catch(reject);
+    });
+    cdp.on('Target.receivedMessageFromTarget', event => {
+      if (event.sessionId !== sessionId) return;
+      const message = JSON.parse(event.message);
+      if (message.id) {
+        const waiter = pending.get(message.id);
+        pending.delete(message.id);
+        if (message.error) waiter.reject(new Error(message.error.message));
+        else waiter.resolve(message.result);
+      }
+      if (message.method !== 'Fetch.requestPaused') return;
+      const { requestId, request } = message.params;
+      requests.push(request.url);
+      const body = bodies.get(request.url);
+      if (!body) { void command('Fetch.failRequest', { requestId, errorReason: 'BlockedByClient' }); return; }
+      void command('Fetch.fulfillRequest', { requestId, responseCode: 200,
+        responseHeaders: [{ name: 'Content-Type', value: body[0] }], body: Buffer.from(body[1]).toString('base64') });
+    });
+    await command('Fetch.enable', { patterns: [{ urlPattern: '*' }] });
+    const videos = [inline('900001', [dash]), inline('900002', [reference('broken.json'), denied]),
+      inline('900003', [reference('protected.mpd')]), inline('900004', [reference('unsupported.json')]),
+      inline('900005', [denied]), inline('900006', [mpd])];
+    const configUrls = [config('900001'), config('900002', '?attempt=1'), config('900002', '?attempt=2'), config('900002', '?attempt=2')];
+    const result = await worker.evaluate(({ discovery, frameUrl }) => Resolver.resolveDiscovery(discovery, frameUrl), { discovery: { videos, configUrls }, frameUrl });
+    assert.deepEqual(result.map(item => item.video.status), ['found', 'found', 'protected', 'unsupported', 'permission-needed', 'found']);
+    const tracks = result[0].video.tracks;
+    assert.deepEqual(tracks.map(({ id, kind, width, height, bandwidth, language, channels, codec }) =>
+      ({ id, kind, width, height, bandwidth, language, channels, codec })), [
+      { id: 'v720', kind: 'video', width: 1280, height: 720, bandwidth: 2000000, language: null, channels: null, codec: 'avc1' },
+      { id: 'a-fr', kind: 'audio', width: null, height: null, bandwidth: null, language: 'fr', channels: '2', codec: null },
+    ]);
+    assert.deepEqual(tracks.map(track => track.manifest), [dash, dash]);
+    assert.deepEqual(result[1].video.tracks.map(track => track.manifest), [hls, hls]);
+    assert.equal(result[1].video.source.configUrl, config('900002', '?attempt=2'));
+    assert.deepEqual(result[5].video.tracks.map(track => [track.id, track.kind, track.language, track.manifest]), [['a-de', 'audio', 'de', mpd]]);
+    assert.deepEqual(result.map(item => item.permissionOrigins), [[], ['https://denied.vimeocdn.com'], [], [], ['https://denied.vimeocdn.com'], []]);
+    assert.deepEqual(requests, [dash.url, reference('broken.json').url, reference('protected.mpd').url,
+      reference('unsupported.json').url, mpd.url, config('900002', '?attempt=1'), config('900002', '?attempt=2'), hls.url]);
+    assert.equal(diagnostics.some(text => /dummy|sig=/.test(text)), false);
+    assert.equal(await worker.evaluate(() => typeof chrome.downloads), 'undefined');
+    const unavailable = await worker.evaluate(frameUrl => Resolver.resolveDiscovery({ videos: [], configUrls: ['https://player.vimeo.com/video/900007/config'] }, frameUrl), frameUrl);
+    assert.equal(unavailable[0].video.status, 'unavailable');
+    assert.equal(await worker.evaluate(async ({ videos }) => (await Resolver.resolveDiscovery({ videos, configUrls: [] }, 'https://vimeo.com/other')).length, { videos }), 0);
+    await writeFile(`${root}/evidence.json`, JSON.stringify({ statuses: result.map(item => item.video.status),
+      requests: requests.map(url => url.split('?')[0]), permissionOrigins: result.map(item => item.permissionOrigins), signedQueryDiagnostics: false }, null, 2));
+  } finally {
+    await context?.close();
+    await rm(profile, { recursive: true, force: true });
+    await rm(extension, { recursive: true, force: true });
+  }
+});
