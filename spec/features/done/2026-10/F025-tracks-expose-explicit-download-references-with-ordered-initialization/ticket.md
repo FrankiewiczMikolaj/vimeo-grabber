@@ -1,5 +1,6 @@
 ---
 opened: 2026-10-27
+landed: 2026-10-28
 ---
 # F025 · Tracks expose explicit download references with ordered initialization
 
