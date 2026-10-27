@@ -70,15 +70,15 @@ async function waitText(text) {
     check();
   })`);
 }
-async function clickPermission() {
-  const point = await evaluate(`(() => {
+async function activatePermission() {
+  await evaluate(`(() => {
     const button = document.querySelector('#streams button');
     button.scrollIntoView();
-    const r = button.getBoundingClientRect();
-    return {x:r.x+r.width/2, y:r.y+r.height/2};
+    button.focus();
+    return true;
   })()`);
-  await command('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
-  await command('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
+  // Native input does not await a CDP reply from the popup that Chrome closes.
+  key('Return');
 }
 async function fixtureResponse(promise) {
   let timer;
@@ -221,14 +221,14 @@ try {
     throw new Error('Same-document navigation did not rebuild authoritative provenance: '+JSON.stringify(last));
   })()`);
   diagnostics.sameDocumentRebuilt = true;
-  // A real user-gesture click invokes chrome.permissions.request; Escape denies it.
-  await clickPermission();
+  // A native user gesture invokes chrome.permissions.request; Escape denies it.
+  await activatePermission();
   await new Promise(r => setTimeout(r, 700));
   key('Escape');
   await open();
   await waitText('denied');
   await capture('denied');
-  await clickPermission();
+  await activatePermission();
   await new Promise(r => setTimeout(r, 700));
   key('Tab'); key('Return');
   await open();
@@ -246,15 +246,15 @@ try {
   await capture('audio-footer');
   // HLS has succeeded. A different exact origin must remain requestable.
   await waitText('Allow https://second.vimeocdn.com');
-  await evaluate('window.scrollTo(0,0); true');
+  await evaluate("document.querySelector('#streams button').scrollIntoView(); true");
   await capture('hls-first');
-  await clickPermission();
+  await activatePermission();
   await new Promise(r => setTimeout(r, 700)); key('Escape');
   await open();
   await waitText('Access to https://second.vimeocdn.com was not granted or was denied');
   await waitText('1920');
   await capture('dash-denied');
-  await clickPermission();
+  await activatePermission();
   await new Promise(r => setTimeout(r, 700)); key('Tab'); key('Return');
   await open();
   await waitText('Preferred: separate DASH video and audio.');
@@ -273,12 +273,14 @@ try {
   for (const candidate of candidates) {
     assert.ok(candidate.tracks.every(track => JSON.stringify(track.manifest) === JSON.stringify(candidate.manifest)));
   }
+  await evaluate('window.scrollTo(0,0); true');
   await capture('dash-preferred');
   await evaluate("chrome.permissions.remove({origins:['https://second.vimeocdn.com/*']})");
   await waitText('Allow https://second.vimeocdn.com');
   await waitText('1920');
   assert.equal(await evaluate("document.body.innerText.includes('Preferred: separate DASH')"), false);
   assert.equal(await evaluate("chrome.permissions.contains({origins:['https://owned.vimeocdn.com/*']})"), true);
+  await evaluate("document.querySelector('#streams button').scrollIntoView(); true");
   await capture('dash-revoked');
   diagnostics.independentCandidates = candidates.map(candidate => ({
     videoId: candidate.videoId, protocol: candidate.manifest?.protocol, cdn: candidate.manifest?.cdn,
