@@ -37,10 +37,12 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 <!-- Generated from spec/features/active/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
+- `F009-the-popup-lists-and-downloads-a-fixture-stream` (🟠 ACTIVE): The popup lists and downloads a fixture stream
+
 ## NEXT
 
-- Run fixture detection and toolbar-action harness as independent slices from latest main; neither changes the other's files.
-- After detection merges, wire the popup and real Downloads API dummy save; after that merges, prove the complete fixture download in Chromium.
+- The synthetic fixture detector and real action-popup harness are owner-merged; wire the popup and real Downloads API dummy save from latest main.
+- After popup/download merges, prove the complete fixture download in Chromium through the real action popup where feasible.
 - Keep PRs small and draft, preserve both required workflows, and report the actual toolbar entry path without claiming direct popup URL navigation is a click.
 
 ## PROVEN
