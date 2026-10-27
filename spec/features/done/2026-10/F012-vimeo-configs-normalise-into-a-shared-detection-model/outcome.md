@@ -1,0 +1,3 @@
+# Outcome
+
+Mikołaj merged shared Vimeo config normalisation in PR #23 as `af3d0f5`. The pure API returns config-derived video identity, title, ordered DASH/HLS manifest alternatives, and readonly model types without changing the working M1 runtime. Owned regressions and compiled execution in Chromium proved malformed-descriptor isolation, signed-query preservation, and unknown metadata with zero network requests. Local pnpm verify passed ten unit checks and the real action-popup/native-download smoke; both required PR checks passed. This proves the owned config contract, not live Vimeo compatibility or parsed manifest tracks.
