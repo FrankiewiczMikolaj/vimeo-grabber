@@ -43,9 +43,8 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 ## NEXT
 
-- HLS is owner-merged; standard MPD draft PR #28 has passed both checks and awaits human review.
-- DASH JSON draft PR #27 remains under a focused smoke-completion repair; preserve strict native download assertions.
-- Run pure multi-path config discovery on disjoint files while the smoke repair finishes; no runtime, permission or download cutover in that slice.
+- HLS, DASH JSON and standard MPD are owner-merged; the strict native-download smoke now awaits actual completion rather than an async Playwright predicate.
+- Finish pure multi-path config discovery on its own files before wiring frame observation and validated metadata fetching.
 - Continue with fetch/frame runtime, popup cutover and offline e2e under docs/M2-DETECTION.md, max two workers and both required checks.
 - Keep Vimeo-only frame access, offline CI and metadata-only fetching; real media downloading remains M3.
 
