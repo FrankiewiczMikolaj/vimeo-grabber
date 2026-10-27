@@ -1,5 +1,6 @@
 ---
 opened: 2026-10-27
+landed: 2026-10-27
 ---
 
 # F013 · DASH manifests expose separate video and audio tracks
