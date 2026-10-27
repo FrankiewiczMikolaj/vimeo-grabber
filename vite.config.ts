@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [crx({ manifest: defineManifest({
     manifest_version: 3,
     name: 'Vimeo Grabber',
-    version: '0.1.0',
+    version: '0.3.0',
     description: 'List Vimeo video and audio qualities from metadata. No media downloads.',
     action: { default_popup: 'popup.html' },
     background: { service_worker: 'src/worker.ts', type: 'module' },

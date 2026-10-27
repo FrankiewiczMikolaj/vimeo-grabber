@@ -1,0 +1,3 @@
+# Outcome
+
+Mikołaj merged the offline detection matrix in PR #40 as `89b0a1b`. The real-action Chromium smoke now covers exact DASH JSON/MPD fields, nested/delayed players, independent IDs, unavailable duplicates, malformed fallback, protected/unsupported states, tab isolation and a held stale response, while retaining HLS and actual exact-origin permission/lifecycle checks. Post-commit pnpm verify passed twenty-seven unit checks and headed smoke; required CI passed, and a deliberately broken config path exited 1 with distinct retained failure diagnostics. Only the harness and its documentation changed; production code and the already-merged popup branch stayed untouched.

@@ -30,7 +30,7 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 ## TRACK
 
-- M2 Detection targets v0.3.0: real Vimeo videos and popup qualities through multiple config paths and DASH/HLS metadata; no real media downloads.
+- Mikołaj accepts M2 for v0.3.0 after Bob's live page/embed HLS validation; independent DASH resolution and the missing one-time notice move to M3.
 - M1 is owner-closed; v0.2.0 is a GitHub pre-release at 90b88f2 and milestone M1 Walking skeleton is closed.
 - M0 is owner-closed; Bob published v0.1.0 as a GitHub pre-release at cdc458a, and milestone M0 Foundation is closed.
 
@@ -38,22 +38,21 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 <!-- Generated from spec/features/active/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
-- `F021-the-popup-shows-qualities-from-live-vimeo-frames` (🟠 ACTIVE): The popup shows qualities from live Vimeo frames
-- `F011-real-vimeo-videos-expose-their-video-and-audio-qualities` (🟠 ACTIVE): Real Vimeo videos expose their video and audio qualities
-
 ## NEXT
 
-- Resolution and document-scoped aggregation are owner-merged, including preference for a live found result with tracks over an unavailable duplicate frame.
-- Activate all-frame reporting, authenticated document lifetimes, exact-origin metadata prompts and popup quality/audio listing in one coherent detection-only cutover.
-- Preserve valid fallback through unsupported manifest alternatives at the schema boundary; bounded transport remains the only fetch authority and keeps its CDN guard.
-- Remove obsolete M1 detector/download code, permission, fixtures and tests; replace the synthetic native-save smoke during cutover, never retain a fake control.
-- After the cutover merges, expand offline real-action Chromium e2e for nested frames, navigation, restart, fallback and exact-origin grant/deny/revoke.
-- Keep Vimeo-only frame access, offline CI and metadata-only fetching; real media downloading remains M3.
+- After Mikołaj merges the 0.3.0 version PR, tag that exact commit as a GitHub pre-release and close milestone M2 Detection.
+- M3 starts with independent DASH/HLS candidates, per-origin permissions and preference for separate DASH tracks (issue #41).
+- Add explicit download URL/reference fields to the Track contract before downloads (issue #42).
+- Save selected video and audio as separate real files without extension-side mux (issue #45), then provide the safe Linux ffmpeg command (issue #43).
+- Implement the missing one-time install disclaimer while retaining the footer (issue #44).
+- No M3 worker starts until Mikołaj authorises it; Codex-only route, draft PRs and owner-only merges still apply.
 
 ## PROVEN
 
 <!-- Generated from spec/features/done/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
+- `F022-chromium-proves-cross-frame-detection-without-media-downloads` (🟢 PROVEN): Chromium proves cross-frame detection without media downloads; landed 2026-10-27
+- `F021-the-popup-shows-qualities-from-live-vimeo-frames` (🟢 PROVEN): The popup shows qualities from live Vimeo frames; landed 2026-10-27
 - `F020-frame-discoveries-stay-scoped-to-their-live-tab-documents` (🟢 PROVEN): Frame discoveries stay scoped to their live tab documents; landed 2026-10-27
 - `F019-discovered-vimeo-configs-resolve-to-track-qualities` (🟢 PROVEN): Discovered Vimeo configs resolve to track qualities; landed 2026-10-27
 - `F018-vimeo-metadata-fetching-stays-within-approved-hosts` (🟢 PROVEN): Vimeo metadata fetching stays within approved hosts; landed 2026-10-27
@@ -62,9 +61,7 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 - `F015-dash-mpd-representations-retain-inherited-track-metadata` (🟢 PROVEN): DASH MPD representations retain inherited track metadata; landed 2026-10-27
 - `F014-hls-playlists-expose-variants-and-audio-groups` (🟢 PROVEN): HLS playlists expose variants and audio groups; landed 2026-10-27
 - `F013-dash-manifests-expose-separate-video-and-audio-tracks` (🟢 PROVEN): DASH manifests expose separate video and audio tracks; landed 2026-10-27
-- `F012-vimeo-configs-normalise-into-a-shared-detection-model` (🟢 PROVEN): Vimeo configs normalise into a shared detection model; landed 2026-10-27
-- `F010-chromium-proves-the-fixture-download-end-to-end` (🟢 PROVEN): Chromium proves the fixture download end to end; landed 2026-10-27
-- 2026-10: 19 landed. spec/features/done/2026-10/
+- 2026-10: 22 landed. spec/features/done/2026-10/
 
 ## PARKED
 

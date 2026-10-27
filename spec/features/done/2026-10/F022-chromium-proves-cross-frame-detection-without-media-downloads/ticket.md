@@ -1,5 +1,6 @@
 ---
 opened: 2026-10-27
+landed: 2026-10-27
 ---
 # F022 · Chromium proves cross-frame detection without media downloads
 
