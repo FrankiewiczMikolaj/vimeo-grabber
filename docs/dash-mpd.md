@@ -32,6 +32,8 @@ The resolver supplies the fetched response URL. No resource request occurs here.
   replaced at a nearer level. One explicit `Initialization@sourceURL` precedes
   `SegmentURL@media` resources in declared order, resolved against the representation
   base. Missing initialization, missing resources and unsafe URLs remain unavailable.
+  Invalid resource URLs invalidate only that track's download reference; its
+  metadata and usable sibling representations remain available.
   SegmentBase, SegmentTemplate, byte ranges and partial SegmentList inheritance are
   unsupported. No template or timeline expansion occurs. URL validation grants no
   permission; every origin and redirect must be authorised again at future use.

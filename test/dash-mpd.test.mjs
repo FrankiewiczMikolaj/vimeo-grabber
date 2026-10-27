@@ -130,6 +130,22 @@ test('only explicit complete SegmentList resources are usable; unsafe and ranged
   assert.equal(overridden.tracks[0].download.reason, 'unsupported');
 });
 
+test('malformed resource URLs preserve metadata and usable sibling representations', () => {
+  for (const [init, media] of [['https://%', 'bad.m4s'], ['init.mp4', 'https://%']]) {
+    const result = parseDashMpd(wrap(`<AdaptationSet contentType="video">
+      <Representation id="bad"><SegmentList><Initialization sourceURL="${init}"/><SegmentURL media="${media}"/></SegmentList></Representation>
+      <Representation id="good"><SegmentList><Initialization sourceURL="init.mp4"/><SegmentURL media="good.m4s"/></SegmentList></Representation>
+    </AdaptationSet>`), manifest);
+    assert.equal(result.status, 'found');
+    assert.deepEqual(result.tracks.map(track => track.id), ['bad', 'good']);
+    assert.deepEqual(result.tracks[0].download, { kind: 'unavailable', reason: 'unsafe' });
+    assert.deepEqual(result.tracks[1].download, { kind: 'resources', resources: [
+      { role: 'initialization', kind: 'url', url: 'https://cdn.example/init.mp4' },
+      { role: 'media', kind: 'url', url: 'https://cdn.example/good.m4s' },
+    ] });
+  }
+});
+
 test('periods and groups do not leak metadata; declared muxed components remain combined', () => {
   const result = parseDashMpd('<MPD><BaseURL>?a=1&amp;a=2</BaseURL><BaseURL>ignored/</BaseURL><Period lang="en"><AdaptationSet id="a" mimeType="audio/mp4"><Representation id="same"/></AdaptationSet></Period><Period><AdaptationSet id="b"><ContentComponent contentType="video"/><ContentComponent contentType="audio"/><Representation id="same"/></AdaptationSet></Period></MPD>', manifest);
   assert.equal(result.status, 'found');

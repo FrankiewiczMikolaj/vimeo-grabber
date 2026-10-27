@@ -34,7 +34,9 @@ function resources(list: Element | undefined, base: string, unsafe: boolean): Do
     }
     const value = node.attrs[index === 0 ? 'sourceURL' : 'media'];
     if (!value) return { kind: 'unavailable', reason: 'unknown' };
-    const url = new URL(value, base);
+    let url: URL;
+    try { url = new URL(value, base); }
+    catch { return { kind: 'unavailable', reason: 'unsafe' }; }
     if (/\s|\\/.test(value) || url.protocol !== 'https:' ||
         url.username || url.password || url.hash) return { kind: 'unavailable', reason: 'unsafe' };
     result.push({ role: index === 0 ? 'initialization' : 'media', kind: 'url', url: url.href });
