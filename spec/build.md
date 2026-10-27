@@ -38,7 +38,6 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 <!-- Generated from spec/features/active/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
-- `F024-every-vimeo-playback-candidate-keeps-its-own-result-and-permission-state` (🟠 ACTIVE): Every Vimeo playback candidate keeps its own result and permission state
 - `F023-users-download-separate-vimeo-video-and-audio-with-a-safe-merge-command` (🟠 ACTIVE): Users download separate Vimeo video and audio with a safe merge command
 
 ## NEXT
@@ -54,6 +53,7 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 <!-- Generated from spec/features/done/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
+- `F024-every-vimeo-playback-candidate-keeps-its-own-result-and-permission-state` (🟢 PROVEN): Every Vimeo playback candidate keeps its own result and permission state; landed 2026-10-27
 - `F022-chromium-proves-cross-frame-detection-without-media-downloads` (🟢 PROVEN): Chromium proves cross-frame detection without media downloads; landed 2026-10-27
 - `F021-the-popup-shows-qualities-from-live-vimeo-frames` (🟢 PROVEN): The popup shows qualities from live Vimeo frames; landed 2026-10-27
 - `F020-frame-discoveries-stay-scoped-to-their-live-tab-documents` (🟢 PROVEN): Frame discoveries stay scoped to their live tab documents; landed 2026-10-27
@@ -63,8 +63,7 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 - `F016-vimeo-pages-expose-config-and-fallback-candidates` (🟢 PROVEN): Vimeo pages expose config and fallback candidates; landed 2026-10-27
 - `F015-dash-mpd-representations-retain-inherited-track-metadata` (🟢 PROVEN): DASH MPD representations retain inherited track metadata; landed 2026-10-27
 - `F014-hls-playlists-expose-variants-and-audio-groups` (🟢 PROVEN): HLS playlists expose variants and audio groups; landed 2026-10-27
-- `F013-dash-manifests-expose-separate-video-and-audio-tracks` (🟢 PROVEN): DASH manifests expose separate video and audio tracks; landed 2026-10-27
-- 2026-10: 22 landed. spec/features/done/2026-10/
+- 2026-10: 23 landed. spec/features/done/2026-10/
 
 ## PARKED
 
