@@ -19,40 +19,44 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 - **Review ownership:** Mikołaj reviews and merges personally; do not open an independent reviewer lane unless asked
 - **Max workers:** 2
 - **Timeout:** 90m default unless a ticket says otherwise
-- **PR metadata:** every M0 PR and issue uses milestone `M0 Foundation`; all PRs stay draft for Mikołaj's review.
+- **PR metadata:** every M1 PR and issue uses milestone `M1 Walking skeleton` (2); all PRs stay draft for Mikołaj's review.
 
 ## Repository setup
 
-- Mikołaj configured main deletion/force-push protection and linear history; PR-required and required status-check configuration remain owner tasks.
+- Mikołaj configured main protection; `Verify extension` and CodeQL must run on every PR, including planning and documentation drafts.
 - Milestones M0–M5 and Backlog v1.1+ exist; the public Project auto-adds open issues and PRs, so make no Projects or Administration API calls.
 - Observed successful checks: `Verify extension` (PR #3 run 40480741113) and `CodeQL JavaScript/TypeScript` (PR #7 run 40482301541, including completed results upload).
+- Dependabot PRs #9–#12 belong to Mikołaj; do not edit, update, close, merge, or otherwise manage them.
 
 ## TRACK
 
-- M0 Foundation (v0.1.0): scaffold Vite/CRXJS/TS/pnpm, CI + PR zip artifacts, Playwright Chromium harness, GitHub hygiene stubs, MIT LICENSE — small draft PRs only.
+- M1 Walking skeleton: owned synthetic Vimeo fixture, typed fixture detection, one popup stream, dummy Downloads API save, and real Chromium end-to-end proof.
+- M0 is owner-closed; Bob published v0.1.0 as a GitHub pre-release at cdc458a, and milestone M0 Foundation is closed.
 
 ## NOW
 
 <!-- Generated from spec/features/active/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
-- `F006-code-and-dependencies-receive-security-checks` (🟠 ACTIVE): Code and dependencies receive security checks
-- `F005-the-project-ships-an-mit-license` (🟠 ACTIVE): The project ships an MIT license
+- `F008-chromium-exercises-the-extension-toolbar-action` (🟠 ACTIVE): Chromium exercises the extension toolbar action
+- `F007-a-synthetic-vimeo-page-exposes-one-detectable-stream` (🟠 ACTIVE): A synthetic Vimeo page exposes one detectable stream
 
 ## NEXT
 
-- Mikołaj reviews the MIT license draft (PR #6) and CodeQL/Dependabot draft (PR #7); all worker implementation slices have finished.
-- Confirm default-branch security activation and owner secret-scanning/push-protection settings after the security draft merges.
-- Run merged-main M0 checks after the remaining human merges; keep browser proof before M1 and defer v0.1.0 until M0 closes.
+- Run fixture detection and toolbar-action harness as independent slices from latest main; neither changes the other's files.
+- After detection merges, wire the popup and real Downloads API dummy save; after that merges, prove the complete fixture download in Chromium.
+- Keep PRs small and draft, preserve both required workflows, and report the actual toolbar entry path without claiming direct popup URL navigation is a click.
 
 ## PROVEN
 
 <!-- Generated from spec/features/done/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
+- `F006-code-and-dependencies-receive-security-checks` (🟢 PROVEN): Code and dependencies receive security checks; landed 2026-10-27
+- `F005-the-project-ships-an-mit-license` (🟢 PROVEN): The project ships an MIT license; landed 2026-10-27
 - `F004-contributors-have-clear-github-entry-points` (🟢 PROVEN): Contributors have clear GitHub entry points; landed 2026-10-27
 - `F003-chromium-harness-proves-the-unpacked-extension` (🟢 PROVEN): Chromium harness proves the unpacked extension; landed 2026-10-27
 - `F002-pull-requests-produce-verified-extension-zip-artifacts` (🟢 PROVEN): Pull requests produce verified extension zip artifacts; landed 2026-10-27
 - `F001-vite-builds-a-chromium-extension-shell` (🟢 PROVEN): Vite builds a Chromium extension shell; landed 2026-10-27
-- 2026-10: 4 landed. spec/features/done/2026-10/
+- 2026-10: 6 landed. spec/features/done/2026-10/
 
 ## PARKED
 
