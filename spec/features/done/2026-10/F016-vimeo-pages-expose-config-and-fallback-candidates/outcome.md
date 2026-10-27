@@ -1,0 +1,3 @@
+# Outcome
+
+Mikołaj merged pure Vimeo page discovery in PR #30 as `a04720d`. The API normalises recognised inline JSON/assignments and retains ordered explicit, observed-resource and derived player-config alternatives with unlisted/query data intact. Offline Chromium regressions proved malformed-first recovery, late DOM insertion on rescan, deduplication, hostile endpoint rejection and no page-code execution. Local pnpm verify passed twenty-five checks and strict headed native-download smoke, and both required PR checks passed. Fetching, live subscriptions, frame/tab integration, permission changes and live Vimeo compatibility remain separate M2 work.

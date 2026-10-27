@@ -38,20 +38,24 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 <!-- Generated from spec/features/active/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
-- `F016-vimeo-pages-expose-config-and-fallback-candidates` (🟠 ACTIVE): Vimeo pages expose config and fallback candidates
+- `F018-vimeo-metadata-fetching-stays-within-approved-hosts` (🟠 ACTIVE): Vimeo metadata fetching stays within approved hosts
+- `F017-vimeo-frames-publish-fresh-discovery-snapshots` (🟠 ACTIVE): Vimeo frames publish fresh discovery snapshots
 - `F011-real-vimeo-videos-expose-their-video-and-audio-qualities` (🟠 ACTIVE): Real Vimeo videos expose their video and audio qualities
 
 ## NEXT
 
 - HLS, DASH JSON and standard MPD are owner-merged; the strict native-download smoke now awaits actual completion rather than an async Playwright predicate.
-- Finish pure multi-path config discovery on its own files before wiring frame observation and validated metadata fetching.
-- Continue with fetch/frame runtime, popup cutover and offline e2e under docs/M2-DETECTION.md, max two workers and both required checks.
+- Discovery is owner-merged; implement frame observation and validated metadata transport on disjoint source/test/docs files using the existing model/discovery contracts.
+- Observation owns no network code; transport owns no observers or message handlers; neither changes production permissions, runtime entrypoints, shared modules or the popup.
+- Keep the MPD component-metadata correction in PR #31 independent; its quality report is not an extra review lane or merge gate.
+- After these APIs merge, wire tab/frame aggregation, permission prompts, parser dispatch and the detection-only popup cutover with offline e2e.
 - Keep Vimeo-only frame access, offline CI and metadata-only fetching; real media downloading remains M3.
 
 ## PROVEN
 
 <!-- Generated from spec/features/done/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
+- `F016-vimeo-pages-expose-config-and-fallback-candidates` (🟢 PROVEN): Vimeo pages expose config and fallback candidates; landed 2026-10-27
 - `F015-dash-mpd-representations-retain-inherited-track-metadata` (🟢 PROVEN): DASH MPD representations retain inherited track metadata; landed 2026-10-27
 - `F014-hls-playlists-expose-variants-and-audio-groups` (🟢 PROVEN): HLS playlists expose variants and audio groups; landed 2026-10-27
 - `F013-dash-manifests-expose-separate-video-and-audio-tracks` (🟢 PROVEN): DASH manifests expose separate video and audio tracks; landed 2026-10-27
@@ -61,8 +65,7 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 - `F008-chromium-exercises-the-extension-toolbar-action` (🟢 PROVEN): Chromium exercises the extension toolbar action; landed 2026-10-27
 - `F007-a-synthetic-vimeo-page-exposes-one-detectable-stream` (🟢 PROVEN): A synthetic Vimeo page exposes one detectable stream; landed 2026-10-27
 - `F006-code-and-dependencies-receive-security-checks` (🟢 PROVEN): Code and dependencies receive security checks; landed 2026-10-27
-- `F005-the-project-ships-an-mit-license` (🟢 PROVEN): The project ships an MIT license; landed 2026-10-27
-- 2026-10: 14 landed. spec/features/done/2026-10/
+- 2026-10: 15 landed. spec/features/done/2026-10/
 
 ## PARKED
 

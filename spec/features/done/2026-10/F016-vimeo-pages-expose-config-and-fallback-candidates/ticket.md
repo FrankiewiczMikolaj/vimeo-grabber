@@ -1,5 +1,6 @@
 ---
 opened: 2026-10-27
+landed: 2026-10-27
 ---
 
 # F016 · Vimeo pages expose config and fallback candidates
