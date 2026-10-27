@@ -45,6 +45,35 @@ permission requests must use the real Chrome API after a real popup gesture and
 contain only an encountered exact HTTPS origin. Never grant the declared CDN
 wildcard or add a production permission bypass for a test.
 
+## Offline detection matrix
+
+The original HLS action, native deny/grant/revoke, same-document update, frame
+removal/navigation and execution-context-loss checks remain in the default smoke.
+The same granted exact origin serves the additional owned DASH JSON and MPD
+fixtures. The popup asserts every video/audio field, including representation,
+group, codec, MIME type, bandwidth, dimensions, frame rate, language and channels.
+
+An unrelated top page nests another unrelated page with Vimeo players. It also
+contains an inline decoy config that must not become a result. The matrix has five
+unique video IDs, an unavailable duplicate of a valid ID, malformed-first JSON
+fallback, and a delayed player that exposes MPD through its config endpoint only.
+Protected, unsupported and malformed metadata remain visible without tracks and
+cannot erase valid sibling results. Switching to an empty tab and back proves
+tab isolation. A held metadata response is released only after navigation to a
+different successful video; the popup must retain only the new document's video
+through three further polling intervals.
+
+To prove the detector checks fail, break only the owned config-fallback response:
+
+```sh
+SMOKE_BREAK_DETECTION=1 SMOKE_ARTIFACT_DIR=/absolute/broken-detection pnpm smoke
+```
+
+This must exit nonzero because the MPD qualities never appear. It retains
+`failure.png`, `diagnostics.json` (missing expected text, actual popup text and
+request audit) and `trace.zip`. It does not replace runtime messages or Chrome
+APIs. Keep this evidence separate from a passing run.
+
 ## Evidence and limits
 
 The default evidence directory is `artifacts/headed/`; CI uploads it as
@@ -61,9 +90,12 @@ live signed metadata URLs.
 
 Screenshots: `permission-needed.png`, `denied.png`, `qualities.png`,
 `audio-footer.png`, `worker-rebuilt.png`, `revoked.png`, `removed.png` and
-`navigated.png`. `diagnostics.json` records dummy request URLs and popup text;
-`trace.zip` contains the owned page interactions. Native X11 Escape denies the
-prompt; Tab then Return selects Allow. Neither permissions nor requests are mocked.
+`navigated.png` cover the existing scenarios. `dash-nested.png`, `dash-mpd.png`,
+`unavailable-states.png`, `tab-isolated.png`, `tab-restored.png` and
+`stale-response.png` cover the additional matrix. `diagnostics.json` records dummy
+request URLs, exact matrix fields and popup text; `trace.zip` contains the owned
+page interactions. Native X11 Escape denies the prompt; Tab then Return selects
+Allow. Neither permissions nor requests are mocked.
 The worker-rebuild check kills only this fresh profile's extension renderer,
 confirms the old worker context is lost, then opens the real action on the unchanged
 fixture tab. The check proves loss of the prior execution context, not a change in
@@ -74,6 +106,5 @@ caught failure. SIGKILL or machine loss can prevent cleanup. Missing or invalid
 builds must fail preflight rather than silently loading a different extension.
 
 Offline fixture proof establishes the supported authored shapes and runtime
-wiring, not compatibility with an authorised real Vimeo page. The wider scenario
-matrix and live-page evidence remain separate requirements in
-[the detection plan](M2-DETECTION.md#proof-and-data-handling).
+wiring, not compatibility with an authorised real Vimeo page. Live-page evidence
+remains separate in [the detection plan](M2-DETECTION.md#proof-and-data-handling).
