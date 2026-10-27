@@ -95,7 +95,10 @@ test('offline Chromium observes real Vimeo windows, deduplicates and stops', asy
       globalThis.unother();
       // Character data and src attribute changes must also trigger discovery.
       globalThis.document.querySelectorAll('script').forEach(script => {
-        script.firstChild.data = script.textContent.replace('Late owned config', 'Edited config');
+        const config = JSON.parse(script.textContent);
+        if (!config.video) return;
+        config.video.title = 'Edited config';
+        script.firstChild.data = JSON.stringify(config);
       });
       globalThis.document.querySelector('iframe').src = 'https://player.vimeo.com/video/910019?h=changed';
     });
@@ -145,7 +148,8 @@ test('offline Chromium observes real Vimeo windows, deduplicates and stops', asy
       }, moduleUrl));
     }
     assert.deepEqual(rejected, Array(4).fill({ refused: true, inspected: false }));
-    assert.ok(requests.every(url => !url.includes('vimeocdn.com')));
+    assert.ok(requests.every(url => ['player.vimeo.com', 'vimeo.com', 'unrelated.example',
+      'player.vimeo.com.evil.example'].includes(new globalThis.URL(url).hostname)));
     if (proof) {
       await writeFile(resolve(proof, 'results.json'), JSON.stringify({ initial, beforeStop, rejected, requests }, null, 2));
       await context.tracing.stop({ path: resolve(proof, 'trace.zip') });
