@@ -38,8 +38,6 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 <!-- Generated from spec/features/active/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
-- `F020-frame-discoveries-stay-scoped-to-their-live-tab-documents` (🟠 ACTIVE): Frame discoveries stay scoped to their live tab documents
-- `F019-discovered-vimeo-configs-resolve-to-track-qualities` (🟠 ACTIVE): Discovered Vimeo configs resolve to track qualities
 - `F011-real-vimeo-videos-expose-their-video-and-audio-qualities` (🟠 ACTIVE): Real Vimeo videos expose their video and audio qualities
 
 ## NEXT
@@ -55,6 +53,8 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 <!-- Generated from spec/features/done/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
+- `F020-frame-discoveries-stay-scoped-to-their-live-tab-documents` (🟢 PROVEN): Frame discoveries stay scoped to their live tab documents; landed 2026-10-27
+- `F019-discovered-vimeo-configs-resolve-to-track-qualities` (🟢 PROVEN): Discovered Vimeo configs resolve to track qualities; landed 2026-10-27
 - `F018-vimeo-metadata-fetching-stays-within-approved-hosts` (🟢 PROVEN): Vimeo metadata fetching stays within approved hosts; landed 2026-10-27
 - `F017-vimeo-frames-publish-fresh-discovery-snapshots` (🟢 PROVEN): Vimeo frames publish fresh discovery snapshots; landed 2026-10-27
 - `F016-vimeo-pages-expose-config-and-fallback-candidates` (🟢 PROVEN): Vimeo pages expose config and fallback candidates; landed 2026-10-27
@@ -63,9 +63,7 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 - `F013-dash-manifests-expose-separate-video-and-audio-tracks` (🟢 PROVEN): DASH manifests expose separate video and audio tracks; landed 2026-10-27
 - `F012-vimeo-configs-normalise-into-a-shared-detection-model` (🟢 PROVEN): Vimeo configs normalise into a shared detection model; landed 2026-10-27
 - `F010-chromium-proves-the-fixture-download-end-to-end` (🟢 PROVEN): Chromium proves the fixture download end to end; landed 2026-10-27
-- `F009-the-popup-lists-and-downloads-a-fixture-stream` (🟢 PROVEN): The popup lists and downloads a fixture stream; landed 2026-10-27
-- `F008-chromium-exercises-the-extension-toolbar-action` (🟢 PROVEN): Chromium exercises the extension toolbar action; landed 2026-10-27
-- 2026-10: 17 landed. spec/features/done/2026-10/
+- 2026-10: 19 landed. spec/features/done/2026-10/
 
 ## PARKED
 
