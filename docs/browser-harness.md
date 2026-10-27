@@ -55,6 +55,16 @@ Downloads API call alone does not prove completion. The unsupported case must
 leave the one completed record and the one unchanged file. This scenario does
 not induce or claim a real Downloads API rejection.
 
+Completion uses an awaited Promise with Downloads API `onCreated`/`onChanged`
+listeners, an initial awaited search, and a 10-second failure deadline. Listeners
+are installed before the search and removed on completion, error or timeout.
+Do not use an async predicate in Playwright `waitForFunction`: with the pinned
+version it accepts the returned Promise as truthy even when it resolves to false.
+A controlled native transfer held open by an owned local server reproduced the
+old wait returning while `in_progress`; the event wait stayed pending until the
+server finished and Chromium reported `complete`. The native filename, exact
+39-byte content and no-extra-download assertions remain strict.
+
 ## Evidence and failures
 
 The default directory is `artifacts/headed/`; CI uploads it as `chromium-evidence`
