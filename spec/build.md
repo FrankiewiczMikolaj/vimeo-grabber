@@ -38,6 +38,7 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 <!-- Generated from spec/features/active/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
+- `F015-dash-mpd-representations-retain-inherited-track-metadata` (🟠 ACTIVE): DASH MPD representations retain inherited track metadata
 - `F014-hls-playlists-expose-variants-and-audio-groups` (🟠 ACTIVE): HLS playlists expose variants and audio groups
 - `F013-dash-manifests-expose-separate-video-and-audio-tracks` (🟠 ACTIVE): DASH manifests expose separate video and audio tracks
 - `F011-real-vimeo-videos-expose-their-video-and-audio-qualities` (🟠 ACTIVE): Real Vimeo videos expose their video and audio qualities
