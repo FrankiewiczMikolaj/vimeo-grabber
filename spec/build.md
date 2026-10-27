@@ -45,8 +45,10 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 ## NEXT
 
 - HLS, DASH JSON and standard MPD are owner-merged; the strict native-download smoke now awaits actual completion rather than an async Playwright predicate.
-- Finish pure multi-path config discovery on its own files before wiring frame observation and validated metadata fetching.
-- Continue with fetch/frame runtime, popup cutover and offline e2e under docs/M2-DETECTION.md, max two workers and both required checks.
+- Discovery is owner-merged; implement frame observation and validated metadata transport on disjoint source/test/docs files using the existing model/discovery contracts.
+- Observation owns no network code; transport owns no observers or message handlers; neither changes production permissions, runtime entrypoints, shared modules or the popup.
+- Keep the MPD component-metadata correction in PR #31 independent; its quality report is not an extra review lane or merge gate.
+- After these APIs merge, wire tab/frame aggregation, permission prompts, parser dispatch and the detection-only popup cutover with offline e2e.
 - Keep Vimeo-only frame access, offline CI and metadata-only fetching; real media downloading remains M3.
 
 ## PROVEN
