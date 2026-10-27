@@ -37,7 +37,7 @@ jobs:
           unzip -p ../vimeo-grabber.zip manifest.json > /dev/null
       - name: Upload PR extension zip
         if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: vimeo-grabber-pr-${{ github.event.number }}
           path: vimeo-grabber.zip
