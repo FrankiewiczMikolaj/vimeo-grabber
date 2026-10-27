@@ -38,12 +38,14 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 <!-- Generated from spec/features/active/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
+- `F012-vimeo-configs-normalise-into-a-shared-detection-model` (🟠 ACTIVE): Vimeo configs normalise into a shared detection model
 - `F011-real-vimeo-videos-expose-their-video-and-audio-qualities` (🟠 ACTIVE): Real Vimeo videos expose their video and audio qualities
 
 ## NEXT
 
-- Review the single M2 detection planning draft before implementation; design and permission boundaries live in docs/M2-DETECTION.md.
-- After the plan merges, deliver small numbered config/parser/runtime/popup/e2e drafts from latest main with max two workers and both required checks.
+- The M2 plan is owner-merged; start the shared config/model/owned-fixture slice from latest main.
+- After that contract merges, run DASH JSON and HLS parser drafts on disjoint files; standard MPD has its own small ticket.
+- Continue with discovery, fetch/frame runtime, popup cutover and offline e2e under docs/M2-DETECTION.md, max two workers and both required checks.
 - Keep Vimeo-only frame access, offline CI and metadata-only fetching; real media downloading remains M3.
 
 ## PROVEN
