@@ -1,0 +1,38 @@
+# Pure HLS metadata parser
+
+`parseHls(text, manifest, responseUrl = manifest.url)` in `src/detect/hls.ts`
+consumes a decoded master playlist and shared `ManifestReference`. It performs no
+fetch, key access, segment access, permission decision or runtime integration.
+The M1 runtime is unchanged. Run `node --test test/hls.test.mjs` for owned fixtures.
+
+The result contains shared `DetectionStatus`, `tracks` and `audioGroups`.
+Each track implements shared `Track` with parser-local `uri` (resolved playlist URL)
+and `attributes` (all supplied attributes, including unknown keys). `manifest` is
+the original input reference, unchanged even when a redirect response URL is used.
+The caller supplies the authorised final response URL and must validate every
+future request independently. URI validation here is not network authorisation.
+Only HTTPS playlist URLs without credentials are supported. Standard URL resolution
+preserves explicit queries; a relative path does not inherit the master's query.
+
+Variant IDs are zero-based `variant:N` in source order. Audio IDs are `audio:N`
+in audio rendition order, scoped to this manifest. Variant `groupId` links to
+`audioGroups[].groupId`. Each rendition retains name, language, source channels
+notation, attributes and nullable resolved URI. Only renditions with URIs create
+separate audio tracks. No audio codec or bandwidth is guessed from a variant's
+aggregate values. MIME and absent optional metadata remain null.
+
+Recognised audio-only codec lists yield audio variants. Recognised video-only lists
+without an audio group yield video variants. An entirely external audio group yields
+video variants; an in-band or mixed group yields combined variants. Other variants
+are conservatively combined (potentially muxed), not proof of separate video or audio.
+Unknown codecs remain verbatim. Width/height, frame rate and bandwidth use supplied
+positive finite values; malformed optional numeric metadata remains null.
+
+Malformed headers, attributes, required bandwidth, missing URIs/groups, duplicate
+rendition identities and invalid playlist URLs yield unavailable with empty results.
+Unknown tags are ignored. Media playlists, I-frame variants and variable definitions
+are unsupported; this parser does not expand variables or fetch children. Non-NONE
+KEY/SESSION-KEY methods yield protected, with metadata retained when structurally
+valid. Protection does not imply supported decryption or access to keys. A master
+cannot prove that child playlists are unprotected. This is synthetic-fixture proof,
+not evidence of live Vimeo compatibility or of a downloadable stream.
