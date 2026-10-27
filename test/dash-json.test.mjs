@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { Buffer } from 'node:buffer';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { URL } from 'node:url';
@@ -54,7 +55,7 @@ test('unknown, unsafe and missing initialization stay unavailable, never DRM', (
     [{ init_segment: 'aW5pdA==', segments: [{ url: 'http://unsafe.invalid/one' }] }, 'unsafe'],
     [{ init_segment: 'aW5pdA==', base_url: 'https://user:pass@unsafe.invalid/' }, 'unsafe'],
     [{ init_segment: 'aW5pdB==', segments: [{ url: 'one.m4s' }] }, 'unsafe'],
-    [{ init_segment: btoa('x'.repeat(65_537)), segments: [{ url: 'one.m4s' }] }, 'unsupported'],
+    [{ init_segment: Buffer.alloc(65_537, 'x').toString('base64'), segments: [{ url: 'one.m4s' }] }, 'unsupported'],
   ]) {
     const result = parse({ video: [{ id: 'v', ...entry }] });
     assert.equal(result.status, 'found');
