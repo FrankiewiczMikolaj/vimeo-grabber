@@ -56,13 +56,13 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (sender.id !== chrome.runtime.id || sender.tab || sender.url !== chrome.runtime.getURL('popup.html')
     || !message || !Number.isSafeInteger(message.tabId) || message.tabId < 0) return;
   if (message.type === 'popup-state') {
-    respond({ frames: state.frames(message.tabId), results: state.videos(message.tabId),
+    respond({ frames: state.frames(message.tabId), results: state.candidates(message.tabId),
       attemptedOrigins: [...permissionAttempts.get(message.tabId) ?? []] });
   } else if (message.type === 'refresh') {
     replay(message.tabId);
     respond(true);
   } else if (message.type === 'permission-attempt' && typeof message.origin === 'string'
-    && state.videos(message.tabId).some(result => result.permissionOrigins.includes(message.origin))) {
+    && state.candidates(message.tabId).some(result => result.permissionOrigins.includes(message.origin))) {
     let attempted = permissionAttempts.get(message.tabId);
     if (!attempted) permissionAttempts.set(message.tabId, attempted = new Set());
     attempted.add(message.origin);

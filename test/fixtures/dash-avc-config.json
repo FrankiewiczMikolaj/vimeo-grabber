@@ -1,0 +1,14 @@
+{
+  "video": { "id": 900008, "title": "Owned H.264 alternatives" },
+  "drm": { "enabled": false, "widevine": {}, "playready": null },
+  "request": { "files": { "dash": { "default_cdn": "separate", "cdns": {
+    "separate": {
+      "url": "https://second.vimeocdn.com/generic.json?sig=dummy%2f+%20&x=&x=2",
+      "avc_url": "https://second.vimeocdn.com/avc.json?sig=dummy%2f+%20&x=&x=2"
+    },
+    "backup": {
+      "url": "https://second.vimeocdn.com/generic.json?sig=dummy%2B&base64_init=0",
+      "avc_url": "https://second.vimeocdn.com/avc.json?sig=dummy%2B&base64_init=1"
+    }
+  } } } }
+}

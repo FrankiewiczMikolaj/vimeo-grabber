@@ -34,8 +34,8 @@ test('admitted inline alternatives reach owned metadata without fetching unsuppo
     const state = createFrameState('extension', resolveDiscovery);
     state.activate(7, 2, 'live');
     assert.equal(await state.publish({ type: 'frame-discovery', discovery: { videos: [video], configUrls: [] } }, sender), true);
-    assert.equal(state.videos(7)[0].video.status, 'found');
-    assert.equal(state.videos(7)[0].video.tracks[0].height, 360);
+    assert.deepEqual(state.candidates(7).map(candidate => candidate.status), ['unavailable', 'found']);
+    assert.equal(state.candidates(7)[1].tracks[0].height, 360);
     assert.deepEqual(requests, ['https://owned.vimeocdn.com/master.m3u8']);
   } finally {
     globalThis.chrome = originalChrome;

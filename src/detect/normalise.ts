@@ -1,4 +1,5 @@
 import type { DetectionSource, ManifestReference, NormalisedVideo, Protocol } from './model';
+import { hasProtection } from './protection.ts';
 
 type Fields = Record<string, unknown>;
 const fields = (value: unknown): Fields =>
@@ -38,7 +39,7 @@ export function normalisePlayerConfig(config: unknown, source: DetectionSource):
     }
     for (const cdn of names) {
       const entry = fields(cdns[cdn]);
-      for (const key of protocol === 'dash' ? ['url', 'avc_url'] : ['url']) {
+      for (const key of protocol === 'dash' ? ['avc_url', 'url'] : ['url']) {
         const url = entry[key];
         if (manifestUrl(url) && !manifests.some(item =>
           item.protocol === protocol && item.cdn === cdn && item.url === url)) {
@@ -49,6 +50,7 @@ export function normalisePlayerConfig(config: unknown, source: DetectionSource):
   }
   return {
     id, title: typeof video.title === 'string' && video.title.trim() ? video.title : null,
-    source: { ...source }, status: manifests.length ? 'found' : 'unavailable', manifests, tracks: [],
+    source: { ...source }, status: hasProtection(root) || hasProtection(video) ? 'protected' :
+      manifests.length ? 'found' : 'unavailable', manifests, tracks: [],
   };
 }

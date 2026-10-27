@@ -62,7 +62,8 @@ test('compiled broker validates real Chrome senders and rejects stale document c
       }
       check(jobs.length === 0, 'invalid input never resolves');
       const video = (id, frameUrl) => ({ id, title: id, source: { frameUrl, configUrl: null }, status: 'found', manifests: [], tracks: [] });
-      const resolved = (id, frameUrl) => [{ video: video(id, frameUrl), permissionOrigins: ['https://owned.vimeocdn.com'] }];
+      const resolved = (id, frameUrl) => [{ id, videoId: id, title: id, source: { frameUrl, configUrl: null },
+        manifest: null, status: 'permission-needed', tracks: [], permissionOrigins: ['https://owned.vimeocdn.com'] }];
       const inline = video('20', sender.url);
       inline.manifests = [{ protocol: 'hls', cdn: 'owned', url: 'https://owned.vimeocdn.com/master.m3u8?sig=dummy' }];
       inline.tracks = [{ id: 'audio', groupId: null, kind: 'audio', manifest: inline.manifests[0],
@@ -79,15 +80,16 @@ test('compiled broker validates real Chrome senders and rejects stale document c
       const fresh = state.publish(message, sender);
       jobs[1].resolve(resolved('20', sender.url)); await fresh;
       jobs[0].resolve(resolved('99', sender.url)); await old;
-      check(state.videos(1)[0].video.id === '20', 'replacement beats held completion');
+      check(state.candidates(1)[0].videoId === '20', 'replacement beats held completion');
       const second = { ...sender, frameId: 2, documentId: 'b', url: 'https://player.vimeo.com/video/21' };
       state.activate(1, 2, 'b');
       const duplicate = state.publish(message, second);
       jobs[2].resolve([...resolved('20', second.url), ...resolved('21', second.url)]); await duplicate;
-      check(state.videos(1).length === 2 && state.videos(1)[0].video.source.frameUrl === sender.url, 'whole-result deduplication');
+      check(state.candidates(1).length === 3 && new Set(state.candidates(1).map(candidate => candidate.id)).size === 3,
+        'same-video candidates from different documents survive');
       state.remove(1, 0, 'a');
-      check(state.videos(1)[0].video.source.frameUrl === second.url, 'surviving frame provenance');
-      check(state.videos(1)[0].permissionOrigins[0] === 'https://owned.vimeocdn.com', 'exact permission retained');
+      check(state.candidates(1)[0].source.frameUrl === second.url, 'surviving frame provenance');
+      check(state.candidates(1)[0].permissionOrigins[0] === 'https://owned.vimeocdn.com', 'exact permission retained');
       const other = { ...sender, tab: { id: 2 } }; state.activate(2, 0, 'a');
       const isolated = state.publish(message, other); jobs[3].resolve(resolved('77', sender.url)); await isolated;
       for (const action of ['activate', 'remove', 'clearTab', 'clear']) {
@@ -98,8 +100,8 @@ test('compiled broker validates real Chrome senders and rejects stale document c
         if (action === 'clearTab') state.clearTab(1);
         if (action === 'clear') state.clear();
         job.resolve(resolved('88', second.url)); await held;
-        check(state.videos(1).length === 0, action + ' blocks resurrection');
-        if (action !== 'clear') check(state.videos(2)[0].video.id === '77', 'tab isolation');
+        check(state.candidates(1).length === 0, action + ' blocks resurrection');
+        if (action !== 'clear') check(state.candidates(2)[0].videoId === '77', 'tab isolation');
       }
       check(!await state.publish(message, second), 'no implicit reactivation');
       state.activate(1, 2, 'b'); const failed = state.publish(message, second);
@@ -107,32 +109,20 @@ test('compiled broker validates real Chrome senders and rejects stale document c
       check(state.frames(1)[0].status === 'error' && !JSON.stringify(state.frames(1)).includes('secret'), 'redacted error transition');
       const rebuilt = state.publish(message, second); jobs.at(-1).resolve(resolved('21', second.url)); await rebuilt;
       state.remove(1, 2, 'old');
-      check(state.videos(1)[0].video.id === '21', 'fresh rebuild and old disconnect ignored');
-      const copy = state.videos(1); copy[0].video.id = 'mutated';
-      check(state.videos(1)[0].video.id === '21', 'snapshot isolation');
-      const successfulSender = { ...second, url: 'https://player.vimeo.com/video/20?embedded=1' };
-      const unavailable = { video: video('20', sender.url), permissionOrigins: [] };
-      unavailable.video.status = 'unavailable';
-      const available = resolved('20', successfulSender.url)[0];
-      const reference = { protocol: 'dash', cdn: 'owned', url: 'https://owned.vimeocdn.com/master.json' };
-      available.video.manifests = [reference];
-      available.video.tracks = [{ id: '720p', groupId: null, kind: 'video', manifest: reference,
-        codec: null, mimeType: null, bandwidth: null, width: 1280, height: 720,
-        frameRate: null, language: null, channels: null }];
-      const preference = createFrameState(globalThis.chrome.runtime.id,
-        async (_discovery, frameUrl) => [frameUrl === sender.url ? unavailable : available]);
-      for (const current of [sender, successfulSender]) {
-        preference.activate(1, current.frameId, current.documentId);
-        await preference.publish(message, current);
-      }
-      const chosen = preference.videos(1)[0];
-      check(chosen.video.tracks[0]?.id === '720p' &&
-        chosen.video.source.frameUrl === successfulSender.url &&
-        chosen.permissionOrigins[0] === 'https://owned.vimeocdn.com', 'usable qualities beat unavailable lower frame');
-      preference.remove(1, successfulSender.frameId, successfulSender.documentId);
-      check(preference.videos(1)[0].video.status === 'unavailable' &&
-        preference.videos(1)[0].permissionOrigins.length === 0, 'removed success restores whole unavailable result');
-      return 'sender boundary, replacement, deduplication, isolation, invalidation, errors, rebuild passed';
+      check(state.candidates(1)[0].videoId === '21', 'fresh rebuild and old disconnect ignored');
+      const copy = state.candidates(1); copy[0].videoId = 'mutated';
+      check(state.candidates(1)[0].videoId === '21', 'snapshot isolation');
+      const otherFrame = { ...sender, frameId: 3, documentId: 'same-url' };
+      state.activate(1, 3, 'same-url');
+      const sameUrl = state.publish(message, otherFrame);
+      jobs.at(-1).resolve(resolved('21', second.url)); await sameUrl;
+      const kept = state.candidates(1);
+      check(kept.length === 2 && kept[0].id !== kept[1].id
+        && kept[0].frameId === 2 && kept[1].frameId === 3
+        && kept[1].documentId === 'same-url', 'identical source URLs retain document identity');
+      state.remove(1, 3, 'same-url');
+      check(state.candidates(1).length === 1 && state.candidates(1)[0].frameId === 2, 'only removed document disappears');
+      return 'sender boundary, replacement, candidate identity, isolation, invalidation, errors, rebuild passed';
     }, actual.sender);
     assert.match(result, /rebuild passed/);
     console.log(result);

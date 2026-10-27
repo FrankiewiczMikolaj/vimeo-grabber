@@ -1,5 +1,5 @@
 import type { PageDiscovery } from './discover';
-import type { DetectionStatus, NormalisedVideo } from './model';
+import type { ManifestReference, NormalisedVideo, PlaybackCandidate } from './model';
 import { MetadataTransport } from './metadata';
 import type { InlineMetadata, MetadataResult } from './metadata';
 import { normalisePlayerConfig } from './normalise';
@@ -7,52 +7,47 @@ import { parseDashJson } from './dash-json';
 import { parseDashMpd } from './dash-mpd';
 import { parseHls } from './hls';
 
-interface Resolution {
-  readonly video: NormalisedVideo;
-  readonly permissionOrigins: readonly string[];
-}
-const priority: Record<DetectionStatus, number> = {
-  pending: 0, unavailable: 1, denied: 2, unsupported: 3,
-  'permission-needed': 4, protected: 5, found: 6,
-};
-
 /** Caller authenticates the sender and frame URL. No prompts, retries or media fetches. */
 export async function resolveDiscovery(
   discovery: PageDiscovery, frameUrl: string,
-): Promise<readonly Resolution[]> {
+): Promise<readonly PlaybackCandidate[]> {
   const transport = new MetadataTransport();
-  const results = new Map<string, Resolution>();
-  const attempted = new Map<string, Set<string>>();
-  const save = (video: NormalisedVideo, origins: readonly string[] = []) => {
-    const previous = results.get(video.id);
-    results.set(video.id, {
-      video: previous && priority[previous.video.status] >= priority[video.status] ? previous.video : video,
-      permissionOrigins: [...new Set([...previous?.permissionOrigins ?? [], ...origins])],
-    });
+  const results = new Map<string, PlaybackCandidate>();
+  const candidate = (video: NormalisedVideo, manifest: ManifestReference | null): PlaybackCandidate => ({
+    id: JSON.stringify([video.id, video.source.frameUrl, video.source.configUrl, manifest]),
+    videoId: video.id, title: video.title, source: video.source, manifest,
+    status: video.status === 'protected' ? 'protected' : 'unavailable', tracks: [], permissionOrigins: [],
+  });
+  const saveConfig = (video: NormalisedVideo, response?: MetadataResult) => {
+    const result = candidate(video, null);
+    results.set(result.id, response?.status === 'permission-needed'
+      ? { ...result, status: response.status, permissionOrigins: [response.origin] } : result);
   };
   const resolve = async (video: NormalisedVideo, receipt: InlineMetadata | MetadataResult) => {
-    if (results.get(video.id)?.video.status === 'found') return;
-    save({ ...video, status: 'unavailable', tracks: [] });
-    const seen = attempted.get(video.id) ?? new Set<string>();
-    attempted.set(video.id, seen);
+    if (!video.manifests.length) saveConfig(video);
     for (const reference of video.manifests) {
-      const key = JSON.stringify(reference);
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const response = await transport.manifest(receipt, video, reference);
-      if (response.status === 'permission-needed') {
-        save({ ...video, status: response.status, tracks: [] }, [response.origin]);
+      const result = candidate(video, reference);
+      if (results.has(result.id)) continue;
+      if (result.status === 'protected') {
+        results.set(result.id, result);
         continue;
       }
-      if (response.status !== 'fetched') continue;
-      let parsed: Pick<NormalisedVideo, 'status' | 'tracks'>;
+      const response = await transport.manifest(receipt, video, reference);
+      if (response.status === 'permission-needed') {
+        results.set(result.id, { ...result, status: response.status, permissionOrigins: [response.origin] });
+        continue;
+      }
+      if (response.status !== 'fetched') {
+        results.set(result.id, result);
+        continue;
+      }
+      let parsed: Pick<PlaybackCandidate, 'status' | 'tracks'>;
       try {
         parsed = reference.protocol === 'hls' ? parseHls(response.text, reference)
           : new URL(reference.url).pathname.endsWith('.json')
             ? parseDashJson(JSON.parse(response.text), reference) : parseDashMpd(response.text, reference);
       } catch { parsed = { status: 'unsupported', tracks: [] }; }
-      save({ ...video, ...parsed });
-      if (parsed.status === 'found') break;
+      results.set(result.id, { ...result, ...parsed });
     }
   };
   for (const video of discovery.videos) {
@@ -66,18 +61,16 @@ export async function resolveDiscovery(
       const url = new URL(configUrl);
       if (url.origin === 'https://player.vimeo.com') id = /^\/video\/([1-9]\d*)\/config$/.exec(url.pathname)?.[1];
     } catch { /* Invalid candidates cannot identify a video. */ }
-    if (!id || results.get(id)?.video.status === 'found') continue;
+    if (!id) continue;
     const source = { frameUrl, configUrl };
     const response = await transport.config(source);
     const empty: NormalisedVideo = { id, title: null, source, status: 'unavailable', manifests: [], tracks: [] };
-    if (response.status === 'permission-needed') {
-      save({ ...empty, status: response.status }, [response.origin]);
-    } else if (response.status === 'fetched') {
+    if (response.status === 'fetched') {
       let video: NormalisedVideo | null = null;
-      try { video = normalisePlayerConfig(JSON.parse(response.text), source); } catch { /* Try the next config. */ }
+      try { video = normalisePlayerConfig(JSON.parse(response.text), source); } catch { /* Other configs remain independent. */ }
       if (video?.id === id) await resolve(video, response);
-      else save(empty);
-    } else save(empty);
+      else saveConfig(empty);
+    } else saveConfig(empty, response);
   }
   return [...results.values()];
 }

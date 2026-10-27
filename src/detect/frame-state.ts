@@ -1,15 +1,15 @@
 import type { PageDiscovery } from './discover';
-import type { NormalisedVideo } from './model';
+import type { PlaybackCandidate } from './model';
 
-type Resolved = { video: NormalisedVideo; permissionOrigins: readonly string[] };
+export type FrameCandidate = PlaybackCandidate & { readonly frameId: number; readonly documentId: string };
 export type FrameResolver = (discovery: PageDiscovery, authoritativeFrameUrl: string) =>
-  Promise<readonly Resolved[]>;
+  Promise<readonly PlaybackCandidate[]>;
 export interface FramePublication {
   readonly tabId: number;
   readonly frameId: number;
   readonly documentId: string;
   readonly status: 'pending' | 'ready' | 'error';
-  readonly results: readonly Resolved[];
+  readonly results: readonly PlaybackCandidate[];
 }
 const origins = ['https://vimeo.com', 'https://www.vimeo.com', 'https://player.vimeo.com'];
 const record = (v: unknown): v is Record<string, unknown> =>
@@ -109,19 +109,14 @@ export function createFrameState(extensionId: string, resolve: FrameResolver) {
     frames(tabId: number): readonly FramePublication[] {
       return structuredClone([...(tabs.get(tabId)?.values() ?? [])]);
     },
-    videos(tabId: number): readonly Resolved[] {
-      // Select a whole live result, not tracks or permissions from unrelated frames.
-      const selected = new Map<string, Resolved>();
-      for (const frame of [...(tabs.get(tabId)?.values() ?? [])].sort((a, b) => a.frameId - b.frameId)) {
-        for (const result of frame.results) {
-          const previous = selected.get(result.video.id);
-          if (!previous || (result.video.status === 'found' && result.video.tracks.length > 0
-            && (previous.video.status !== 'found' || previous.video.tracks.length === 0))) {
-            selected.set(result.video.id, result);
-          }
-        }
-      }
-      return structuredClone([...selected.values()]);
+    candidates(tabId: number): readonly FrameCandidate[] {
+      // Keep each live document's alternatives, even for the same video or frame URL.
+      return structuredClone([...(tabs.get(tabId)?.values() ?? [])]
+        .sort((a, b) => a.frameId - b.frameId)
+        .flatMap(frame => frame.results.map(candidate => ({
+          ...candidate, frameId: frame.frameId, documentId: frame.documentId,
+          id: JSON.stringify([frame.frameId, frame.documentId, candidate.id]),
+        }))));
     },
     async publish(message: unknown, sender: chrome.runtime.MessageSender): Promise<boolean> {
       const discovery = validateFrameDiscovery(message, sender, extensionId);

@@ -15,16 +15,17 @@ The frame observer and worker resolver use this shared model for detection.
   `request.files.hls.cdns[name].url`: absolute HTTPS URLs without credentials.
   Invalid entries are skipped individually. No progressive fallback is used.
 - Each protocol's valid `default_cdn` key comes first, followed by other CDN keys
-  in object order; DASH precedes HLS. DASH `url` precedes `avc_url`.
+  in object order; DASH precedes HLS. DASH `avc_url` (H.264) precedes generic `url`.
   Identical URLs within one protocol/CDN appear once; other alternatives remain.
 - URLs are returned verbatim, including escapes, repeated queries and empty values.
   Validation does not authorise an origin or prove a playable response. The future
   fetch broker must validate provenance, allowed origins, permissions and redirects.
 - `source` is a shallow copy of caller-supplied provenance. No identity or URL is
   derived from it. Signed config URLs must remain in memory, not diagnostics.
-- `status` is `found` when usable manifest references exist, otherwise `unavailable`.
-  `found` does not mean parsed tracks, successful access, or absence of protection.
-  Config normalisation does not infer denial, DRM, codecs, resolution or audio.
+- `status` is `protected` for positive root/video DRM or encryption declarations;
+  otherwise `found` when manifest references exist, or `unavailable`.
+  Empty/disabled DRM containers do not imply protection. `found` does not mean
+  parsed tracks or successful access. No denial, codec, resolution or audio is inferred.
 - `tracks` is empty until a manifest parser supplies metadata. Inputs are not mutated.
 
 ## Shared types (`src/detect/model.ts`)

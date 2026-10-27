@@ -48,10 +48,14 @@ No `downloads`, `activeTab`, `tabs`, scripting, or broad site permission is used
 Signed config and manifest URLs stay in memory and are not displayed.
 See [the detection boundary](docs/M2-DETECTION.md).
 
+Each playback candidate keeps its own source, qualities and permission state.
+Usable HLS does not hide an extra DASH origin request. A resolved DASH candidate
+with separate video and audio is preferred; HLS and other alternatives stay visible.
+
 ## v0.3.0 known limits
 
-Successful HLS resolution can hide the DASH candidate and its additional CDN
-permission request; [independent candidate resolution is planned for M3](https://github.com/FrankiewiczMikolaj/vimeo-grabber/issues/41).
+The released v0.3.0 can hide DASH after HLS succeeds; this checkout fixes that
+with [independent candidates](https://github.com/FrankiewiczMikolaj/vimeo-grabber/issues/41).
 The one-time install notice is missing ([M3 issue](https://github.com/FrankiewiczMikolaj/vimeo-grabber/issues/44));
 the popup rights/own-risk footer remains visible.
 
