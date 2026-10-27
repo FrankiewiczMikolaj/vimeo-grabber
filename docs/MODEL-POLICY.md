@@ -17,7 +17,7 @@ Pass `--engine omp --provider openai-codex --model gpt-6.1-sol --thinking medium
 
 - **Coordinator:** always the default route above. The coordinator only **requests a role** (worker, reviewer, scout, …). It must not pick, escalate, or swap models on its own.
 - **Workers (ordinary implementation):** default route above.
-- **Workers on simple tickets only:** `gpt-5.6-luna` with thinking `high` is allowed when the board/ticket marks the work as simple. Prefer Sol medium when unsure.
+- **M3 workers:** `gpt-6.1-sol` with thinking `medium` for every slice; the earlier simple-ticket Luna exception does not apply to M3.
 - **Review / quality / picture / scout:** default Sol medium unless the owner says otherwise.
 
 ## Provider and quota

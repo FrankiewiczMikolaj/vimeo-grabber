@@ -13,13 +13,13 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 - **Engine:** omp
 - **Provider:** openai-codex (only provider; never auto-switch)
 - **Coordinator / default worker / review:** gpt-6.1-sol, thinking medium
-- **Simple-ticket workers (optional):** gpt-5.6-luna, thinking high — only when the ticket is marked simple
+- **M3 workers:** gpt-6.1-sol, thinking medium for every slice; no simple-ticket model substitution
 - **Coordinator behaviour:** request a role only; do not pick or escalate models
 - **Quota:** on Codex limit, park and `notify-bob "…" blocker`; never use saved resets; never switch provider
 - **Review ownership:** Mikołaj reviews and merges personally; do not open an independent reviewer lane unless asked
 - **Max workers:** 2
 - **Timeout:** 90m default unless a ticket says otherwise
-- **PR metadata:** every M2 PR and issue uses milestone `M2 Detection` (3); all PRs stay draft for Mikołaj's review.
+- **PR metadata:** every M3 PR and issue uses milestone `M3 Download` (4); all PRs stay draft for Mikołaj's review.
 
 ## Repository setup
 
@@ -30,22 +30,24 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 ## TRACK
 
-- Mikołaj accepts M2 for v0.3.0 after Bob's live page/embed HLS validation; independent DASH resolution and the missing one-time notice move to M3.
+- M3 Download is authorised in order: independent candidates, Track URLs, separate files, Linux ffmpeg command, one-time notice; first review docs/M3-DOWNLOAD.md.
+- M2 is owner-closed; v0.3.0 is a GitHub pre-release at c9f2177, with live HLS page/embed evidence and DASH/notice gaps deferred to M3.
 - M1 is owner-closed; v0.2.0 is a GitHub pre-release at 90b88f2 and milestone M1 Walking skeleton is closed.
-- M0 is owner-closed; Bob published v0.1.0 as a GitHub pre-release at cdc458a, and milestone M0 Foundation is closed.
 
 ## NOW
 
 <!-- Generated from spec/features/active/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
+- `F023-users-download-separate-vimeo-video-and-audio-with-a-safe-merge-command` (🟠 ACTIVE): Users download separate Vimeo video and audio with a safe merge command
+
 ## NEXT
 
-- After Mikołaj merges the 0.3.0 version PR, tag that exact commit as a GitHub pre-release and close milestone M2 Detection.
-- M3 starts with independent DASH/HLS candidates, per-origin permissions and preference for separate DASH tracks (issue #41).
-- Add explicit download URL/reference fields to the Track contract before downloads (issue #42).
-- Save selected video and audio as separate real files without extension-side mux (issue #45), then provide the safe Linux ffmpeg command (issue #43).
-- Implement the missing one-time install disclaimer while retaining the footer (issue #44).
-- No M3 worker starts until Mikołaj authorises it; Codex-only route, draft PRs and owner-only merges still apply.
+- Merge the short M3 plan before implementation, then fix independent DASH/HLS candidates and per-origin state first (#41).
+- Add explicit Track download references with stacked DASH base resolution and inline init before media (#42).
+- Save selected video and audio as two real files with correct ordered bytes and browser completion (#45).
+- Generate the safely quoted Linux ffmpeg command from actual absolute download paths (#43).
+- Finish the one-time install disclaimer and retained acknowledgement last (#44).
+- Use offline fixtures as CI truth; request Bob's live checks after candidates and downloads; at most two disjoint workers, fixed Codex Sol medium, no owner-merge bypass.
 
 ## PROVEN
 
