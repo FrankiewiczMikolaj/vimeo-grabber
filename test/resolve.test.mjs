@@ -32,6 +32,7 @@ test('compiled discovery resolver uses finite metadata fallback and real Chromiu
     [reference('protected.mpd').url, ['application/dash+xml', '<MPD><Period><AdaptationSet><ContentProtection schemeIdUri="urn:dummy"/></AdaptationSet></Period></MPD>']],
     [reference('unsupported.json').url, ['application/json', '{}']],
     [reference('broken.json').url, ['application/json', '{']],
+    [config('900001'), ['application/json', JSON.stringify({ video: { id: 900001 }, request: { files: { hls: { cdns: { owned: { url: hls.url } } } } } })]],
     [config('900002', '?attempt=1'), ['application/json', '{']],
     [config('900002', '?attempt=2'), ['application/json', JSON.stringify({ video: { id: 900002 }, request: { files: { hls: { cdns: { owned: { url: hls.url } } } } } })]],
   ]);
@@ -73,31 +74,38 @@ test('compiled discovery resolver uses finite metadata fallback and real Chromiu
         responseHeaders: [{ name: 'Content-Type', value: body[0] }], body: Buffer.from(body[1]).toString('base64') });
     });
     await command('Fetch.enable', { patterns: [{ urlPattern: '*' }] });
-    const videos = [inline('900001', [dash]), inline('900002', [reference('broken.json'), denied]),
-      inline('900003', [reference('protected.mpd')]), inline('900004', [reference('unsupported.json')]),
-      inline('900005', [denied]), inline('900006', [mpd])];
+    const videos = [inline('900001', [hls, dash, denied, reference('protected.mpd'), reference('broken.json')]),
+      inline('900002', [reference('broken.json'), denied]), inline('900006', [mpd])];
     const configUrls = [config('900001'), config('900002', '?attempt=1'), config('900002', '?attempt=2'), config('900002', '?attempt=2')];
     const result = await worker.evaluate(({ discovery, frameUrl }) => Resolver.resolveDiscovery(discovery, frameUrl), { discovery: { videos, configUrls }, frameUrl });
-    assert.deepEqual(result.map(item => item.video.status), ['found', 'found', 'protected', 'unsupported', 'permission-needed', 'found']);
-    const tracks = result[0].video.tracks;
+    assert.deepEqual(result.map(item => item.status), [
+      'found', 'found', 'permission-needed', 'protected', 'unsupported',
+      'unsupported', 'permission-needed', 'found', 'found', 'unavailable', 'found',
+    ]);
+    assert.equal(new Set(result.map(item => item.id)).size, result.length);
+    const tracks = result[1].tracks;
     assert.deepEqual(tracks.map(({ id, kind, width, height, bandwidth, language, channels, codec }) =>
       ({ id, kind, width, height, bandwidth, language, channels, codec })), [
       { id: 'v720', kind: 'video', width: 1280, height: 720, bandwidth: 2000000, language: null, channels: null, codec: 'avc1' },
       { id: 'a-fr', kind: 'audio', width: null, height: null, bandwidth: null, language: 'fr', channels: '2', codec: null },
     ]);
     assert.deepEqual(tracks.map(track => track.manifest), [dash, dash]);
-    assert.deepEqual(result[1].video.tracks.map(track => track.manifest), [hls, hls]);
-    assert.equal(result[1].video.source.configUrl, config('900002', '?attempt=2'));
-    assert.deepEqual(result[5].video.tracks.map(track => [track.id, track.kind, track.language, track.manifest]), [['a-de', 'audio', 'de', mpd]]);
-    assert.deepEqual(result.map(item => item.permissionOrigins), [[], ['https://denied.vimeocdn.com'], [], [], ['https://denied.vimeocdn.com'], []]);
-    assert.deepEqual(requests, [dash.url, reference('broken.json').url, reference('protected.mpd').url,
-      reference('unsupported.json').url, mpd.url, config('900002', '?attempt=1'), config('900002', '?attempt=2'), hls.url]);
+    assert.deepEqual(result[0].tracks.map(track => track.manifest), [hls, hls]);
+    assert.deepEqual(result[7].tracks.map(track => [track.id, track.kind, track.language, track.manifest]), [['a-de', 'audio', 'de', mpd]]);
+    assert.equal(result[8].source.configUrl, config('900001'));
+    assert.equal(result[10].source.configUrl, config('900002', '?attempt=2'));
+    assert.deepEqual(result[10].tracks.map(track => track.manifest), [hls, hls]);
+    assert.deepEqual(result.map(item => item.permissionOrigins),
+      [[], [], ['https://denied.vimeocdn.com'], [], [], [], ['https://denied.vimeocdn.com'], [], [], [], []]);
+    assert.deepEqual(requests, [hls.url, dash.url, reference('protected.mpd').url, reference('broken.json').url,
+      reference('broken.json').url, mpd.url, config('900001'), hls.url,
+      config('900002', '?attempt=1'), config('900002', '?attempt=2'), hls.url]);
     assert.equal(diagnostics.some(text => /dummy|sig=/.test(text)), false);
     assert.equal(await worker.evaluate(() => typeof chrome.downloads), 'undefined');
     const unavailable = await worker.evaluate(frameUrl => Resolver.resolveDiscovery({ videos: [], configUrls: ['https://player.vimeo.com/video/900007/config'] }, frameUrl), frameUrl);
-    assert.equal(unavailable[0].video.status, 'unavailable');
+    assert.equal(unavailable[0].status, 'unavailable');
     assert.equal(await worker.evaluate(async ({ videos }) => (await Resolver.resolveDiscovery({ videos, configUrls: [] }, 'https://vimeo.com/other')).length, { videos }), 0);
-    await writeFile(`${root}/evidence.json`, JSON.stringify({ statuses: result.map(item => item.video.status),
+    await writeFile(`${root}/evidence.json`, JSON.stringify({ statuses: result.map(item => item.status),
       requests: requests.map(url => url.split('?')[0]), permissionOrigins: result.map(item => item.permissionOrigins), signedQueryDiagnostics: false }, null, 2));
   } finally {
     await context?.close();

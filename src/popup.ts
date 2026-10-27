@@ -1,9 +1,8 @@
 import './popup.css';
-import type { FramePublication } from './detect/frame-state';
-import type { DetectionStatus, NormalisedVideo, Track } from './detect/model';
+import type { FrameCandidate, FramePublication } from './detect/frame-state';
+import type { DetectionStatus, Track } from './detect/model';
 
-type Result = { video: NormalisedVideo; permissionOrigins: readonly string[] };
-type PopupState = { frames: readonly FramePublication[]; results: readonly Result[]; attemptedOrigins: readonly string[] };
+type PopupState = { frames: readonly FramePublication[]; results: readonly FrameCandidate[]; attemptedOrigins: readonly string[] };
 type PermissionState = {
   granted: boolean | null;
   requesting: boolean;
@@ -48,10 +47,10 @@ function manifestOrigin(value: string): string | null {
   try { return cdnOrigin(new URL(value).origin); } catch { return null; }
 }
 
-function originsFor(result: Result): string[] {
+function originsFor(candidate: FrameCandidate): string[] {
   return [...new Set([
-    ...result.permissionOrigins.map(cdnOrigin),
-    ...result.video.manifests.map(item => manifestOrigin(item.url)),
+    ...candidate.permissionOrigins.map(cdnOrigin),
+    candidate.manifest ? manifestOrigin(candidate.manifest.url) : null,
   ].filter((origin): origin is string => origin !== null))];
 }
 
@@ -139,28 +138,37 @@ function render() {
   rendered = next;
   const pending = snapshot.frames.some(frame => frame.status === 'pending');
   const failed = snapshot.frames.some(frame => frame.status === 'error');
-  status.textContent = snapshot.results.length
-    ? `${snapshot.results.length} video${snapshot.results.length === 1 ? '' : 's'} detected.${pending ? ' Looking for more qualities…' : ''}${failed ? ' Some frames could not be inspected.' : ''}`
+  const count = new Set(snapshot.results.map(candidate => candidate.videoId)).size;
+  status.textContent = count
+    ? `${count} video${count === 1 ? '' : 's'} detected.${pending ? ' Looking for more qualities…' : ''}${failed ? ' Some frames could not be inspected.' : ''}`
     : pending ? 'Looking for Vimeo video metadata…'
       : failed ? 'Some Vimeo frames could not be inspected. Reload the page to try again.'
         : 'No Vimeo videos detected. Open a Vimeo page or a page with a Vimeo player. Reload existing pages after installing the extension.';
-  const cards = snapshot.results.map(result => {
-    const { video } = result;
+  const preferred = new Map<string, string>();
+  for (const candidate of snapshot.results) {
+    if (candidate.status === 'found' && candidate.manifest?.protocol === 'dash'
+      && candidate.tracks.some(track => track.kind === 'video') && candidate.tracks.some(track => track.kind === 'audio')
+      && !preferred.has(candidate.videoId)) preferred.set(candidate.videoId, candidate.id);
+  }
+  const cards = [...snapshot.results].sort((a, b) =>
+    Number(preferred.get(b.videoId) === b.id) - Number(preferred.get(a.videoId) === a.id)).map(candidate => {
     const card = document.createElement('article');
-    card.append(element('h2', video.title?.trim() ? video.title : `Vimeo video ${video.id}`));
+    card.append(element('h2', candidate.title?.trim() ? candidate.title : `Vimeo video ${candidate.videoId}`));
     let source = 'Unknown';
-    try { source = new URL(video.source.frameUrl).hostname; } catch { /* Never render an unparsed URL. */ }
-    card.append(element('p', `Source: ${source} · Video ${video.id}`), element('p', labels[video.status]));
-    const origins = originsFor(result);
-    for (const origin of origins) {
-      const encountered = video.status === 'permission-needed' && result.permissionOrigins.includes(origin);
-      card.append(renderPermission(origin, encountered));
+    try { source = new URL(candidate.source.frameUrl).hostname; } catch { /* Never render an unparsed URL. */ }
+    card.append(element('p', `Source: ${source} · Video ${candidate.videoId}`), element('p', labels[candidate.status]));
+    card.append(element('p', candidate.manifest
+      ? `${candidate.manifest.protocol.toUpperCase()} · CDN ${candidate.manifest.cdn} · Frame ${candidate.frameId} · ${candidate.source.configUrl ? 'Fetched config' : 'Inline config'}`
+      : `Config metadata · Frame ${candidate.frameId}`));
+    if (preferred.get(candidate.videoId) === candidate.id) card.append(element('p', 'Preferred: separate DASH video and audio.'));
+    for (const origin of originsFor(candidate)) {
+      card.append(renderPermission(origin, candidate.permissionOrigins.includes(origin)));
     }
-    if (video.tracks.length) {
+    if (candidate.tracks.length) {
       const tracks = document.createElement('ul');
       tracks.className = 'tracks';
       tracks.setAttribute('aria-label', 'Video and audio qualities');
-      tracks.append(...video.tracks.map(trackItem));
+      tracks.append(...candidate.tracks.map(trackItem));
       card.append(tracks);
     } else {
       card.append(element('p', 'No track metadata available. Unknown qualities are not estimated.'));

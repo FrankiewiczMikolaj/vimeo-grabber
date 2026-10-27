@@ -12,7 +12,7 @@ const extension = resolve(process.env.SMOKE_EXTENSION_DIR ?? 'dist');
 const artifacts = resolve(process.env.SMOKE_ARTIFACT_DIR ?? 'artifacts/headed');
 await mkdir(artifacts, { recursive: true });
 for (const name of ['permission-needed', 'denied', 'qualities', 'audio-footer', 'worker-rebuilt', 'revoked', 'removed', 'navigated',
-  'dash-nested', 'dash-mpd', 'unavailable-states', 'tab-isolated', 'tab-restored', 'stale-response', 'failure']) {
+  'hls-first', 'dash-denied', 'dash-preferred', 'dash-revoked', 'dash-nested', 'dash-mpd', 'unavailable-states', 'tab-isolated', 'tab-restored', 'stale-response', 'failure']) {
   await rm(resolve(artifacts, `${name}.png`), { force: true });
 }
 const diagnostics = { requests: [], unexpected: [], cleanup: false, entry: 'chrome.action.openPopup' };
@@ -103,6 +103,11 @@ try {
   } } } };
   const dash = await readFile('test/fixtures/dash-json.json', 'utf8');
   const mpd = await readFile('test/fixtures/dash-mpd.mpd', 'utf8');
+  const secondDash = { ...config, request: { files: { ...config.request.files, dash: { cdns: {
+    separate: { url: 'https://second.vimeocdn.com/dash.json?sig=dummy' },
+    malformed: { url: 'https://second.vimeocdn.com/malformed.json' },
+    protected: { url: 'https://second.vimeocdn.com/protected.mpd' },
+  } } } } };
   const metadata = new Map([
     ['dash.json', ['application/json', dash]],
     ['dash.mpd', ['application/dash+xml', mpd]],
@@ -138,7 +143,10 @@ try {
     if (url === 'https://example.com/empty') return route.fulfill({ contentType: 'text/html', body: '<title>Empty owned page</title>' });
     if (url === 'https://player.vimeo.com/video/20') return route.fulfill({ contentType: 'text/html', body: `<title>Owned player</title><script type="application/json">${JSON.stringify(config)}</script>` });
     if (url === 'https://owned.vimeocdn.com/master.m3u8?sig=dummy') return route.fulfill({ contentType: 'application/vnd.apple.mpegurl', body: master });
-    if (/^https:\/\/player\.vimeo\.com\/video\/20\/config(?:\?h=owned)?$/.test(url)) return route.fulfill({ contentType: 'application/json', body: JSON.stringify(config) });
+    if (url === 'https://second.vimeocdn.com/dash.json?sig=dummy') return route.fulfill({ contentType: 'application/json', body: dash });
+    if (url === 'https://second.vimeocdn.com/malformed.json') return route.fulfill({ contentType: 'application/json', body: '{' });
+    if (url === 'https://second.vimeocdn.com/protected.mpd') return route.fulfill({ contentType: 'application/dash+xml', body: '<MPD><ContentProtection schemeIdUri="urn:owned"/></MPD>' });
+    if (/^https:\/\/player\.vimeo\.com\/video\/20\/config(?:\?h=owned)?$/.test(url)) return route.fulfill({ contentType: 'application/json', body: JSON.stringify(secondDash) });
     if (url === 'https://example.com/matrix') return route.fulfill({ contentType: 'text/html',
       body: `<title>Owned matrix</title>${inline(ownedConfig(999, ['dash.json']))}<iframe src="https://example.com/nested"></iframe>${['31?duplicate', '33', '34', '35'].map(player).join('')}` });
     if (url === 'https://example.com/nested') return route.fulfill({ contentType: 'text/html',
@@ -206,8 +214,8 @@ try {
     while (Date.now()<deadline) {
       const state = await chrome.runtime.sendMessage({type:'popup-state',tabId:tab.id});
       last = state;
-      if (state.results[0]?.video.title === 'Updated owned video'
-        && state.results[0].video.source.frameUrl === 'https://player.vimeo.com/video/20') return true;
+      if (state.results.some(candidate => candidate.title === 'Updated owned video'
+        && candidate.source.frameUrl === 'https://player.vimeo.com/video/20')) return true;
       await new Promise(r=>setTimeout(r,50));
     }
     throw new Error('Same-document navigation did not rebuild authoritative provenance: '+JSON.stringify(last));
@@ -227,7 +235,7 @@ try {
   await waitText('1920');
   await waitText('pl');
   await capture('qualities');
-  const tracks = await evaluate("[...document.querySelectorAll('.tracks li')].map(item => [...item.querySelectorAll('dd')].map(field => field.textContent))");
+  const tracks = await evaluate("[...document.querySelector('#streams article .tracks').querySelectorAll('li')].map(item => [...item.querySelectorAll('dd')].map(field => field.textContent))");
   assert.deepEqual(tracks.map(t => [t[1], t[4], t[5], t[6], t[7], t[8], t[9]]), [
     ['stereo', '1200000 bit/s', '640 px', '360 px', '29.97 fps', 'Unknown', 'Unknown'],
     ['stereo', '4800000 bit/s', '1920 px', '1080 px', '60 fps', 'Unknown', 'Unknown'],
@@ -236,6 +244,46 @@ try {
   ]);
   await evaluate('window.scrollTo(0,document.body.scrollHeight); true');
   await capture('audio-footer');
+  // HLS has succeeded. A different exact origin must remain requestable.
+  await waitText('Allow https://second.vimeocdn.com');
+  await evaluate('window.scrollTo(0,0); true');
+  await capture('hls-first');
+  await clickPermission();
+  await new Promise(r => setTimeout(r, 700)); key('Escape');
+  await open();
+  await waitText('Access to https://second.vimeocdn.com was not granted or was denied');
+  await waitText('1920');
+  await capture('dash-denied');
+  await clickPermission();
+  await new Promise(r => setTimeout(r, 700)); key('Tab'); key('Return');
+  await open();
+  await waitText('Preferred: separate DASH video and audio.');
+  const candidates = await evaluate(`(async () => {
+    const [tab] = await chrome.tabs.query({active:true,currentWindow:true});
+    return (await chrome.runtime.sendMessage({type:'popup-state',tabId:tab.id})).results;
+  })()`);
+  assert.equal(await evaluate("chrome.permissions.contains({origins:['https://second.vimeocdn.com/*']})"), true);
+  assert.equal(await evaluate("chrome.permissions.contains({origins:['https://unseen.vimeocdn.com/*']})"), false);
+  assert.equal(await evaluate("document.querySelector('#streams article').innerText.includes('Preferred: separate DASH')"), true);
+  assert.ok(candidates.some(candidate => candidate.manifest?.protocol === 'hls' && candidate.status === 'found'));
+  assert.deepEqual(candidates.filter(candidate => candidate.manifest?.cdn === 'separate').map(candidate => candidate.tracks.map(track => track.kind)),
+    [['video', 'video', 'audio', 'audio']]);
+  assert.deepEqual(candidates.filter(candidate => ['malformed', 'protected'].includes(candidate.manifest?.cdn)).map(candidate => candidate.status),
+    ['unsupported', 'protected']);
+  for (const candidate of candidates) {
+    assert.ok(candidate.tracks.every(track => JSON.stringify(track.manifest) === JSON.stringify(candidate.manifest)));
+  }
+  await capture('dash-preferred');
+  await evaluate("chrome.permissions.remove({origins:['https://second.vimeocdn.com/*']})");
+  await waitText('Allow https://second.vimeocdn.com');
+  await waitText('1920');
+  assert.equal(await evaluate("document.body.innerText.includes('Preferred: separate DASH')"), false);
+  assert.equal(await evaluate("chrome.permissions.contains({origins:['https://owned.vimeocdn.com/*']})"), true);
+  await capture('dash-revoked');
+  diagnostics.independentCandidates = candidates.map(candidate => ({
+    videoId: candidate.videoId, protocol: candidate.manifest?.protocol, cdn: candidate.manifest?.cdn,
+    status: candidate.status, trackKinds: candidate.tracks.map(track => track.kind),
+  }));
   const internals = await context.newPage();
   await internals.goto('chrome://serviceworker-internals/');
   const renderer = Number(await internals.locator('.serviceworker-item').filter({ hasText: `chrome-extension://${id}/` })
@@ -254,7 +302,7 @@ try {
   await open();
   await waitText('1920');
   await capture('worker-rebuilt');
-  assert.equal(await evaluate("document.querySelectorAll('#streams button').length"), 0);
+  await waitText('Allow https://second.vimeocdn.com');
   assert.equal(await evaluate("chrome.permissions.contains({origins:['https://owned.vimeocdn.com/*']})"), true);
   assert.equal(await evaluate("document.querySelectorAll('#streams img').length"), 0);
   assert.ok(diagnostics.requests.includes('https://owned.vimeocdn.com/master.m3u8?sig=dummy'));
@@ -277,8 +325,9 @@ try {
     tracks: [...card.querySelectorAll('.tracks li')].map(item =>
       [item.querySelector('h3').textContent, ...[...item.querySelectorAll('dd')].map(field => field.textContent)])
   }))`);
-  const byId = id => cards.find(card => card.source.endsWith('Video ' + id));
-  assert.deepEqual(cards.map(card => card.source).sort(), [31, 32, 33, 34, 35].map(id => `Source: player.vimeo.com · Video ${id}`));
+  const byId = id => cards.find(card => card.source.endsWith('Video ' + id) && (id !== 31 || card.tracks.length));
+  assert.deepEqual([...new Set(cards.map(card => card.source))].sort(), [31, 32, 33, 34, 35].map(id => `Source: player.vimeo.com · Video ${id}`));
+  assert.ok(cards.some(card => card.source.endsWith('Video 31') && card.status === 'This metadata format is not supported.'));
   assert.deepEqual(byId(31).tracks, [
     ['Video · DASH', 'video-360', 'Unknown', 'avc1.4d401e', 'video/mp4', '650000 bit/s', '640 px', '360 px', '29.97 fps', 'Unknown', 'Unknown'],
     ['Video · DASH', 'video-1080', 'Unknown', 'avc1.640028', 'video/mp4', '4200000 bit/s', '1920 px', '1080 px', '60 fps', 'Unknown', 'Unknown'],
@@ -311,7 +360,7 @@ try {
   active = matrixTab;
   await open();
   await waitText('5000000 bit/s');
-  assert.equal(await evaluate("document.querySelectorAll('#streams article').length"), 5);
+  assert.equal(await evaluate("new Set([...document.querySelectorAll('#streams article')].map(card => card.querySelector('p').textContent)).size"), 5);
   await capture('tab-restored');
   // Hold a real transport response across document replacement. Release it only
   // after the new document has published its own successful result.
@@ -371,6 +420,7 @@ try {
   }
   await rm(profile, { recursive: true, force: true });
   diagnostics.cleanup = true;
+  diagnostics.requests = diagnostics.requests.map(value => value.split('?')[0]);
   await writeFile(resolve(artifacts, 'diagnostics.json'), JSON.stringify(diagnostics, null, 2));
 }
 if (failure) { console.error(failure); process.exitCode = 1; }
