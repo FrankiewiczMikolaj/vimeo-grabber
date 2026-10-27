@@ -48,6 +48,13 @@ No `downloads`, `activeTab`, `tabs`, scripting, or broad site permission is used
 Signed config and manifest URLs stay in memory and are not displayed.
 See [the detection boundary](docs/M2-DETECTION.md).
 
+## v0.3.0 known limits
+
+Successful HLS resolution can hide the DASH candidate and its additional CDN
+permission request; [independent candidate resolution is planned for M3](https://github.com/FrankiewiczMikolaj/vimeo-grabber/issues/41).
+The one-time install notice is missing ([M3 issue](https://github.com/FrankiewiczMikolaj/vimeo-grabber/issues/44));
+the popup rights/own-risk footer remains visible.
+
 ## Legal
 
 Only download content you have rights to. You install and use this project at

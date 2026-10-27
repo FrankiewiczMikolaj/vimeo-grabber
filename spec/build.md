@@ -30,7 +30,7 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 ## TRACK
 
-- M2 Detection targets v0.3.0: real Vimeo videos and popup qualities through multiple config paths and DASH/HLS metadata; no real media downloads.
+- Mikołaj accepts M2 for v0.3.0 after Bob's live page/embed HLS validation; independent DASH resolution and the missing one-time notice move to M3.
 - M1 is owner-closed; v0.2.0 is a GitHub pre-release at 90b88f2 and milestone M1 Walking skeleton is closed.
 - M0 is owner-closed; Bob published v0.1.0 as a GitHub pre-release at cdc458a, and milestone M0 Foundation is closed.
 
@@ -40,12 +40,12 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 ## NEXT
 
-- Detection-only cross-frame popup is owner-merged in PR #39 at accepted head 423623a; never edit or push m2/popup-qualities again.
-- Reuse its passing real-action HLS, exact-origin deny/grant/revoke, removal/navigation and execution-context rebuild checks; add only missing offline scenario coverage.
-- Finish DASH JSON/MPD popup metadata, nested/multiple frames, tab isolation, malformed/protected states and held stale responses through the actual runtime.
-- The e2e slice owns harness, fixtures and coverage docs; any evidenced runtime fix gets a separate small draft from latest main, not a patch to the merged branch.
-- Close M2 only after the offline matrix and separately authorised real-page/embed compatibility evidence; fixtures alone do not prove live Vimeo support.
-- Keep Vimeo-only frame access, offline CI and metadata-only fetching; real media downloading remains M3.
+- After Mikołaj merges the 0.3.0 version PR, tag that exact commit as a GitHub pre-release and close milestone M2 Detection.
+- M3 starts with independent DASH/HLS candidates, per-origin permissions and preference for separate DASH tracks (issue #41).
+- Add explicit download URL/reference fields to the Track contract before downloads (issue #42).
+- Save selected video and audio as separate real files without extension-side mux (issue #45), then provide the safe Linux ffmpeg command (issue #43).
+- Implement the missing one-time install disclaimer while retaining the footer (issue #44).
+- No M3 worker starts until Mikołaj authorises it; Codex-only route, draft PRs and owner-only merges still apply.
 
 ## PROVEN
 
