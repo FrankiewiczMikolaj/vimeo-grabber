@@ -302,6 +302,15 @@ try {
   for (const candidate of candidates) {
     assert.ok(candidate.tracks.every(track => JSON.stringify(track.manifest) === JSON.stringify(candidate.manifest)));
   }
+  const hlsTracks = candidates.find(candidate => candidate.manifest?.cdn === 'owned' &&
+    candidate.manifest.protocol === 'hls').tracks;
+  assert.deepEqual(hlsTracks.map(track => [track.groupId, track.download]), [
+    ['stereo', { kind: 'playlist', url: 'https://owned.vimeocdn.com/low/index.m3u8' }],
+    ['stereo', { kind: 'playlist', url: 'https://owned.vimeocdn.com/high.m3u8?sig=explicit&empty=' }],
+    ['stereo', { kind: 'playlist', url: 'https://owned.vimeocdn.com/audio/en.m3u8?sig=%2f+%3d&x=&x=2' }],
+    ['stereo', { kind: 'playlist', url: 'https://owned.vimeocdn.com/master.m3u8?audio=pl' }],
+  ]);
+  diagnostics.hlsReferences = { exactPlaylistsAndGroups: true };
   await evaluate('window.scrollTo(0,0); true');
   await capture('dash-preferred');
   await evaluate("chrome.permissions.remove({origins:['https://second.vimeocdn.com/*']})");
@@ -376,6 +385,32 @@ try {
   assert.equal(byId(35).status, 'This metadata format is not supported.');
   for (const id of [33, 34, 35]) assert.deepEqual(byId(id).tracks, []);
   diagnostics.matrix = cards;
+  const matrixCandidates = await evaluate(`(async () => {
+    const [tab] = await chrome.tabs.query({active:true,currentWindow:true});
+    return (await chrome.runtime.sendMessage({type:'popup-state',tabId:tab.id})).results;
+  })()`);
+  const jsonCandidate = matrixCandidates.find(candidate => candidate.videoId === '31' && candidate.status === 'found');
+  assert.equal(jsonCandidate.source.frameUrl, 'https://player.vimeo.com/video/31');
+  assert.equal(jsonCandidate.manifest.url, 'https://owned.vimeocdn.com/dash.json');
+  assert.deepEqual(jsonCandidate.tracks[0].download, { kind: 'resources', resources: [
+    { role: 'initialization', kind: 'inline-base64', data: 'aW5pdA==' },
+    { role: 'media', kind: 'url', url: 'https://owned.vimeocdn.com/media/v360/segment-2.m4s' },
+    { role: 'media', kind: 'url', url: 'https://owned.vimeocdn.com/media/v360/?sig=child%2f+%3d&x=&x=2' },
+    { role: 'media', kind: 'url', url: 'https://media.example.invalid/final.m4s?sig=absolute%2f' },
+  ] });
+  assert.deepEqual(jsonCandidate.tracks[1].download.resources[0],
+    { role: 'initialization', kind: 'url', url: 'https://video.example.invalid/1080/init.mp4?sig=init%2f' });
+  const mpdCandidate = matrixCandidates.find(candidate => candidate.videoId === '32');
+  assert.equal(mpdCandidate.source.configUrl, 'https://player.vimeo.com/video/32/config');
+  assert.deepEqual(mpdCandidate.tracks[0].download, { kind: 'resources', resources: [
+    { role: 'initialization', kind: 'url', url: 'https://owned.vimeocdn.com/media/period/video/init.mp4?sig=init%2f' },
+    { role: 'media', kind: 'url', url: 'https://owned.vimeocdn.com/media/period/video/two.m4s' },
+    { role: 'media', kind: 'url', url: 'https://owned.vimeocdn.com/media/period/video/high.mp4?sig=child%2f+&x=&x=2' },
+  ] });
+  for (const candidate of matrixCandidates) assert.ok(candidate.tracks.every(track =>
+    JSON.stringify(track.manifest) === JSON.stringify(candidate.manifest)));
+  diagnostics.dashReferences = { exactStackedQueries: true, initializationBeforeOrderedMedia: true,
+    inlineAndUrlInitialization: true, candidateAndTrackProvenance: true };
   await capture('dash-nested');
   await evaluate("[...document.querySelectorAll('#streams article')].find(card => card.querySelector('p').textContent.endsWith('Video 32')).scrollIntoView(); true");
   await capture('dash-mpd');
@@ -434,6 +469,9 @@ try {
   await waitText('No Vimeo');
   await capture('navigated');
   assert.deepEqual(diagnostics.unexpected, []);
+  diagnostics.referenceOnly = { unexpectedRequests: diagnostics.unexpected.length,
+    mediaInitKeyLicenseRequests: diagnostics.requests.filter(value => /\.(?:m4s|mp4|ts|key)(?:[?]|$)|license/.test(value)).length };
+  assert.equal(diagnostics.referenceOnly.mediaInitKeyLicenseRequests, 0);
   await session.detach();
 } catch (error) {
   failure = error; diagnostics.error = error.stack;

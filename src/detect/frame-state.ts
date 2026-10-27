@@ -37,6 +37,19 @@ function manifest(v: unknown, alternative = false): boolean {
   return (v.protocol === 'dash' || v.protocol === 'hls') && text(v.cdn)
     && !!u && (alternative || u.hostname === 'vimeocdn.com' || u.hostname.endsWith('.vimeocdn.com'));
 }
+function download(v: unknown): boolean {
+  if (!record(v)) return false;
+  if (v.kind === 'playlist') return keys(v, ['kind', 'url']) && !!url(v.url);
+  if (v.kind === 'unavailable') return keys(v, ['kind', 'reason']) &&
+    ['protected', 'missing-initialization', 'unknown', 'unsafe', 'unsupported'].includes(String(v.reason));
+  return v.kind === 'resources' && keys(v, ['kind', 'resources']) && Array.isArray(v.resources) &&
+    v.resources.length >= 2 && v.resources.every((r, index) => record(r) &&
+      r.role === (index === 0 ? 'initialization' : 'media') &&
+      (r.kind === 'url' ? keys(r, ['role', 'kind', 'url']) && !!url(r.url) :
+        index === 0 && r.kind === 'inline-base64' && keys(r, ['role', 'kind', 'data']) &&
+        typeof r.data === 'string' && r.data.length > 0 && r.data.length <= 87_384 &&
+        /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(r.data)));
+}
 function video(v: unknown, frameUrl: string): boolean {
   return record(v) && keys(v, ['id', 'title', 'source', 'status', 'manifests', 'tracks'])
     && text(v.id) && /^[1-9]\d*$/.test(v.id) && nullableText(v.title)
@@ -46,8 +59,9 @@ function video(v: unknown, frameUrl: string): boolean {
     && ['pending', 'found', 'unavailable', 'permission-needed', 'denied', 'protected', 'unsupported'].includes(v.status)
     && Array.isArray(v.manifests) && v.manifests.length <= 32 && v.manifests.every(m => manifest(m, true))
     && Array.isArray(v.tracks) && v.tracks.length <= 256 && v.tracks.every(t => record(t)
-      && keys(t, ['id', 'groupId', 'kind', 'manifest', 'codec', 'mimeType', 'bandwidth', 'width', 'height', 'frameRate', 'language', 'channels'])
+      && keys(t, ['id', 'groupId', 'kind', 'manifest', 'download', 'codec', 'mimeType', 'bandwidth', 'width', 'height', 'frameRate', 'language', 'channels'])
       && text(t.id) && nullableText(t.groupId) && typeof t.kind === 'string' && ['video', 'audio', 'combined'].includes(t.kind)
+      && download(t.download)
       && manifest(t.manifest) && ['codec', 'mimeType', 'language', 'channels'].every(k => nullableText(t[k]))
       && ['bandwidth', 'width', 'height', 'frameRate'].every(k => number(t[k])));
 }

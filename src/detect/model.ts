@@ -13,11 +13,23 @@ export interface ManifestReference {
   readonly url: string;
 }
 
+export type DownloadResource =
+  | { readonly role: 'initialization'; readonly kind: 'inline-base64'; readonly data: string }
+  | { readonly role: 'initialization' | 'media'; readonly kind: 'url'; readonly url: string };
+
+/** Locators only, never grants. Reauthorise every URL and redirect before use. */
+export type DownloadReference =
+  | { readonly kind: 'playlist'; readonly url: string }
+  | { readonly kind: 'resources'; readonly resources: readonly DownloadResource[] }
+  | { readonly kind: 'unavailable'; readonly reason: 'protected' | 'missing-initialization' |
+      'unknown' | 'unsafe' | 'unsupported' };
+
 export interface Track {
   readonly id: string;
   readonly groupId: string | null;
   readonly kind: 'video' | 'audio' | 'combined';
   readonly manifest: ManifestReference;
+  readonly download: DownloadReference;
   readonly codec: string | null;
   readonly mimeType: string | null;
   readonly bandwidth: number | null;

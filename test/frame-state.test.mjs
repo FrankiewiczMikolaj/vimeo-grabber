@@ -67,6 +67,7 @@ test('compiled broker validates real Chrome senders and rejects stale document c
       const inline = video('20', sender.url);
       inline.manifests = [{ protocol: 'hls', cdn: 'owned', url: 'https://owned.vimeocdn.com/master.m3u8?sig=dummy' }];
       inline.tracks = [{ id: 'audio', groupId: null, kind: 'audio', manifest: inline.manifests[0],
+        download: { kind: 'playlist', url: 'https://owned.vimeocdn.com/audio.m3u8' },
         codec: null, mimeType: null, bandwidth: null, width: null, height: null, frameRate: null, language: 'en', channels: null }];
       const valid = { ...message, discovery: { videos: [inline], configUrls: ['https://player.vimeo.com/video/20/config?h=dummy%2f'] } };
       check(validateFrameDiscovery(valid, sender, globalThis.chrome.runtime.id)?.configUrls[0].endsWith('dummy%2f'), 'typed snapshot and signed query admitted');

@@ -2,7 +2,6 @@ import type { DetectionStatus, ManifestReference, Track } from './model';
 
 type Attributes = Readonly<Record<string, string>>;
 export interface HlsTrack extends Track {
-  readonly uri: string;
   readonly attributes: Attributes;
 }
 export interface HlsAudioRendition {
@@ -97,7 +96,9 @@ export function parseHls(text: string, manifest: ManifestReference, responseUrl 
       const externalAudio = group.length > 0 && group.every(g => g.uri !== null);
       const resolution = /^(\d+)x(\d+)$/.exec(a.RESOLUTION ?? '');
       return { id: `variant:${index}`, groupId, kind: audioOnly ? 'audio' :
-        externalAudio || (videoOnly && groupId === null) ? 'video' : 'combined', manifest, uri, attributes: a,
+        externalAudio || (videoOnly && groupId === null) ? 'video' : 'combined', manifest,
+      download: protectedContent || unsupported ? { kind: 'unavailable', reason: protectedContent ? 'protected' : 'unsupported' } :
+        { kind: 'playlist', url: uri }, attributes: a,
       codec: a.CODECS ?? null, mimeType: null, bandwidth: positive(a.BANDWIDTH),
       width: resolution ? positive(resolution[1]) : null, height: resolution ? positive(resolution[2]) : null,
       frameRate: positive(a['FRAME-RATE']), language: null, channels: null };
@@ -106,7 +107,8 @@ export function parseHls(text: string, manifest: ManifestReference, responseUrl 
     for (const [index, group] of audioGroups.entries()) {
       if (group.uri === null) continue;
       tracks.push({ id: `audio:${index}`, groupId: group.groupId, kind: 'audio', manifest,
-        uri: group.uri, attributes: group.attributes, codec: null, mimeType: null,
+        download: protectedContent || unsupported ? { kind: 'unavailable', reason: protectedContent ? 'protected' : 'unsupported' } :
+          { kind: 'playlist', url: group.uri }, attributes: group.attributes, codec: null, mimeType: null,
         bandwidth: null, width: null, height: null, frameRate: null,
         language: group.language, channels: group.channels });
     }

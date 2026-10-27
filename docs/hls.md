@@ -2,17 +2,19 @@
 
 `parseHls(text, manifest, responseUrl = manifest.url)` in `src/detect/hls.ts`
 consumes a decoded master playlist and shared `ManifestReference`. It performs no
-fetch, key access, segment access, permission decision or runtime integration.
+fetch, key access, segment access or permission decision.
 Run `node --test test/hls.test.mjs` for owned fixtures.
 
 The result contains shared `DetectionStatus`, `tracks` and `audioGroups`.
-Each track implements shared `Track` with parser-local `uri` (resolved playlist URL)
-and `attributes` (all supplied attributes, including unknown keys). `manifest` is
+Each track implements shared `Track` with `download: { kind: 'playlist', url }`
+and parser-local `attributes` (all supplied attributes, including unknown keys). `manifest` is
 the original input reference, unchanged even when a redirect response URL is used.
 The caller supplies the authorised final response URL and must validate every
 future request independently. URI validation here is not network authorisation.
 Only HTTPS playlist URLs without credentials are supported. Standard URL resolution
 preserves explicit queries; a relative path does not inherit the master's query.
+This is media-playlist indirection, never a completed media file or a grant.
+Protected or unsupported forms carry unavailable references instead.
 
 Variant IDs are zero-based `variant:N` in source order. Audio IDs are `audio:N`
 in audio rendition order, scoped to this manifest. Variant `groupId` links to
