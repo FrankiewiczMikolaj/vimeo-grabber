@@ -38,11 +38,12 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 <!-- Generated from spec/features/active/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
+- `F025-tracks-expose-explicit-download-references-with-ordered-initialization` (🟠 ACTIVE): Tracks expose explicit download references with ordered initialization
 - `F023-users-download-separate-vimeo-video-and-audio-with-a-safe-merge-command` (🟠 ACTIVE): Users download separate Vimeo video and audio with a safe merge command
 
 ## NEXT
 
-- Implement independent DASH/HLS candidates and per-origin state first (#41); keep the extra DASH request visible after HLS success, then request Bob's live check.
+- Candidates (#41) are owner-merged; preserve the issue comments on genuine DRM and separate-HLS fallback; Mikołaj chooses a non-DRM live DASH example.
 - Add explicit Track download references with stacked DASH base resolution and inline init before media (#42).
 - Save selected video and audio as two real files with correct ordered bytes and browser completion (#45).
 - Generate the safely quoted Linux ffmpeg command from actual absolute download paths (#43).
