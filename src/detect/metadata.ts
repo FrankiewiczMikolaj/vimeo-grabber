@@ -27,11 +27,8 @@ function configIdentity(source: DetectionSource): string | null {
   const frame = https(source.frameUrl);
   if (!frame || (source.configUrl !== null && (!config || config.hostname !== 'player.vimeo.com'))) return null;
   const id = config ? /^\/video\/([1-9]\d*)\/config$/.exec(config.pathname)?.[1] : null;
-  const frameId = frame.hostname === 'player.vimeo.com'
-    ? /^\/video\/([1-9]\d*)\/?$/.exec(frame.pathname)?.[1]
-    : ['vimeo.com', 'www.vimeo.com'].includes(frame.hostname)
-      ? /^\/([1-9]\d*)(?:\/[a-zA-Z0-9]+)?\/?$/.exec(frame.pathname)?.[1] : null;
-  return source.configUrl === null ? frameId ?? null : id && id === frameId ? id : null;
+  if (!['vimeo.com', 'www.vimeo.com', 'player.vimeo.com'].includes(frame.hostname)) return null;
+  return id ?? null;
 }
 
 /** Worker-local receipts bind manifests to fetched or trusted inline config data.
@@ -39,13 +36,13 @@ function configIdentity(source: DetectionSource): string | null {
 export class MetadataTransport {
   private readonly receipts = new WeakMap<object, NormalisedVideo>();
 
-  inline(config: unknown, source: DetectionSource): InlineMetadata | null {
-    const id = configIdentity(source);
-    if (!id) return null;
-    const video = normalisePlayerConfig(config, { ...source });
-    if (!video || video.id !== id) return null;
-    const receipt = { video: structuredClone(video) };
-    this.receipts.set(receipt, video);
+  inline(video: NormalisedVideo): InlineMetadata | null {
+    const frame = https(video.source.frameUrl);
+    if (!frame || !['vimeo.com', 'www.vimeo.com', 'player.vimeo.com'].includes(frame.hostname) ||
+      video.source.configUrl !== null || !/^[1-9]\d*$/.test(video.id)) return null;
+    const snapshot = structuredClone(video);
+    const receipt = { video: structuredClone(snapshot) };
+    this.receipts.set(receipt, snapshot);
     return receipt;
   }
 
