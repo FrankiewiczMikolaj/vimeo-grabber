@@ -1,1 +1,4 @@
 /.limen/
+/node_modules/
+/dist/
+/artifacts/

@@ -1,0 +1,19 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #172b3a;
+  background: #f5f8fa;
+  font-synthesis: none;
+}
+body { width: 340px; margin: 0; }
+main { padding: 24px; }
+h1 { margin: 8px 0 16px; font-size: 26px; }
+p { line-height: 1.5; }
+.eyebrow { color: #37566a; font-size: 12px; letter-spacing: 0.04em; }
+footer {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #c5d3dc;
+  color: #37566a;
+  font-size: 12px;
+  line-height: 1.5;
+}
