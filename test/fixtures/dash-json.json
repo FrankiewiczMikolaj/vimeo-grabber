@@ -1,0 +1,13 @@
+{
+  "clip_id": "900013",
+  "base_url": "../media/",
+  "video": [
+    { "id": "video-360", "base_url": "v360/?sig=owned%2f+%3d&x=&x=2", "codecs": "avc1.4d401e", "mime_type": "video/mp4", "bitrate": 650000, "width": 640, "height": 360, "framerate": 29.97, "init_segment": "OWNED-NOT-MEDIA", "segments": [{ "url": "segment-1.m4s", "start": 0, "end": 2 }] },
+    { "id": "video-1080", "base_url": "https://video.example.invalid/1080/", "codecs": "avc1.640028", "mime_type": "video/mp4", "bitrate": 4200000, "width": 1920, "height": 1080, "framerate": 60 }
+  ],
+  "audio": [
+    { "id": "audio-en", "base_url": "a-en/", "codecs": "mp4a.40.2", "mime_type": "audio/mp4", "bitrate": 128000, "lang": "en", "channels": 2 },
+    { "id": "audio-pl", "base_url": "a-pl/", "codecs": "mp4a.40.2", "mime_type": "audio/mp4", "bitrate": 192000, "lang": "pl", "channels": "5.1" }
+  ],
+  "future_metadata": { "ignored": true }
+}
