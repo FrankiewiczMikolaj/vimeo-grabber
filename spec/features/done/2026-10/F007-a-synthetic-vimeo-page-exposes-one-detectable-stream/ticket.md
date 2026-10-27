@@ -1,5 +1,6 @@
 ---
 opened: 2026-10-27
+landed: 2026-10-27
 ---
 
 # F007 · A synthetic Vimeo page exposes one detectable stream

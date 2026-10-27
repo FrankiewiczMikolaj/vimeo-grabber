@@ -37,26 +37,27 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 <!-- Generated from spec/features/active/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
-- `F008-chromium-exercises-the-extension-toolbar-action` (🟠 ACTIVE): Chromium exercises the extension toolbar action
-- `F007-a-synthetic-vimeo-page-exposes-one-detectable-stream` (🟠 ACTIVE): A synthetic Vimeo page exposes one detectable stream
+- `F009-the-popup-lists-and-downloads-a-fixture-stream` (🟠 ACTIVE): The popup lists and downloads a fixture stream
 
 ## NEXT
 
-- Run fixture detection and toolbar-action harness as independent slices from latest main; neither changes the other's files.
-- After detection merges, wire the popup and real Downloads API dummy save; after that merges, prove the complete fixture download in Chromium.
+- The synthetic fixture detector and real action-popup harness are owner-merged; wire the popup and real Downloads API dummy save from latest main.
+- After popup/download merges, prove the complete fixture download in Chromium through the real action popup where feasible.
 - Keep PRs small and draft, preserve both required workflows, and report the actual toolbar entry path without claiming direct popup URL navigation is a click.
 
 ## PROVEN
 
 <!-- Generated from spec/features/done/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
+- `F008-chromium-exercises-the-extension-toolbar-action` (🟢 PROVEN): Chromium exercises the extension toolbar action; landed 2026-10-27
+- `F007-a-synthetic-vimeo-page-exposes-one-detectable-stream` (🟢 PROVEN): A synthetic Vimeo page exposes one detectable stream; landed 2026-10-27
 - `F006-code-and-dependencies-receive-security-checks` (🟢 PROVEN): Code and dependencies receive security checks; landed 2026-10-27
 - `F005-the-project-ships-an-mit-license` (🟢 PROVEN): The project ships an MIT license; landed 2026-10-27
 - `F004-contributors-have-clear-github-entry-points` (🟢 PROVEN): Contributors have clear GitHub entry points; landed 2026-10-27
 - `F003-chromium-harness-proves-the-unpacked-extension` (🟢 PROVEN): Chromium harness proves the unpacked extension; landed 2026-10-27
 - `F002-pull-requests-produce-verified-extension-zip-artifacts` (🟢 PROVEN): Pull requests produce verified extension zip artifacts; landed 2026-10-27
 - `F001-vite-builds-a-chromium-extension-shell` (🟢 PROVEN): Vite builds a Chromium extension shell; landed 2026-10-27
-- 2026-10: 6 landed. spec/features/done/2026-10/
+- 2026-10: 8 landed. spec/features/done/2026-10/
 
 ## PARKED
 
