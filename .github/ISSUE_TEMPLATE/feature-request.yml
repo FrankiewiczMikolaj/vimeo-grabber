@@ -1,0 +1,35 @@
+name: Feature request
+description: Propose a focused improvement for Vimeo Grabber.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search existing issues first. Use English and request one change per issue.
+        Vimeo Grabber supports Vimeo only. Other video platforms are out of scope.
+        Linux is the v1.0 merge/test target; Windows and macOS shell support is deferred to v1.1+.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Describe the Vimeo workflow that is difficult and who needs this change.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Proposed outcome
+      description: Describe what a user could do or see. Include a concrete example.
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Scope and acceptance
+      description: State what is included, what is excluded, and how to check that the change works.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Optional. Describe existing workarounds and why they do not meet the need.

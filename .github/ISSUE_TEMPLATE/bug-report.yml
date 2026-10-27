@@ -1,0 +1,47 @@
+name: Bug report
+description: Report a reproducible problem with Vimeo Grabber.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search existing issues first. Use English and report one problem per issue.
+        Do not share cookies, tokens, private video URLs, or personal data.
+  - type: input
+    id: version
+    attributes:
+      label: Extension version or commit
+      description: Include whether you installed a release or built from source.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Browser and operating system
+      placeholder: Chromium version, Linux distribution and version
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Give numbered steps and a public Vimeo example if safe to share. Otherwise describe the page without private links.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: Include the error text and how often it happens.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs or screenshots
+      description: Optional. Remove secrets and personal data before attaching evidence.
