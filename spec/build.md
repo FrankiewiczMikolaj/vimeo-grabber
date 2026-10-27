@@ -35,9 +35,6 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 <!-- Generated from spec/features/active/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
-- `F006-code-and-dependencies-receive-security-checks` (🟠 ACTIVE): Code and dependencies receive security checks
-- `F005-the-project-ships-an-mit-license` (🟠 ACTIVE): The project ships an MIT license
-
 ## NEXT
 
 - Mikołaj reviews the MIT license draft (PR #6) and CodeQL/Dependabot draft (PR #7); all worker implementation slices have finished.
@@ -48,11 +45,13 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 <!-- Generated from spec/features/done/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
+- `F006-code-and-dependencies-receive-security-checks` (🟢 PROVEN): Code and dependencies receive security checks; landed 2026-10-27
+- `F005-the-project-ships-an-mit-license` (🟢 PROVEN): The project ships an MIT license; landed 2026-10-27
 - `F004-contributors-have-clear-github-entry-points` (🟢 PROVEN): Contributors have clear GitHub entry points; landed 2026-10-27
 - `F003-chromium-harness-proves-the-unpacked-extension` (🟢 PROVEN): Chromium harness proves the unpacked extension; landed 2026-10-27
 - `F002-pull-requests-produce-verified-extension-zip-artifacts` (🟢 PROVEN): Pull requests produce verified extension zip artifacts; landed 2026-10-27
 - `F001-vite-builds-a-chromium-extension-shell` (🟢 PROVEN): Vite builds a Chromium extension shell; landed 2026-10-27
-- 2026-10: 4 landed. spec/features/done/2026-10/
+- 2026-10: 6 landed. spec/features/done/2026-10/
 
 ## PARKED
 
