@@ -178,8 +178,8 @@ try {
   const renderer = Number(await internals.locator('.serviceworker-item').filter({ hasText: `chrome-extension://${id}/` })
     .locator('.serviceworker-pid .value').innerText());
   assert.ok(Number.isSafeInteger(renderer) && renderer > 1);
-  // Kill only the renderer of this fresh owned extension profile. Debugger-attached
-  // workers ignore the normal Stop control; a renderer crash exercises cold rebuild.
+  // Kill only the renderer of this fresh owned extension profile to exercise cold
+  // rebuild. Prove execution-context loss, not Playwright Worker object identity.
   process.kill(renderer, 'SIGKILL');
   await assert.rejects(worker.evaluate(() => 1), /restarted|closed|destroyed|crash/i);
   diagnostics.workerStopped = true;

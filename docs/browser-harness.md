@@ -66,7 +66,8 @@ Screenshots: `permission-needed.png`, `denied.png`, `qualities.png`,
 prompt; Tab then Return selects Allow. Neither permissions nor requests are mocked.
 The worker-rebuild check kills only this fresh profile's extension renderer,
 confirms the old worker context is lost, then opens the real action on the unchanged
-fixture tab. This avoids debugger-attached workers ignoring normal Stop controls.
+fixture tab. The check proves loss of the prior execution context, not a change in
+Playwright Worker object identity or a Worker close event.
 
 Close the browser context and remove the fresh browser profile on success and
 caught failure. SIGKILL or machine loss can prevent cleanup. Missing or invalid
