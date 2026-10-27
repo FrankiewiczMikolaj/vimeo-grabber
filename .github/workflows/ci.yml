@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify extension
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up pnpm from packageManager
+        uses: pnpm/action-setup@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Install matching Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Verify extension
+        run: pnpm verify
+      - name: Package extension
+        working-directory: dist
+        run: |
+          zip -r ../vimeo-grabber.zip .
+          unzip -t ../vimeo-grabber.zip
+          unzip -p ../vimeo-grabber.zip manifest.json > /dev/null
+      - name: Upload PR extension zip
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vimeo-grabber-pr-${{ github.event.number }}
+          path: vimeo-grabber.zip
+          if-no-files-found: error
+          retention-days: 14
