@@ -30,7 +30,7 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 ## TRACK
 
-- M3 Download is authorised in order: independent candidates, Track URLs, separate files, Linux ffmpeg command, one-time notice; first review docs/M3-DOWNLOAD.md.
+- M3 plan is owner-merged; implement independent candidates, Track URLs, separate files, Linux ffmpeg command and one-time notice in that order.
 - M2 is owner-closed; v0.3.0 is a GitHub pre-release at c9f2177, with live HLS page/embed evidence and DASH/notice gaps deferred to M3.
 - M1 is owner-closed; v0.2.0 is a GitHub pre-release at 90b88f2 and milestone M1 Walking skeleton is closed.
 
@@ -38,11 +38,12 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 <!-- Generated from spec/features/active/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
+- `F024-every-vimeo-playback-candidate-keeps-its-own-result-and-permission-state` (🟠 ACTIVE): Every Vimeo playback candidate keeps its own result and permission state
 - `F023-users-download-separate-vimeo-video-and-audio-with-a-safe-merge-command` (🟠 ACTIVE): Users download separate Vimeo video and audio with a safe merge command
 
 ## NEXT
 
-- Merge the short M3 plan before implementation, then fix independent DASH/HLS candidates and per-origin state first (#41).
+- Implement independent DASH/HLS candidates and per-origin state first (#41); keep the extra DASH request visible after HLS success, then request Bob's live check.
 - Add explicit Track download references with stacked DASH base resolution and inline init before media (#42).
 - Save selected video and audio as two real files with correct ordered bytes and browser completion (#45).
 - Generate the safely quoted Linux ffmpeg command from actual absolute download paths (#43).
