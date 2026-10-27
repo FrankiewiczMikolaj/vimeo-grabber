@@ -19,6 +19,12 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 - **Review ownership:** Mikołaj reviews and merges personally; do not open an independent reviewer lane unless asked
 - **Max workers:** 2
 - **Timeout:** 90m default unless a ticket says otherwise
+- **PR metadata:** every M0 PR and issue uses milestone `M0 Foundation`; all PRs stay draft for Mikołaj's review.
+
+## Repository setup
+
+- Mikołaj configured main deletion/force-push protection and linear history; PR-required and required status checks remain pending CI check names.
+- Milestones M0–M5 and Backlog v1.1+ exist; the public Project auto-adds open issues and PRs, so make no Projects or Administration API calls.
 
 ## TRACK
 
@@ -28,15 +34,21 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 <!-- Generated from spec/features/active/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
-- `F001-vite-builds-a-chromium-extension-shell` (🟠 ACTIVE): Vite builds a Chromium extension shell
+- `F003-chromium-harness-proves-the-unpacked-extension` (🟠 ACTIVE): Chromium harness proves the unpacked extension
+- `F002-pull-requests-produce-verified-extension-zip-artifacts` (🟠 ACTIVE): Pull requests produce verified extension zip artifacts
 
 ## NEXT
 
-- After the extension scaffold, open separate browser harness, CI artifact, GitHub hygiene, MIT license, and security draft PRs; browser proof precedes M1.
+- Run CI/artifact and browser harness as independent slices; CI retains `pnpm verify`, browser retains `pnpm smoke`, and neither edits the other's files.
+- Follow with GitHub hygiene, MIT license, and CodeQL/Dependabot drafts as the two worker slots open.
+- Keep browser proof before M1; tag v0.1.0 only after M0 checks and human merges finish.
 
 ## PROVEN
 
 <!-- Generated from spec/features/done/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
+
+- `F001-vite-builds-a-chromium-extension-shell` (🟢 PROVEN): Vite builds a Chromium extension shell; landed 2026-10-27
+- 2026-10: 1 landed. spec/features/done/2026-10/
 
 ## PARKED
 
