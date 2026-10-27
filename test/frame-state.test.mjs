@@ -110,6 +110,28 @@ test('compiled broker validates real Chrome senders and rejects stale document c
       check(state.videos(1)[0].video.id === '21', 'fresh rebuild and old disconnect ignored');
       const copy = state.videos(1); copy[0].video.id = 'mutated';
       check(state.videos(1)[0].video.id === '21', 'snapshot isolation');
+      const successfulSender = { ...second, url: 'https://player.vimeo.com/video/20?embedded=1' };
+      const unavailable = { video: video('20', sender.url), permissionOrigins: [] };
+      unavailable.video.status = 'unavailable';
+      const available = resolved('20', successfulSender.url)[0];
+      const reference = { protocol: 'dash', cdn: 'owned', url: 'https://owned.vimeocdn.com/master.json' };
+      available.video.manifests = [reference];
+      available.video.tracks = [{ id: '720p', groupId: null, kind: 'video', manifest: reference,
+        codec: null, mimeType: null, bandwidth: null, width: 1280, height: 720,
+        frameRate: null, language: null, channels: null }];
+      const preference = createFrameState(globalThis.chrome.runtime.id,
+        async (_discovery, frameUrl) => [frameUrl === sender.url ? unavailable : available]);
+      for (const current of [sender, successfulSender]) {
+        preference.activate(1, current.frameId, current.documentId);
+        await preference.publish(message, current);
+      }
+      const chosen = preference.videos(1)[0];
+      check(chosen.video.tracks[0]?.id === '720p' &&
+        chosen.video.source.frameUrl === successfulSender.url &&
+        chosen.permissionOrigins[0] === 'https://owned.vimeocdn.com', 'usable qualities beat unavailable lower frame');
+      preference.remove(1, successfulSender.frameId, successfulSender.documentId);
+      check(preference.videos(1)[0].video.status === 'unavailable' &&
+        preference.videos(1)[0].permissionOrigins.length === 0, 'removed success restores whole unavailable result');
       return 'sender boundary, replacement, deduplication, isolation, invalidation, errors, rebuild passed';
     }, actual.sender);
     assert.match(result, /rebuild passed/);

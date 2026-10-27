@@ -113,7 +113,13 @@ export function createFrameState(extensionId: string, resolve: FrameResolver) {
       // Select a whole live result, not tracks or permissions from unrelated frames.
       const selected = new Map<string, Resolved>();
       for (const frame of [...(tabs.get(tabId)?.values() ?? [])].sort((a, b) => a.frameId - b.frameId)) {
-        for (const result of frame.results) if (!selected.has(result.video.id)) selected.set(result.video.id, result);
+        for (const result of frame.results) {
+          const previous = selected.get(result.video.id);
+          if (!previous || (result.video.status === 'found' && result.video.tracks.length > 0
+            && (previous.video.status !== 'found' || previous.video.tracks.length === 0))) {
+            selected.set(result.video.id, result);
+          }
+        }
       }
       return structuredClone([...selected.values()]);
     },

@@ -43,8 +43,9 @@ removal or clear invalidates the old completion, including old errors.
 `publish` returns false for invalid/unregistered reports and true for admitted work,
 not a promise that the document remains live or resolution succeeds.
 
-`videos(tab)` chooses the lowest frame ID's complete live result for each video ID.
-It does not combine tracks, source URLs or permission origins across documents.
+`videos(tab)` prefers a whole live `found` result with tracks for each video ID.
+Equivalent results use the lowest frame ID. It does not combine tracks, source URLs
+or permission origins across documents.
 When that frame disappears, the next live result supplies all provenance. Resolver
 outputs must preserve their authoritative source and exact permission origins.
 
