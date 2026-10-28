@@ -108,7 +108,7 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
     held = new Promise(resolve => { release = resolve; });
     await active.goto('https://player.vimeo.com/video/91');
     await open();
-    await waitText(next === 'empty' ? 'Video 91' : next === 'long' ? '界' : "Owned '");
+    await waitText(next === 'empty' ? 'Vimeo video 91' : next === 'long' ? '界' : "Owned '");
     if (!await evaluate("chrome.permissions.contains({origins:['https://owned.vimeocdn.com/*']})")) {
       await evaluate("document.querySelector('.permission button').focus(); true"); key('Return');
       await delay(700);
@@ -117,8 +117,19 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
       }
       await open();
     }
-    await waitText(next.startsWith('drm-') && next !== 'drm-child' ? 'Protected (DRM)' :
-      next === 'missing' ? 'Combined video and audio' : 'Download 1080p');
+    if (next === 'missing') await evaluate(`(async () => {
+      const [tab] = await chrome.tabs.query({active:true,currentWindow:true});
+      const deadline = Date.now()+8000;
+      while (Date.now()<deadline) {
+        const state = await chrome.runtime.sendMessage({type:'popup-state',tabId:tab.id});
+        if (!state.frames.some(frame=>frame.status==='pending') &&
+          state.results.some(candidate=>candidate.videoId==='91' && candidate.tracks.some(track=>track.kind==='combined'))) return true;
+        await new Promise(resolve=>setTimeout(resolve,50));
+      }
+      throw new Error('Missing-URI audio did not resolve');
+    })()`);
+    if (next !== 'missing') await waitText(next.startsWith('drm-') && next !== 'drm-child'
+      ? 'Protected (DRM)' : 'Download 1080p');
     assert.equal(context.pages().filter(page => page.url().includes('/download.html')).length, 0, 'preparation must not start downloads');
   }
   async function start(label) {
@@ -191,7 +202,6 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
     for (const scenario of ['pair', 'dash', 'retry', 'empty', 'long']) {
       await prepare(scenario);
       if (scenario === 'pair') {
-        await waitText('DASH is protected. Plain HLS video and matching separate audio are available.');
         await capture('download-hls-ready');
       }
       before = (await native()).length;
@@ -244,7 +254,7 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
     await prepare('drm-child');
     before = (await native()).length;
     owner = await start('Download 1080p');
-    report.drmChild = await finish(owner, 'Download failed. No paired success.', 'drm-child');
+    report.drmChild = await finish(owner, 'Download failed. No files completed.', 'drm-child');
     assert.ok(report.drmChild.every(row => row.text.includes('Protected (DRM), cannot download')));
     assert.equal((await native()).length, before);
     await prepare('audio'); before = (await native()).length;
@@ -295,7 +305,7 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
     for (const scenario of ['encrypted', 'redirect', 'origin']) {
       await prepare(scenario); before = (await native()).length;
       owner = await start('Download 1080p');
-      report[scenario] = await finish(owner, 'Download failed. No paired success.', scenario);
+      report[scenario] = await finish(owner, 'Download failed. No files completed.', scenario);
       assert.equal((await native()).length, before);
     }
     await prepare('missing');

@@ -1,5 +1,11 @@
 # M3 Download
 
+These are the unreleased checkout's contracts, not the published v0.3.0 feature set.
+See README for release installation, usage, permissions, privacy, disclaimer and FAQ.
+Acknowledgement enforcement (#44), Save As (#67) and further filename work (#68)
+remain queued; the current notice, native default saves and naming rules do not
+imply those fixes have landed.
+
 ## Outcome and boundary
 
 Save selected Vimeo video and audio as two correct files, then show a safe Linux
@@ -7,7 +13,7 @@ ffmpeg merge command. Vimeo-only, English, no extension-side mux, authentication
 bypass, key/license retrieval or browser-store publication. CI uses owned fixtures;
 Bob performs the requested live checks in his browser.
 
-## Ordered small drafts
+## Implementation contracts
 
 1. **Independent candidates (#41).** Keep every DASH/HLS protocol/CDN/manifest
    alternative and its source provenance. Resolve candidates independently across
@@ -81,7 +87,7 @@ bound lookahead to 320 MiB beyond the output file. Initialization is validated
 and written first; each batch is appended in source order before the next starts.
 Only network/read failures and HTTP 408/429/500/502/503/504 retry, after
 200/400/600 ms. Authority, cancellation, DRM and storage failures do not retry.
-Per-file bars report segments and MB; retry/failure text and the keep-tab-open
+Per-file bars report segments and MiB; retry/failure text and the keep-tab-open
 instruction stay on the owner page. Native completion alone publishes a path.
 Retire weaker tests rather than duplicating paths. Live Vimeo never gates CI.
 
@@ -115,10 +121,9 @@ checks, including collision, empty and long Unicode titles. Inspect
 `download-*-running.png`, `download-audio.png` and `download-proof.json`.
 The clipboard error screenshot uses an injected write failure, not an OS failure.
 
-Request Bob's live check after #41 (second grant and separate DASH preference) and
-#45 (two usable files), reporting exact limits rather than claiming fixture proof
-is live compatibility. Keep issue order, drafts and roughly 300-line slices where
-practical; at most two workers on genuinely disjoint work within that order.
-Mikołaj alone merges. Every push needs local `pnpm verify`; both required checks
-must pass before `notify-bob`. Use OMP/Codex `gpt-6.1-sol` medium throughout; park
-and notify on quota. No implementation worker starts before this plan is merged.
+Offline fixture proof is not a claim that every live Vimeo video is supported.
+Keep live results separate from CI evidence and state the tested build and limits.
+Mikołaj alone merges. Every push needs local `pnpm verify`; final-head Verify
+extension and CodeQL plus a fresh main comparison are required before readiness.
+Current sequencing and owner approval requirements are in canonical `spec/build.md`;
+the coordinator owns readiness notification.

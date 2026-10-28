@@ -84,5 +84,8 @@ The popup counts unique video IDs and renders one card per video. It chooses one
 whole separate DASH candidate before usable HLS, then Audio only or other results.
 Alternatives remain in worker state. A DASH video-only candidate and a separate
 audio-only candidate cannot form a preferred pair.
+Cards show supported quality/Audio only actions or a download-unavailable reason.
+Representation lists and source/CDN/frame/config diagnostics are not rendered.
+Internal candidates retain every track field and provenance for download validation.
 Permission controls depend on each candidate's missing origin, never another
 candidate's success. Denial/revocation notices are shared only for that exact origin.

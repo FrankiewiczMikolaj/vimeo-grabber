@@ -1,6 +1,6 @@
 import './popup.css';
 import type { FrameCandidate, FramePublication } from './detect/frame-state';
-import type { DetectionStatus, Track } from './detect/model';
+import type { DetectionStatus } from './detect/model';
 import { audioFor, selection } from './download/select';
 
 type PopupState = { frames: readonly FramePublication[]; results: readonly FrameCandidate[]; attemptedOrigins: readonly string[] };
@@ -19,13 +19,13 @@ let revision = 0;
 let rendered = '';
 
 const labels: Record<DetectionStatus, string> = {
-  pending: 'Looking for qualities…',
-  found: 'Metadata found. This does not confirm playable or downloadable media.',
-  unavailable: 'Qualities are unavailable.',
+  pending: 'Looking for download options…',
+  found: 'No supported separate downloads are available.',
+  unavailable: 'No supported downloads are available.',
   'permission-needed': 'Metadata access is needed to inspect qualities.',
   denied: 'Metadata access was denied. Qualities are unavailable.',
-  protected: 'Protected (DRM), cannot download. No usable tracks are offered.',
-  unsupported: 'This metadata format is not supported.',
+  protected: 'Protected (DRM), cannot download.',
+  unsupported: 'No supported download format was found.',
 };
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, text: string) {
@@ -62,27 +62,6 @@ function permissionState(origin: string): PermissionState {
     permissions.set(origin, state);
   }
   return state;
-}
-
-function trackItem(track: Track): HTMLLIElement {
-  const item = document.createElement('li');
-  const kinds = { video: 'Video', audio: 'Audio', combined: 'Combined video and audio' };
-  item.append(element('h3', `${kinds[track.kind]} · ${track.manifest.protocol.toUpperCase()}`));
-  const details = document.createElement('dl');
-  const fields: [string, string | number | null][] = [
-    ['Representation', track.id], ['Audio group', track.groupId],
-    ['Codec', track.codec], ['MIME type', track.mimeType],
-    ['Bandwidth', track.bandwidth === null ? null : `${track.bandwidth} bit/s`],
-    ['Width', track.width === null ? null : `${track.width} px`],
-    ['Height', track.height === null ? null : `${track.height} px`],
-    ['Frame rate', track.frameRate === null ? null : `${track.frameRate} fps`],
-    ['Language', track.language], ['Channels', track.channels],
-  ];
-  for (const [label, value] of fields) {
-    details.append(element('dt', label), element('dd', value === null || value === '' ? 'Unknown' : String(value)));
-  }
-  item.append(details);
-  return item;
 }
 
 function renderPermission(origin: string, encountered: boolean): HTMLElement {
@@ -147,9 +126,9 @@ function render() {
   }
   const count = groups.size;
   status.textContent = count
-    ? `${count} video${count === 1 ? '' : 's'} detected.${pending ? ' Looking for more qualities…' : ''}${failed ? ' Some frames could not be inspected.' : ''}`
-    : pending ? 'Looking for Vimeo video metadata…'
-      : failed ? 'Some Vimeo frames could not be inspected. Reload the page to try again.'
+    ? `${count} video${count === 1 ? '' : 's'} detected.${pending ? ' Looking for more download options…' : ''}${failed ? ' Some videos could not be checked.' : ''}`
+    : pending ? 'Looking for Vimeo videos…'
+      : failed ? 'This page could not be checked. Reload it to try again.'
         : 'No Vimeo videos detected. Open a Vimeo page or a page with a Vimeo player. Reload existing pages after installing the extension.';
   const rank = (candidate: FrameCandidate) => {
     const paired = candidate.tracks.some(track => track.kind === 'video' && selection(candidate, track.id).length === 2);
@@ -161,20 +140,11 @@ function render() {
     const candidate = alternatives.reduce((best, next) => rank(next) < rank(best) ? next : best);
     const card = document.createElement('article');
     card.append(element('h2', candidate.title?.trim() ? candidate.title : `Vimeo video ${candidate.videoId}`));
-    let source = 'Unknown';
-    try { source = new URL(candidate.source.frameUrl).hostname; } catch { /* Never render an unparsed URL. */ }
-    card.append(element('p', `Source: ${source} · Video ${candidate.videoId}`), element('p', labels[candidate.status]));
-    card.append(element('p', candidate.manifest
-      ? `${candidate.manifest.protocol.toUpperCase()} · CDN ${candidate.manifest.cdn} · Frame ${candidate.frameId} · ${candidate.source.configUrl ? 'Fetched config' : 'Inline config'}`
-      : `Config metadata · Frame ${candidate.frameId}`));
-    if (rank(candidate) === 0) card.append(element('p', 'Preferred: separate DASH video and audio.'));
     const audio = audioFor(candidate);
     const choices = candidate.tracks.filter(track => track.kind === 'video' && selection(candidate, track.id).length === 2);
-    if (candidate.manifest?.protocol === 'hls' && choices.length) {
-      const protectedDash = alternatives.some(other =>
-        other.manifest?.protocol === 'dash' && other.status === 'protected');
-      card.append(element('p', `${protectedDash ? 'DASH is protected. ' : ''}Plain HLS video and matching separate audio are available.`));
-    }
+    card.append(element('p', choices.length
+      ? 'Choose a quality to download video and matching audio as separate files.'
+      : audio ? 'Audio is available to download.' : labels[candidate.status]));
     for (const track of [...choices, ...(audio ? [audio] : [])]) {
       const button = element('button', track.kind === 'audio' ? 'Audio only' :
         `Download ${track.height ? `${track.height}p` : track.id}`);
@@ -188,15 +158,6 @@ function render() {
     }
     for (const origin of new Set(alternatives.flatMap(originsFor))) {
       card.append(renderPermission(origin, alternatives.some(other => other.permissionOrigins.includes(origin))));
-    }
-    if (candidate.tracks.length) {
-      const tracks = document.createElement('ul');
-      tracks.className = 'tracks';
-      tracks.setAttribute('aria-label', 'Video and audio qualities');
-      tracks.append(...candidate.tracks.map(trackItem));
-      card.append(tracks);
-    } else {
-      card.append(element('p', 'No track metadata available. Unknown qualities are not estimated.'));
     }
     return card;
   });

@@ -44,7 +44,7 @@ and `tracks`. All fields and returned array types are readonly (not runtime froz
 protected | unsupported`; later stages own transitions beyond normalisation.
 
 `Track` requires representation `id`, nullable `groupId`, explicit `kind`
-(`video | audio | combined`), originating `manifest`, and nullable `codec`,
+(`video | audio | combined`), originating `manifest`, explicit `download` reference, and nullable `codec`,
 `mimeType`, `bandwidth` (bits/s), `width`/`height` (pixels), `frameRate` (frames/s),
 `language`, and `channels` (source notation). Unknown metadata is `null`, never a
 quality inferred from a URL. IDs are scoped to their manifest/group, not global.

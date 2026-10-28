@@ -3,7 +3,7 @@
 The issue chooser offers a bug report and a Vimeo-only feature request in English.
 The PR template asks for scope, local `pnpm verify` evidence, and unverified behavior.
 `CODEOWNERS` routes all files to `@FrankiewiczMikolaj`; it does not itself require approval.
-Templates become the default contributor entry points after they reach `main`.
+These templates are the contributor entry points on `main`.
 
 ## Completed by the owner
 
@@ -15,7 +15,7 @@ The owner recorded these settings in the canonical `spec/build.md`:
 
 These are owner-reported settings, not an Administration or Projects API audit.
 Do not add Project assignment to issue forms or call those APIs for this setup.
-Keep M0 PRs draft and assign milestone `M0 Foundation` to each M0 PR and issue.
+Keep PRs draft; current download work uses milestone `M3 Download`. Historical M0 work used `M0 Foundation`.
 Only Mikołaj merges.
 
 ## Recorded setup limits (2026-10-27)

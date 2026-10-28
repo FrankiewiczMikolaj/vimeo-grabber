@@ -75,6 +75,19 @@ async function waitText(text) {
     check();
   })`);
 }
+async function waitCandidate(protocol) {
+  await evaluate(`(async () => {
+    const [tab] = await chrome.tabs.query({active:true,currentWindow:true});
+    const deadline = Date.now()+8000;
+    while (Date.now()<deadline) {
+      const state = await chrome.runtime.sendMessage({type:'popup-state',tabId:tab.id});
+      if (!state.frames.some(frame => frame.status === 'pending') &&
+        state.results.some(candidate => candidate.status === 'found' && candidate.manifest?.protocol === ${JSON.stringify(protocol)})) return true;
+      await new Promise(resolve=>setTimeout(resolve,50));
+    }
+    throw new Error('No resolved ${protocol} candidate');
+  })()`);
+}
 async function activatePermission() {
   await evaluate(`(() => {
     const button = document.querySelector('#streams .permission button');
@@ -301,17 +314,10 @@ try {
   await new Promise(r => setTimeout(r, 700));
   key('Tab'); key('Return');
   await open();
-  await waitText('1920');
-  await waitText('pl');
-  await evaluate("document.querySelector('#streams .tracks').closest('article').scrollIntoView(); true");
+  await waitCandidate('hls');
+  await waitText('Download 1080p');
+  await evaluate("document.querySelector('#streams article').scrollIntoView(); true");
   await capture('qualities');
-  const tracks = await evaluate("[...document.querySelector('#streams article .tracks').querySelectorAll('li')].map(item => [...item.querySelectorAll('dd')].map(field => field.textContent))");
-  assert.deepEqual(tracks.map(t => [t[1], t[4], t[5], t[6], t[7], t[8], t[9]]), [
-    ['stereo', '1200000 bit/s', '640 px', '360 px', '29.97 fps', 'Unknown', 'Unknown'],
-    ['stereo', '4800000 bit/s', '1920 px', '1080 px', '60 fps', 'Unknown', 'Unknown'],
-    ['stereo', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'en', '2'],
-    ['stereo', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'pl', '6/JOC'],
-  ]);
   await evaluate('window.scrollTo(0,document.body.scrollHeight); true');
   await capture('audio-footer');
   // HLS has succeeded. A different exact origin must remain requestable.
@@ -323,23 +329,21 @@ try {
   await new Promise(r => setTimeout(r, 700)); key('Escape');
   await open();
   await waitText('Access to https://second.vimeocdn.com was not granted or was denied');
-  await waitText('1920');
+  await waitText('Download 1080p');
   await evaluate("document.querySelector('#streams .permission button').closest('article').scrollIntoView(); true");
   await capture('dash-denied');
   await activatePermission();
   await new Promise(r => setTimeout(r, 700)); key('Tab'); key('Return');
   await open();
-  await waitText('Preferred: separate DASH video and audio.');
+  await waitCandidate('dash');
   const candidates = await evaluate(`(async () => {
     const [tab] = await chrome.tabs.query({active:true,currentWindow:true});
     return (await chrome.runtime.sendMessage({type:'popup-state',tabId:tab.id})).results;
   })()`);
   assert.equal(await evaluate("chrome.permissions.contains({origins:['https://second.vimeocdn.com/*']})"), true);
   assert.equal(await evaluate("chrome.permissions.contains({origins:['https://unseen.vimeocdn.com/*']})"), false);
-  assert.equal(await evaluate("document.querySelector('#streams article').innerText.includes('Preferred: separate DASH')"), true);
   assert.ok(candidates.some(candidate => candidate.manifest?.protocol === 'hls' && candidate.status === 'found'));
   assert.ok(candidates.some(candidate => candidate.manifest?.cdn === 'sameOrigin' && candidate.status === 'found'));
-  assert.equal(await evaluate("document.querySelector('#streams article').innerText.includes('CDN separate')"), true);
   assert.deepEqual(candidates.filter(candidate => candidate.manifest?.cdn === 'separate').map(candidate => candidate.tracks.map(track => track.kind)),
     [['video', 'video', 'audio', 'audio'], ['video', 'video', 'audio', 'audio']]);
   const preferred = candidates.find(candidate => candidate.manifest?.cdn === 'separate');
@@ -393,15 +397,14 @@ try {
       setTimeout(check,50);
     }; check();
   })`);
-  await waitText('Preferred: separate DASH video and audio.');
+  await waitCandidate('dash');
   assert.equal(await evaluate("document.querySelectorAll('#streams article').length"), 1);
   await capture('one-video-two-frames');
   await evaluate("chrome.permissions.remove({origins:['https://second.vimeocdn.com/*']})");
   await waitText('Allow https://second.vimeocdn.com');
-  await waitText('1920');
-  assert.equal(await evaluate("document.body.innerText.includes('Preferred: separate DASH')"), false);
+  await waitText('Download 1080p');
+  assert.equal(await evaluate("document.querySelectorAll('#streams dl, #streams .tracks, #streams details').length"), 0);
   assert.equal(await evaluate("document.querySelectorAll('#streams article').length"), 1);
-  assert.equal(await evaluate("document.querySelector('#streams article').innerText.includes('HLS')"), true);
   assert.equal(await evaluate("chrome.permissions.contains({origins:['https://owned.vimeocdn.com/*']})"), true);
   await evaluate("document.querySelector('#streams .permission button').closest('article').scrollIntoView(); true");
   await capture('dash-revoked');
@@ -425,7 +428,7 @@ try {
   await bootstrap.goto(`chrome-extension://${id}/${manifest.action.default_popup}`);
   session = await context.newCDPSession(bootstrap);
   await open();
-  await waitText('1920');
+  await waitText('Download 1080p');
   await capture('worker-rebuilt');
   await waitText('Allow https://second.vimeocdn.com');
   assert.equal(await evaluate("chrome.permissions.contains({origins:['https://owned.vimeocdn.com/*']})"), true);
@@ -442,39 +445,34 @@ try {
     globalThis.document.body.append(frame);
   });
   await waitText('5 videos detected.');
-  await waitText('5000000 bit/s');
-  await waitText('Protected (DRM)');
-  await waitText('This metadata format is not supported.');
-  const cards = await evaluate(`[...document.querySelectorAll('#streams article')].map(card => ({
-    source: card.querySelector('p').textContent, status: card.querySelectorAll('p')[1].textContent,
-    tracks: [...card.querySelectorAll('.tracks li')].map(item =>
-      [item.querySelector('h3').textContent, ...[...item.querySelectorAll('dd')].map(field => field.textContent)])
-  }))`);
-  const byId = id => cards.find(card => card.source.endsWith('Video ' + id) && (id !== 31 || card.tracks.length));
-  assert.deepEqual(cards.map(card => card.source).sort(), [31, 32, 33, 34, 35].map(id => `Source: player.vimeo.com · Video ${id}`));
-  assert.equal(byId(31).status, 'Metadata found. This does not confirm playable or downloadable media.');
-  assert.deepEqual(byId(31).tracks, [
-    ['Video · DASH', 'video-360', 'Unknown', 'avc1.4d401e', 'video/mp4', '650000 bit/s', '640 px', '360 px', '29.97 fps', 'Unknown', 'Unknown'],
-    ['Video · DASH', 'video-1080', 'Unknown', 'avc1.640028', 'video/mp4', '4200000 bit/s', '1920 px', '1080 px', '60 fps', 'Unknown', 'Unknown'],
-    ['Audio · DASH', 'audio-en', 'Unknown', 'mp4a.40.2', 'audio/mp4', '128000 bit/s', 'Unknown', 'Unknown', 'Unknown', 'en', '2'],
-    ['Audio · DASH', 'audio-pl', 'Unknown', 'mp4a.40.2', 'audio/mp4', '192000 bit/s', 'Unknown', 'Unknown', 'Unknown', 'pl', '5.1'],
-  ]);
-  assert.deepEqual(byId(32).tracks, [
-    ['Video · DASH', 'high', 'picture', 'avc1.640028', 'video/mp4', '5000000 bit/s', '1920 px', '1080 px', '29.97002997002997 fps', 'Unknown', 'Unknown'],
-    ['Video · DASH', 'low', 'picture', 'avc1.42001e', 'video/mp4', '900000 bit/s', '640 px', '360 px', '24 fps', 'Unknown', 'Unknown'],
-    ['Audio · DASH', 'english', 'sound', 'mp4a.40.2', 'audio/mp4', '128000 bit/s', 'Unknown', 'Unknown', 'Unknown', 'en', '2'],
-    ['Audio · DASH', 'polish', 'sound', 'mp4a.40.2', 'audio/mp4', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'pl', '6'],
-  ]);
-  assert.equal(byId(34).status, 'This metadata format is not supported.');
-  assert.equal(byId(35).status, 'This metadata format is not supported.');
-  for (const id of [33, 34, 35]) assert.deepEqual(byId(id).tracks, []);
-  assert.equal(await evaluate(`[...document.querySelectorAll('#streams article')].find(card =>
-    card.querySelector('p').textContent.endsWith('Video 33')).querySelectorAll('button').length`), 0);
-  diagnostics.matrix = cards;
+  await waitCandidate('dash');
   const matrixCandidates = await evaluate(`(async () => {
     const [tab] = await chrome.tabs.query({active:true,currentWindow:true});
     return (await chrome.runtime.sendMessage({type:'popup-state',tabId:tab.id})).results;
   })()`);
+  const byId = id => matrixCandidates.find(candidate => candidate.videoId === String(id) && candidate.status === 'found')
+    ?? matrixCandidates.find(candidate => candidate.videoId === String(id));
+  assert.deepEqual([...new Set(matrixCandidates.map(candidate => candidate.videoId))].sort(), ['31', '32', '33', '34', '35']);
+  assert.deepEqual(byId(31).tracks.map(track => [track.id, track.kind, track.height, track.language]), [
+    ['video-360', 'video', 360, null], ['video-1080', 'video', 1080, null],
+    ['audio-en', 'audio', null, 'en'], ['audio-pl', 'audio', null, 'pl'],
+  ]);
+  assert.deepEqual(byId(32).tracks.map(track => [track.id, track.kind, track.height, track.language]), [
+    ['high', 'video', 1080, null], ['low', 'video', 360, null],
+    ['english', 'audio', null, 'en'], ['polish', 'audio', null, 'pl'],
+  ]);
+  assert.equal(byId(33).status, 'protected');
+  for (const id of [34, 35]) assert.equal(byId(id).status, 'unsupported');
+  for (const id of [33, 34, 35]) assert.deepEqual(byId(id).tracks, []);
+  assert.equal(await evaluate(`[...document.querySelectorAll('#streams article')].find(card =>
+    card.querySelector('h2').textContent === 'Owned 33').querySelectorAll('button').length`), 0);
+  assert.equal(await evaluate("document.querySelectorAll('#streams dl, #streams .tracks, #streams details').length"), 0);
+  assert.equal(await evaluate("/Source:| · CDN | · Frame |Inline config|Fetched config/.test(document.querySelector('#streams').innerText)"), false);
+  diagnostics.matrix = matrixCandidates.map(candidate => ({
+    videoId: candidate.videoId, status: candidate.status,
+    tracks: candidate.tracks.map(({ id, kind, codec, mimeType, bandwidth, width, height, frameRate, language, channels }) =>
+      ({ id, kind, codec, mimeType, bandwidth, width, height, frameRate, language, channels })),
+  }));
   const jsonCandidate = matrixCandidates.find(candidate => candidate.videoId === '31' && candidate.status === 'found');
   assert.equal(jsonCandidate.source.frameUrl, 'https://player.vimeo.com/video/31');
   assert.equal(jsonCandidate.manifest.url, 'https://owned.vimeocdn.com/dash.json');
@@ -498,9 +496,9 @@ try {
   diagnostics.dashReferences = { exactStackedQueries: true, initializationBeforeOrderedMedia: true,
     inlineAndUrlInitialization: true, candidateAndTrackProvenance: true };
   await capture('dash-nested');
-  await evaluate("[...document.querySelectorAll('#streams article')].find(card => card.querySelector('p').textContent.endsWith('Video 32')).scrollIntoView(); true");
+  await evaluate("[...document.querySelectorAll('#streams article')].find(card => card.querySelector('h2').textContent === 'Owned 32').scrollIntoView(); true");
   await capture('dash-mpd');
-  await evaluate("[...document.querySelectorAll('#streams article')].find(card => card.querySelector('p').textContent.endsWith('Video 33')).scrollIntoView(); true");
+  await evaluate("[...document.querySelectorAll('#streams article')].find(card => card.querySelector('h2').textContent === 'Owned 33').scrollIntoView(); true");
   await capture('unavailable-states');
   const matrixTab = active;
   active = await context.newPage();
@@ -511,7 +509,7 @@ try {
   await capture('tab-isolated');
   active = matrixTab;
   await open();
-  await waitText('5000000 bit/s');
+  await waitText('Download 1080p');
   assert.equal(await evaluate("document.querySelectorAll('#streams article').length"), 5);
   await capture('tab-restored');
   await active.locator('iframe').evaluateAll(frames => {
@@ -528,14 +526,14 @@ try {
   await fixtureResponse(heldStarted);
   await active.goto('https://player.vimeo.com/video/32');
   await open();
-  await waitText('5000000 bit/s');
+  await waitText('Download 1080p');
   release();
   await fixtureResponse(heldDelivered);
   await evaluate(`new Promise((resolve,reject) => {
     const until = Date.now()+1500;
     const check = () => {
       const text = document.body.innerText;
-      if (text.includes('Video 36') || !text.includes('Video 32')) return reject(new Error(text));
+      if (text.includes('Owned 36') || !text.includes('Owned 32')) return reject(new Error(text));
       if (Date.now()>=until) return resolve(true);
       setTimeout(check,50);
     }; check();
@@ -544,7 +542,7 @@ try {
   diagnostics.heldResponseReleasedAfterNavigation = true;
   await active.goto('https://example.com/fixture');
   await open();
-  await waitText('1920');
+  await waitText('Download 1080p');
   // Real revocation API must invalidate qualities, not keep stale successful tracks.
   await evaluate("chrome.permissions.remove({origins:['https://owned.vimeocdn.com/*']})");
   await evaluate(`new Promise((resolve,reject) => {
@@ -555,8 +553,7 @@ try {
       const revoked = state.results.filter(candidate =>
         candidate.manifest && new URL(candidate.manifest.url).origin === 'https://owned.vimeocdn.com');
       if (revoked.length && !state.frames.some(frame => frame.status === 'pending') &&
-        revoked.every(candidate => candidate.status === 'permission-needed' && !candidate.tracks.length) &&
-        document.querySelectorAll('.tracks li').length === 0) return resolve(true);
+        revoked.every(candidate => candidate.status === 'permission-needed' && !candidate.tracks.length)) return resolve(true);
       if (Date.now()>deadline) return reject(new Error('Revoked-origin tracks did not clear'));
       setTimeout(check,50);
     }; check();

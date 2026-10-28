@@ -62,19 +62,25 @@ Baseline: main `be179903aba2cbab3c464ce343b69da25007e419`.
   Scoped zero-media smoke wording to the detection phase in `docs/dash-mpd.md`.
   Marked the initial setup limits as dated in `docs/github-setup.md`, retaining
   the dated observations. Replaced README's obsolete manifest-unit-test wording.
-- **Scripts, fixtures, dependencies, CSS and other config:** no proven dead
-  material found; no removals. Knip reports no unused or unlisted npm dependency
-  after the entrypoint map. The added development dependency is exactly pinned.
+- **Popup UI:** deleted `trackItem`, its representation list, the source and
+  protocol/CDN/frame/config lines, and preferred-protocol commentary. Removed
+  the unused `Track` import and popup-only `h3`/`dl`/`dt`/`dd` rules. The shared
+  `.tracks` styling remains live on the download page. Smoke no longer reads
+  technical cards; worker-state checks and all data-level parser fixtures remain.
+- **Scripts, fixtures and dependencies:** no dead file or dependency found.
+  All eight fixtures still serve data-level tests; none is UI-only. Knip reports
+  no unused or unlisted npm dependency after the entrypoint map.
 
 ## Manual coverage and retained behavior
 
 - **All source:** read detect parsers/model/protection, discovery/observer/content,
   transport/resolver/frame state; popup and worker; download selection, init,
-  assembly, filenames/page; Linux shell generation. No acknowledgement repair,
-  permission cutover, UI/UX change or technical-details hiding is included.
-- **CSS and HTML:** every selector has a current static or generated element:
-  popup eyebrow, articles, tracks, detail list, permission controls/footer and
-  download-page rows/buttons. Both HTML scripts are live build entries.
+  assembly, filenames/page; Linux shell generation. The explicit owner exception
+  deletes technical UI, not internal data. No acknowledgement repair, permission
+  cutover, Save As or filename-behavior change is included.
+- **CSS and HTML:** remaining selectors match popup eyebrow/articles/permission
+  controls/footer and download-page rows/buttons. Both HTML scripts are live
+  build entries. The detection-only header is replaced with current capabilities.
 - **All four scripts:** smoke owns real action/permission/notice lifecycle;
   download proof owns native saves/ffmpeg; lifetime proof challenges cancellation
   accounting; segment helper observes request terminal events. Failure-injection
@@ -100,6 +106,21 @@ Baseline: main `be179903aba2cbab3c464ce343b69da25007e419`.
   CODEOWNERS, agent styleguide and both Limen loaders. `saxes` is bundled by the
   MPD parser; all development dependencies serve build, types, lint, harness or
   the new guard. CI still invokes `pnpm verify`; no workflow bypass is added.
+
+Current wording review also covers download progress/commands, the rights notice
+and footer, manifest name/description, templates, privacy statements and comments.
+The manifest name and legal/notice copy remain accurate. There is no standalone
+privacy file; README accurately describes local acknowledgement storage and
+in-memory signed URLs. Metadata-only comments describe individual pure/transport
+modules, not the whole extension. Historical M2/spec notes are marked as historical,
+not rewritten as current capability claims. The PR contains exact old/new wording.
+README distinguishes released detection-only v0.3.0 (no extension zip asset)
+from this unreleased download-capable checkout, and covers release-source install,
+usage, merge, permissions, privacy, disclaimer, limits and FAQ. Current docs point
+to that guide; final release polish and queued functional fixes are not claimed.
+No pre-download byte-size metadata exists in Track; none is invented. Current
+progress reports observed MiB and displays Chrome's negative unknown total as
+`unknown`, not a negative size. Size discovery is not part of this cleanup.
 
 The optional CDN permission/Allow flow is **live and unchanged**: manifest
 `optional_host_permissions`, popup origin discovery/request/poll/revocation,

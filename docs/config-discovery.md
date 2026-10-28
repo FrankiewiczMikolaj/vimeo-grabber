@@ -2,7 +2,7 @@
 
 `src/detect/discover.ts` exports `discoverPage(document, frameUrl, observedConfigUrls = [])`.
 It returns `{ videos, configUrls }`. It does not fetch, evaluate page scripts, install
-observers, inspect another frame's document, or change the existing runtime.
+observers, inspect another frame's document, or send Chrome messages.
 
 ## Supported data and ordering
 

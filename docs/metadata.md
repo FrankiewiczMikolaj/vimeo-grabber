@@ -44,4 +44,4 @@ actual Chromium permissions, including absent optional CDN and absent config gra
 no permission API is replaced. It covers inline-without-config-HTTP, forged receipts,
 invalid URLs, query bytes, redirects, HTTP/type/size/timeout/network failures and
 malformed-config transport success. Redacted evidence is `artifacts/metadata/evidence.json`.
-Production sender validation, popup prompts and live Vimeo compatibility are not proven.
+Production sender validation, popup prompts and live Vimeo compatibility are not proven by this isolated transport test.

@@ -11,7 +11,6 @@ article > button { margin: 4px 8px 4px 0; }
 main { padding: 20px; }
 h1 { margin: 8px 0 16px; font-size: 26px; }
 h2 { margin: 0 0 12px; font-size: 19px; }
-h3 { margin: 0 0 8px; font-size: 15px; }
 p { line-height: 1.5; }
 .eyebrow { color: #37566a; font-size: 12px; letter-spacing: 0.04em; }
 article, .tracks li {
@@ -24,9 +23,6 @@ article { margin-top: 16px; }
 article, button { overflow-wrap: anywhere; }
 .tracks { margin: 16px 0 0; padding: 0; list-style: none; }
 .tracks li + li { margin-top: 12px; }
-dl { display: grid; grid-template-columns: 1fr 1.3fr; gap: 4px 12px; margin: 0; font-size: 13px; }
-dt { color: #37566a; }
-dd { margin: 0; }
 button {
   max-width: 100%;
   padding: 10px 12px;

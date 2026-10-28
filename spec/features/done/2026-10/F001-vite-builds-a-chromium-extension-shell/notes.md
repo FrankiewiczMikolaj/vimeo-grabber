@@ -1,4 +1,7 @@
-# Scaffold seams
+# Historical scaffold seams
+
+These notes describe the original scaffold, not the current extension. Current
+entrypoints and checks are mapped in [the dead-code review](../../../../../docs/dead-code.md).
 
 - `vite.config.ts` owns the MV3 manifest; CRXJS bundles `popup.html` and its TypeScript/CSS entry. No background worker or permissions are needed.
 - `test/manifest.test.mjs` checks built privilege and popup boundaries. `scripts/smoke.mjs` discovers the unpacked extension in Chromium's extensions page, opens its real popup URL, and saves a screenshot. Broader browser coverage belongs to the browser slice.
