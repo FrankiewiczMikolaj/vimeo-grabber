@@ -9,6 +9,7 @@ CI uses Node.js 24 and the pnpm version in `package.json`'s `packageManager`.
 It installs dependencies with `pnpm install --frozen-lockfile`, then provisions
 Chromium and its Linux libraries with `pnpm exec playwright install --with-deps chromium`.
 The locked Playwright package selects the matching browser revision.
+It also provisions FFmpeg for owned fragmented-media generation and output decoding.
 `pnpm verify` runs lint, typecheck, build, unit tests, and the Chromium smoke check.
 Live Vimeo is not required. The workflow has only `contents: read` permission.
 
