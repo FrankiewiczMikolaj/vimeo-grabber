@@ -46,6 +46,12 @@ async function run() {
     try {
       for (const [index, track] of tracks.entries()) {
         const row = document.createElement('li');
+        const detail = document.createElement('span');
+        const bar = document.createElement('progress');
+        bar.setAttribute('aria-label', `${track.kind} segments`);
+        row.append(detail, bar);
+        let segmentSummary = '';
+        let retryNotice = '';
         const name = `vimeo-${candidate.videoId}-${track.kind}-${index + 1}.${track.kind === 'audio' ? 'm4a' : 'mp4'}`;
         outcomes.append(row);
         let objectUrl: string | undefined;
@@ -56,13 +62,16 @@ async function run() {
           if (performance.now() - lastProgress >= 30000) controller.abort(new Error('Timed out after 30 seconds without progress'));
         }, 1000);
         try {
-          status.textContent = 'Download in progress. Keep this download page open; the popup may close.';
+          status.textContent = 'Download in progress. Keep this tab open until finished; the popup may close.';
           const file = await directory.getFileHandle(String(index), { create: true });
           writer = await file.createWritable();
-          await assemble(track, writer, authority, controller.signal, bytes => {
+          await assemble(track, writer, authority, controller.signal, (bytes, done, total, message) => {
             lastProgress = performance.now();
-            row.textContent = `${name}: assembling ${bytes} bytes`;
-          });
+            if (message) retryNotice = ` — ${message}`;
+            bar.max = total; bar.value = done;
+            segmentSummary = `${done}/${total} segments, ${(bytes / 1024 ** 2).toFixed(2)} MB`;
+            detail.textContent = `${name}: ${segmentSummary}${retryNotice}`;
+          }, directory);
           await writer.close(); writer = undefined;
           await authority();
           const assembled = await file.getFile();
@@ -73,11 +82,11 @@ async function run() {
             await authority();
             const [item] = await chrome.downloads.search({ id: activeDownload });
             if (!item || item.state === 'interrupted') throw new Error(`Native download ${item?.error ?? 'disappeared'}`);
-            row.textContent = `${name}: saving ${item.bytesReceived}/${item.totalBytes} bytes`;
+            detail.textContent = `${name}: ${segmentSummary} — saving ${(item.bytesReceived / 1024 ** 2).toFixed(2)}/${(item.totalBytes / 1024 ** 2).toFixed(2)} MB`;
             if (item.bytesReceived !== received) { received = item.bytesReceived; lastProgress = performance.now(); }
             if (item.state === 'complete') {
               if (!item.filename.startsWith('/')) throw new Error('Absolute completed path unavailable');
-              row.textContent = `${name}: complete — ${item.filename}`;
+              detail.textContent = `${name}: ${segmentSummary} — complete — ${item.filename}`;
               row.dataset.path = item.filename;
               row.dataset.state = 'complete';
               completed++;
@@ -95,7 +104,7 @@ async function run() {
           const reason = error instanceof DOMException && error.name === 'QuotaExceededError' ? 'temporary storage quota exceeded' :
             error instanceof Error && /^(Cancelled|Timed out|Source|Exact-origin|Protected|Unsupported|No supported|Media request failed|Media size limit|File exceeds|Initialization limit|Native download)/.test(error.message)
               ? error.message : 'assembly or native download failed';
-          row.textContent = `${name}: failed (${reason})`;
+          detail.textContent = `${name}: ${segmentSummary} — failed (${reason})`;
         } finally {
           clearInterval(deadline);
           if (objectUrl) URL.revokeObjectURL(objectUrl);

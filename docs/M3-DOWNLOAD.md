@@ -69,10 +69,20 @@ permissions needed by a slice, explaining each change; no arbitrary URL-to-fetch
 messages, credentials, persisted signed URLs or wildcard permission requests.
 Download references are revalidated at use, including redirects and extra origins.
 
-Use tiny owned fragmented-media fixtures: exact base resolution, init-before-media
-bytes and segment ordering, then real Chromium separate-file completion and media
-inspection. Cover HLS-first/second-origin DASH, deny/revoke, candidate identity,
-malformed data and popup closure. Run the safe ffmpeg command on synthetic files.
+Owned fragmented-media fixtures decode to 1920x1080 video and matching audio.
+The native Chromium proof checks multi-MiB segments, held out-of-order responses,
+five concurrent requests, three retries after the initial attempt and exhaustion.
+It compares completed native file bytes with the source and decodes those files.
+It also covers HLS-first/second-origin DASH, deny/revoke, candidate identity,
+malformed data, popup closure and partial completion.
+Assembly has a 4 GiB per-file cap, a 64 MiB per-media-segment cap and a 1 MiB
+initialization/playlist cap, with no per-read cap. Five disk-backed segment slots
+bound lookahead to 320 MiB beyond the output file. Initialization is validated
+and written first; each batch is appended in source order before the next starts.
+Only network/read failures and HTTP 408/429/500/502/503/504 retry, after
+200/400/600 ms. Authority, cancellation, DRM and storage failures do not retry.
+Per-file bars report segments and MB; retry/failure text and the keep-tab-open
+instruction stay on the owner page. Native completion alone publishes a path.
 Retire weaker tests rather than duplicating paths. Live Vimeo never gates CI.
 
 Request Bob's live check after #41 (second grant and separate DASH preference) and

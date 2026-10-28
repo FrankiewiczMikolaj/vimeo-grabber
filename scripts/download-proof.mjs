@@ -13,14 +13,18 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
   for (const kind of ['video', 'audio']) {
     const path = resolve(artifacts, `owned-${kind}.mp4`);
     execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i',
-      kind === 'video' ? 'color=c=blue:s=64x64:r=2:d=1' : 'sine=frequency=440:duration=1',
-      ...(kind === 'video' ? ['-c:v', 'libx264', '-an'] : ['-c:a', 'aac', '-vn']),
-      '-movflags', 'frag_keyframe+empty_moov+default_base_moof', path]);
+      kind === 'video' ? 'testsrc2=s=1920x1080:r=10:d=6' : 'sine=frequency=440:duration=6',
+      ...(kind === 'video' ? ['-c:v', 'libx264', '-preset', 'ultrafast', '-b:v', '24M', '-minrate', '24M', '-maxrate', '24M', '-bufsize', '24M', '-x264-params', 'nal-hrd=cbr:filler=1', '-g', '10', '-an'] : ['-c:a', 'aac', '-vn']),
+      '-movflags', 'frag_keyframe+empty_moov+default_base_moof', '-frag_duration', '1000000', path]);
     const bytes = await readFile(path);
-    let split = 0;
-    while (split < bytes.length && bytes.toString('ascii', split + 4, split + 8) !== 'moof') split += bytes.readUInt32BE(split);
-    assert.ok(split > 0 && split < bytes.length);
-    media[kind] = { bytes, init: bytes.subarray(0, split), segment: bytes.subarray(split) };
+    const offsets = [];
+    for (let offset = 0; offset < bytes.length; offset += bytes.readUInt32BE(offset)) {
+      if (bytes.toString('ascii', offset + 4, offset + 8) === 'moof') offsets.push(offset);
+    }
+    assert.ok(offsets.length >= 6);
+    const segments = offsets.map((offset, index) => bytes.subarray(offset, offsets[index + 1] ?? bytes.length));
+    media[kind] = { bytes, init: bytes.subarray(0, offsets[0]), segments };
+    if (kind === 'video') assert.ok(segments.some(segment => segment.length > 2 * 1024 ** 2), 'real multi-MiB segment');
   }
   let mode = 'pair';
   let release;
@@ -28,8 +32,13 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
   let held;
   let heldStarted;
   const requests = [];
+  let inFlight = 0;
+  let peak = 0;
+  let attempts = new Map();
+  let completionOrder = [];
+  const retryTimes = [];
   const base = 'https://owned.vimeocdn.com/download/';
-  const master = '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1,CODECS="wvtt"\n/drm/subtitle.vtt\n#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English",URI="/drm/subtitle.vtt"\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="sound",NAME="Default",DEFAULT=YES,URI="audio.m3u8"\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="other",NAME="Unrelated",URI="unrelated.m3u8"\n#EXT-X-STREAM-INF:BANDWIDTH=100000,RESOLUTION=64x64,CODECS="avc1.42c00a,mp4a.40.2",AUDIO="sound"\nvideo.m3u8\n';
+  const master = '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1,CODECS="wvtt"\n/drm/subtitle.vtt\n#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English",URI="/drm/subtitle.vtt"\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="sound",NAME="Default",DEFAULT=YES,URI="audio.m3u8"\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="other",NAME="Unrelated",URI="unrelated.m3u8"\n#EXT-X-STREAM-INF:BANDWIDTH=24000000,RESOLUTION=1920x1080,CODECS="avc1.42c00a,mp4a.40.2",AUDIO="sound"\nvideo.m3u8\n';
   const config = { video: { id: 91, title: 'Owned download proof' }, request: { drm: { widevine: true }, files: {
     hls: { cdns: { owned: { url: `${base}master.m3u8` } } },
     dash: { cdns: { protected: { url: `${base}protected.mpd` } } },
@@ -48,15 +57,29 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
     requests.push(name);
     if (name === 'clear.json?base64_init=1') return route.fulfill({ contentType: 'application/json',
       body: JSON.stringify(Object.fromEntries(['video', 'audio'].map(kind => [kind, [{
-        id: kind, height: kind === 'video' ? 64 : undefined, codecs: kind === 'video' ? 'avc1.42c00a' : 'mp4a.40.2',
+        id: kind, height: kind === 'video' ? 1080 : undefined, codecs: kind === 'video' ? 'avc1.42c00a' : 'mp4a.40.2',
         mime_type: `${kind}/mp4`, init_segment: kind === 'video' ? media[kind].init.toString('base64') : `${base}audio-init.mp4`,
-        segments: [{ url: `${base}${kind}-first.m4s` }, { url: `${base}${kind}-second.m4s` }],
+        segments: media[kind].segments.map((_, index) => ({ url: `${base}${kind}-${index}.m4s` })),
       }]]))) });
-    const part = /^(video|audio)-(first|second)\.m4s$/.exec(name);
+    const part = /^(video|audio)-(\d+)\.m4s$/.exec(name);
     if (part) {
-      const bytes = media[part[1]].segment;
-      const middle = Math.floor(bytes.length / 2);
-      return route.fulfill({ body: part[2] === 'first' ? bytes.subarray(0, middle) : bytes.subarray(middle) });
+      inFlight++; peak = Math.max(peak, inFlight);
+      assert.ok(inFlight <= 5, 'at most five segment requests');
+      const attempt = (attempts.get(name) ?? 0) + 1;
+      attempts.set(name, attempt);
+      try {
+        if (mode === 'retry' && name === 'video-0.m4s') {
+          retryTimes.push(Date.now());
+          if (attempt <= 3) return await route.fulfill({ status: 503, body: 'temporary' });
+        }
+        if (name === 'audio-0.m4s' && ['partial', 'cancel', 'timeout', 'revoke', 'invalidate'].includes(mode)) {
+          requested(); await held;
+          if (mode === 'partial') return await route.fulfill({ status: 503, body: 'temporary' });
+        }
+        await delay(100 * (5 - Number(part[2]) % 5));
+        completionOrder.push(name);
+        return await route.fulfill({ body: media[part[1]].segments[Number(part[2])] });
+      } finally { inFlight--; }
     }
     if (name === 'protected.mpd') return route.fulfill({ body: '<MPD><ContentProtection schemeIdUri="owned"/></MPD>', contentType: 'application/dash+xml' });
     if (name === 'master.m3u8') return route.fulfill({ body: mode === 'missing' ? master.replace(',URI="audio.m3u8"', '') :
@@ -68,21 +91,17 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
     if (name === 'video.m3u8' || name === 'audio.m3u8') {
       const encryption = mode === 'encrypted' ? '#EXT-X-KEY:METHOD=AES-128,URI="forbidden.key"\n' :
         mode === 'drm-child' ? '#EXT-X-KEY:METHOD=SAMPLE-AES,URI="skd://drm",KEYFORMAT="com.apple.streamingkeydelivery"\n' : '';
-      const playlist = `#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:2\n${encryption}#EXT-X-MAP:URI="${mode === 'origin' ? 'https://unseen.vimeocdn.com/forbidden' : `${kind}-init.mp4`}"\n#EXTINF:1,\n${kind}-segment.m4s\n#EXT-X-ENDLIST\n`;
+      const playlist = `#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:2\n${encryption}#EXT-X-MAP:URI="${mode === 'origin' ? 'https://unseen.vimeocdn.com/forbidden' : `${kind}-init.mp4`}"\n${media[kind].segments.map((_, index) => `#EXTINF:1,\n${kind}-${index}.m4s\n`).join('')}#EXT-X-ENDLIST\n`;
       return route.fulfill({ body: playlist, contentType: 'application/vnd.apple.mpegurl' });
     }
-    if (name === 'audio-segment.m4s' && ['partial', 'cancel', 'timeout', 'revoke', 'invalidate'].includes(mode)) {
-      requested(); await held;
-      if (mode === 'partial') return route.abort('failed');
-    }
-    if (/^(video|audio)-(init\.mp4|segment\.m4s)$/.test(name)) return route.fulfill({
-      body: name.includes('init') ? media[kind].init : media[kind].segment, contentType: `${kind}/mp4` });
+    if (/^(video|audio)-init\.mp4$/.test(name)) return route.fulfill({ body: media[kind].init, contentType: `${kind}/mp4` });
     throw new Error(`Unowned download request: ${url}`);
   };
   await context.route('**/*', route);
   const native = () => bootstrap.evaluate(() => globalThis.chrome.downloads.search({}));
   async function prepare(next) {
     mode = next;
+    peak = 0; attempts = new Map(); completionOrder = [];
     heldStarted = new Promise(resolve => { requested = resolve; });
     held = new Promise(resolve => { release = resolve; });
     await active.goto('https://player.vimeo.com/video/91');
@@ -97,7 +116,7 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
       await open();
     }
     await waitText(next.startsWith('drm-') && next !== 'drm-child' ? 'Protected (DRM)' :
-      next === 'missing' ? 'Combined video and audio' : 'Download 64p');
+      next === 'missing' ? 'Combined video and audio' : 'Download 1080p');
     assert.equal(context.pages().filter(page => page.url().includes('/download.html')).length, 0, 'preparation must not start downloads');
   }
   async function start(label) {
@@ -137,14 +156,18 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
     });
     let before;
     let owner;
-    for (const scenario of ['pair', 'dash']) {
+    for (const scenario of ['pair', 'dash', 'retry']) {
       await prepare(scenario);
       if (scenario === 'pair') {
         await waitText('DASH is protected. Plain HLS video and matching separate audio are available.');
         await capture('download-hls-ready');
       }
       before = (await native()).length;
-      owner = await start('Download 64p');
+      owner = await start('Download 1080p');
+      if (scenario === 'retry') {
+        await owner.getByText(/Retry 1\/3/).waitFor();
+        await owner.screenshot({ path: resolve(artifacts, 'download-retry-running.png') });
+      }
       assert.match(owner.url(), /download\.html#[a-f0-9-]+$/);
       report[scenario] = await finish(owner, 'Both files completed.', scenario);
       assert.equal((await native()).length - before, 2);
@@ -155,8 +178,24 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
         assert.match(row.path, kind === 'video' ? /vimeo-91-video-1(?: \(\d+\))?\.mp4$/ : /vimeo-91-audio-2(?: \(\d+\))?\.m4a$/);
         assert.deepEqual(await readFile(row.path), media[kind].bytes);
         execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-i', row.path, '-f', 'null', '-']);
+        if (kind === 'video') {
+          const frame = resolve(artifacts, `decoded-${scenario}.png`);
+          execFileSync('ffmpeg', ['-v', 'error', '-i', row.path, '-frames:v', '1', '-y', frame]);
+          const png = await readFile(frame);
+          assert.equal(png.readUInt32BE(16), 1920); assert.equal(png.readUInt32BE(20), 1080);
+          report[scenario][index].decoded = { width: 1920, height: 1080, frame };
+        }
       }
       assert.notEqual(report[scenario][0].path, report[scenario][1].path);
+      assert.equal(peak, 5);
+      assert.notEqual(completionOrder[0], 'video-0.m4s', 'responses complete out of source order');
+      report[scenario + 'Ordering'] = { peak, completionOrder, attempts: Object.fromEntries(attempts) };
+      if (scenario === 'retry') {
+        assert.equal(attempts.get('video-0.m4s'), 4);
+        assert.equal(retryTimes.length, 4);
+        retryTimes.slice(1).forEach((time, index) => assert.ok(time - retryTimes[index] >= 180 * (index + 1)));
+        report.retryTimes = retryTimes;
+      }
     }
     report.orphanRecovery = true;
     for (const scenario of ['drm-master', 'drm-audio', 'drm-session', 'drm-config']) {
@@ -171,7 +210,7 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
     }
     await prepare('drm-child');
     before = (await native()).length;
-    owner = await start('Download 64p');
+    owner = await start('Download 1080p');
     report.drmChild = await finish(owner, 'Download failed. No paired success.', 'drm-child');
     assert.ok(report.drmChild.every(row => row.text.includes('Protected (DRM), cannot download')));
     assert.equal((await native()).length, before);
@@ -188,7 +227,7 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
       };
       globalThis.chrome.downloads.onCreated.addListener(cancelCompanion);
     });
-    owner = await start('Download 64p');
+    owner = await start('Download 1080p');
     report.nativeCancel = await finish(owner, 'Partial failure. The completed file is kept; the companion failed.', 'native-cancel');
     assert.deepEqual(report.nativeCancel.map(row => row.state), ['complete', 'failed']);
     assert.deepEqual(await readFile(report.nativeCancel[0].path), media.video.bytes);
@@ -198,7 +237,7 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
     assert.equal(cancelled[0].error, 'USER_CANCELED');
     for (const scenario of ['partial', 'cancel', 'timeout', 'revoke', 'invalidate']) {
       await prepare(scenario); before = (await native()).length;
-      owner = await start('Download 64p');
+      owner = await start('Download 1080p');
       await heldStarted;
       assert.equal(await owner.locator('#outcomes li[data-state="complete"]').count(), 1);
       assert.match(await owner.locator('#status').innerText(), /in progress/);
@@ -208,6 +247,10 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
       if (scenario === 'invalidate') await active.goto('https://example.com/empty');
       if (scenario !== 'timeout') release();
       report[scenario] = await finish(owner, 'Partial failure. The completed file is kept; the companion failed.', scenario);
+      if (scenario === 'partial') {
+        assert.equal(attempts.get('audio-0.m4s'), 4);
+        report.exhaustionAttempts = Object.fromEntries(attempts);
+      }
       release();
       if (scenario === 'timeout') assert.match(report[scenario][1].text, /Timed out after 30 seconds/);
       assert.equal((await native()).length - before, 1);
@@ -216,7 +259,7 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
     }
     for (const scenario of ['encrypted', 'redirect', 'origin']) {
       await prepare(scenario); before = (await native()).length;
-      owner = await start('Download 64p');
+      owner = await start('Download 1080p');
       report[scenario] = await finish(owner, 'Download failed. No paired success.', scenario);
       assert.equal((await native()).length, before);
     }
