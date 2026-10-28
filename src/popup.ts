@@ -2,6 +2,7 @@ import './popup.css';
 import type { FrameCandidate, FramePublication } from './detect/frame-state';
 import type { DetectionStatus } from './detect/model';
 import { audioFor, selection } from './download/select';
+import { rightsAcknowledged } from './rights';
 
 type PopupState = { frames: readonly FramePublication[]; results: readonly FrameCandidate[]; attemptedOrigins: readonly string[] };
 type PermissionState = {
@@ -17,6 +18,7 @@ let snapshot: PopupState | null = null;
 let polling = false;
 let revision = 0;
 let rendered = '';
+let acknowledged = false;
 
 const labels: Record<DetectionStatus, string> = {
   pending: 'Looking for download options…',
@@ -113,7 +115,7 @@ function renderPermission(origin: string, encountered: boolean): HTMLElement {
 
 function render() {
   if (!snapshot) return;
-  const next = JSON.stringify([snapshot, [...permissions]]);
+  const next = JSON.stringify([snapshot, [...permissions], acknowledged]);
   if (next === rendered) return;
   rendered = next;
   const pending = snapshot.frames.some(frame => frame.status === 'pending');
@@ -148,12 +150,16 @@ function render() {
     for (const track of [...choices, ...(audio ? [audio] : [])]) {
       const button = element('button', track.kind === 'audio' ? 'Audio only' :
         `Download ${track.height ? `${track.height}p` : track.id}`);
-      button.addEventListener('click', () => {
-        button.disabled = true;
-        void chrome.runtime.sendMessage({ type: 'download-start', tabId, candidateId: candidate.id, trackId: track.id })
-          .then(started => { if (!started) status.textContent = 'Download unavailable. Refresh the source and try again.'; })
-          .finally(() => { button.disabled = false; });
-      });
+      button.disabled = !acknowledged;
+      button.setAttribute('aria-disabled', String(!acknowledged));
+      if (acknowledged) {
+        button.addEventListener('click', () => {
+          button.disabled = true;
+          void chrome.runtime.sendMessage({ type: 'download-start', tabId, candidateId: candidate.id, trackId: track.id })
+            .then(started => { if (!started) status.textContent = 'Download unavailable. Refresh the source and try again.'; })
+            .finally(() => { button.disabled = !acknowledged; });
+        });
+      }
       card.append(button);
     }
     for (const origin of new Set(alternatives.flatMap(originsFor))) {
@@ -212,7 +218,10 @@ async function showRightsNotice() {
     button.disabled = true;
     try {
       await chrome.storage.local.set({ rightsAcknowledged: true });
+      if (!await rightsAcknowledged()) throw new Error('Acknowledgement not stored');
+      acknowledged = true;
       notice.hidden = true;
+      render();
     } catch {
       message.textContent = 'Could not save your acknowledgement. Please try again. The notice will remain until it is saved.';
     } finally {
@@ -221,13 +230,25 @@ async function showRightsNotice() {
   });
   try {
     const stored = await chrome.storage.local.get('rightsAcknowledged');
-    notice.hidden = stored.rightsAcknowledged === true;
+    acknowledged = stored.rightsAcknowledged === true;
+    notice.hidden = acknowledged;
+    render();
   } catch {
     message.textContent = 'Could not read your acknowledgement. Please acknowledge to try saving it again.';
   }
 }
 
 void showRightsNotice();
+chrome.storage.onChanged.addListener((_changes, area) => {
+  if (area !== 'local') return;
+  acknowledged = false;
+  render();
+  void rightsAcknowledged().then(value => {
+    acknowledged = value;
+    document.querySelector<HTMLElement>('#rights-notice')!.hidden = value;
+    render();
+  });
+});
 
 async function start() {
   try {

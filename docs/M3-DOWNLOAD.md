@@ -2,10 +2,9 @@
 
 These are the unreleased checkout's contracts, not the published v0.3.0 feature set.
 See README for release installation, usage, permissions, privacy, disclaimer and FAQ.
-Acknowledgement enforcement (#44) remains queued.
-Chrome can show Save As according to its download settings; each native save
-waits without a network timeout (#67). Title-based names (#68) do not imply
-acknowledgement enforcement has landed.
+Download, Audio only and Copy require the stored boolean `rightsAcknowledged === true`.
+Loading, missing, invalid or unreadable storage fails closed. Chrome can show Save As
+according to its download settings; each native save waits without a network timeout.
 
 ## Outcome and boundary
 
@@ -42,7 +41,10 @@ Bob performs the requested live checks in his browser.
    and merge instructions. Keep original files; no hidden transcoding or OS tabs.
 5. **One-time notice (#44).** Show the English rights/own-risk/liability notice on
    first use after install. Retain only acknowledgement state across updates;
-   preserve the footer and show the notice for a fresh install/profile.
+   preserve the footer and show the notice for a fresh install/profile. Disable
+   popup actions without handlers until storage confirms consent. Independently
+   check stored consent in worker dispatch/source, page authority before resource
+   retrieval/native save, and every Copy attempt, including already open pages.
 
 ## Track reference contract (#42)
 

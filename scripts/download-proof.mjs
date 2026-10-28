@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { URL } from 'node:url';
 import process from 'node:process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { segmentRequests } from './segment-requests.mjs';
@@ -209,6 +210,36 @@ else: raise RuntimeError('Native Save File dialog not found')
       await writeFile(output, outputBytes);
       await writeFile(resolve(artifacts, `merge-${name}.json`), JSON.stringify({ command, clipboard: command, paths, output, existingOutputRefused: true, refusal: repeated.stderr, sourcesUnchanged: true, noInjectedCommand: true, log }, null, 2));
       await owner.screenshot({ path: resolve(artifacts, `merge-${name}-copied.png`) });
+      if (name === 'pair') {
+        const copied = await owner.evaluate(() => globalThis.navigator.clipboard.readText());
+        for (const value of [null, 'true', false]) {
+          await bootstrap.evaluate(async value => {
+            if (value === null) await globalThis.chrome.storage.local.remove('rightsAcknowledged');
+            else await globalThis.chrome.storage.local.set({ rightsAcknowledged: value });
+          }, value);
+          // Dispatch bypasses disabled-button activation; the Copy boundary must still refuse.
+          await owner.getByRole('button', { name: 'Copy command', exact: true }).dispatchEvent('click');
+          await owner.getByText('Rights acknowledgement required. Reopen the popup to acknowledge.', { exact: true }).waitFor();
+          assert.equal(await owner.evaluate(() => globalThis.navigator.clipboard.readText()), copied);
+        }
+        await bootstrap.evaluate(() => globalThis.chrome.storage.local.set({ rightsAcknowledged: true }));
+        await owner.evaluate(() => {
+          globalThis.originalRightsGet = globalThis.chrome.storage.local.get;
+          globalThis.chrome.storage.local.get = async () => { throw new Error('owned unreadable storage'); };
+        });
+        await owner.getByRole('button', { name: 'Copy command', exact: true }).dispatchEvent('click');
+        await owner.getByText('Rights acknowledgement required. Reopen the popup to acknowledge.', { exact: true }).waitFor();
+        assert.equal(await owner.evaluate(() => globalThis.navigator.clipboard.readText()), copied);
+        await owner.evaluate(() => { globalThis.chrome.storage.local.get = globalThis.originalRightsGet; });
+        await owner.screenshot({ path: resolve(artifacts, 'rights-open-page-copy-blocked.png') });
+        report.rightsCopy = { missingInvalidFalseUnreadableRefused: true, clipboardUnchanged: true };
+        await open();
+        await bootstrap.evaluate(() => globalThis.chrome.storage.local.remove('rightsAcknowledged'));
+        await acknowledge();
+        await owner.bringToFront();
+        await owner.getByRole('button', { name: 'Copy command', exact: true }).click();
+        await owner.getByText('Command copied.', { exact: true }).waitFor();
+      }
       await owner.evaluate(() => { globalThis.navigator.clipboard.writeText = async () => { throw new Error('owned clipboard failure'); }; });
       await owner.getByRole('button', { name: 'Copy command', exact: true }).click();
       await owner.getByText('Copy failed. Select and copy the command manually.', { exact: true }).waitFor();
@@ -226,6 +257,111 @@ else: raise RuntimeError('Native Save File dialog not found')
     return rows;
   }
   const report = {};
+  async function acknowledge() {
+    await evaluate("document.querySelector('#acknowledge').focus(); true");
+    key('Return');
+    await evaluate(`new Promise((resolve, reject) => {
+      const deadline = Date.now() + 5000;
+      const check = () => [...document.querySelectorAll('button')].some(b => b.textContent === 'Download 1080p' && !b.disabled)
+        ? resolve(true) : Date.now() > deadline ? reject(new Error('Acknowledgement did not enable downloads')) : setTimeout(check, 50);
+      check();
+    })`);
+  }
+  async function refusalProof() {
+    await prepare('pair');
+    const nativeBefore = (await native()).length;
+    const requestBefore = requests.length;
+    const worker = context.serviceWorkers()[0];
+    const outcomes = [];
+    for (const value of [null, false, 'true', 1, {}]) {
+      await bootstrap.evaluate(async value => {
+        if (value === null) await globalThis.chrome.storage.local.remove('rightsAcknowledged');
+        else await globalThis.chrome.storage.local.set({ rightsAcknowledged: value });
+      }, value);
+      await open();
+      await waitText('Download 1080p');
+      const result = await evaluate(`(async () => {
+        const buttons = [...document.querySelectorAll('button')].filter(b => /^(Download |Audio only)/.test(b.textContent));
+        for (const button of buttons) { button.click(); button.dispatchEvent(new MouseEvent('click')); }
+        const [tab] = await chrome.tabs.query({active:true,currentWindow:true});
+        const state = await chrome.runtime.sendMessage({type:'popup-state',tabId:tab.id});
+        const candidate = state.results.find(c => c.videoId === '91' && c.tracks.some(t => t.kind === 'video'));
+        const replies = [];
+        for (const track of candidate.tracks) replies.push(await chrome.runtime.sendMessage({
+          type:'download-start',tabId:tab.id,candidateId:candidate.id,trackId:track.id,rightsAcknowledged:true
+        }));
+        return {disabled: buttons.map(b => b.disabled && b.getAttribute('aria-disabled') === 'true'), replies};
+      })()`);
+      assert.deepEqual(result.disabled, [true, true]);
+      assert.ok(result.replies.length > 0 && result.replies.every(value => value === false));
+      assert.equal(context.pages().filter(page => page.url().includes('/download.html')).length, 0);
+      outcomes.push({ value, ...result });
+    }
+    await capture('rights-actions-blocked');
+    // A pending or failed read must not expose actions, even with valid stored consent.
+    await worker.evaluate(() => {
+      globalThis.originalRightsGet = globalThis.chrome.storage.local.get;
+      globalThis.chrome.storage.local.get = async () => { throw new Error('owned unreadable storage'); };
+    });
+    await evaluate(`(() => {
+      globalThis.originalRightsGet = chrome.storage.local.get;
+      chrome.storage.local.get = () => new Promise(() => {});
+      return chrome.storage.local.set({rightsAcknowledged:true});
+    })()`);
+    await evaluate(`new Promise(resolve => setTimeout(resolve,100))`);
+    assert.equal(await evaluate("[...document.querySelectorAll('button')].filter(b=>/^(Download |Audio only)/.test(b.textContent)).every(b=>b.disabled)"), true);
+    const unreadableReply = await evaluate(`(async () => {
+      const [tab] = await chrome.tabs.query({active:true,currentWindow:true});
+      const state = await chrome.runtime.sendMessage({type:'popup-state',tabId:tab.id});
+      const candidate = state.results.find(c => c.videoId === '91' && c.tracks.some(t => t.kind === 'video'));
+      return chrome.runtime.sendMessage({type:'download-start',tabId:tab.id,candidateId:candidate.id,
+        trackId:candidate.tracks.find(t=>t.kind==='video').id,rightsAcknowledged:true});
+    })()`);
+    assert.equal(unreadableReply, false);
+    await evaluate("chrome.storage.local.get = async () => { throw new Error('owned unreadable storage'); }; chrome.storage.local.set({rightsAcknowledged:false})");
+    await evaluate(`new Promise(resolve => setTimeout(resolve,100))`);
+    assert.equal(await evaluate("[...document.querySelectorAll('button')].filter(b=>/^(Download |Audio only)/.test(b.textContent)).every(b=>b.disabled)"), true);
+    await evaluate("chrome.storage.local.get = globalThis.originalRightsGet; true");
+    await worker.evaluate(() => { globalThis.chrome.storage.local.get = globalThis.originalRightsGet; });
+    await acknowledge();
+    // Pause the first page storage read, then revoke the genuinely minted token's consent.
+    const entry = await bootstrap.evaluate(() => globalThis.chrome.runtime.getURL('download.html'));
+    await bootstrap.evaluate(() => globalThis.localStorage.setItem('rights-proof-pause', 'yes'));
+    await context.addInitScript(() => {
+      if (globalThis.location.pathname !== '/download.html' || globalThis.localStorage.getItem('rights-proof-pause') !== 'yes') return;
+      globalThis.localStorage.removeItem('rights-proof-pause');
+      const get = globalThis.chrome.storage.local.get;
+      const gate = new Promise(resolve => { globalThis.releaseRightsRead = resolve; });
+      globalThis.chrome.storage.local.get = async (...args) => {
+        await gate;
+        return get(...args);
+      };
+    });
+    const owner = await start('Download 1080p');
+    await owner.waitForFunction(() => typeof globalThis.releaseRightsRead === 'function');
+    await bootstrap.evaluate(() => globalThis.chrome.storage.local.remove('rightsAcknowledged'));
+    await owner.evaluate(() => globalThis.releaseRightsRead());
+    await owner.getByText('Download unavailable:', { exact: false }).waitFor();
+    const token = new URL(owner.url()).hash.slice(1);
+    assert.equal(await owner.evaluate(token => globalThis.chrome.runtime.sendMessage({ type: 'download-source', token, rightsAcknowledged: true }), token), null);
+    // The worker still refuses if the page lies about its own storage read.
+    await owner.addInitScript(() => { globalThis.chrome.storage.local.get = async () => ({ rightsAcknowledged: true }); });
+    await owner.reload();
+    await owner.getByText('Download unavailable:', { exact: false }).waitFor();
+    await owner.screenshot({ path: resolve(artifacts, 'rights-direct-token-blocked.png') });
+    await owner.close();
+    const direct = await context.newPage();
+    await direct.goto(`${entry}#unowned-token`);
+    await direct.getByText('Download unavailable:', { exact: false }).waitFor();
+    await direct.close();
+    assert.deepEqual(requests.slice(requestBefore), [], 'refused actions must not even fetch child playlists or init');
+    assert.equal((await native()).length, nativeBefore, 'refused actions must create no native saves');
+    report.rightsRefusal = { outcomes, pendingAndUnreadablePopup: true, unreadableWorkerRefused: true,
+      genuineTokenRevokedBeforeEntry: true, workerRefusedPageAssertion: true, directUnownedTokenRefused: true,
+      requests: requests.slice(requestBefore), nativeSaves: (await native()).length - nativeBefore };
+    await open();
+    await acknowledge();
+  }
   try {
     await bootstrap.evaluate(async () => {
       const root = await globalThis.navigator.storage.getDirectory();
@@ -233,6 +369,7 @@ else: raise RuntimeError('Native Save File dialog not found')
       const file = await directory.getFileHandle('orphan', { create: true });
       const writer = await file.createWritable(); await writer.write('owned orphan'); await writer.close();
     });
+    await refusalProof();
     let before;
     let owner;
     for (const scenario of ['pair', 'dash', 'retry', 'empty', 'long']) {
