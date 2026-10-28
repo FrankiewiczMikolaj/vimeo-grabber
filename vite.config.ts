@@ -7,7 +7,7 @@ export default defineConfig({
     manifest_version: 3,
     name: 'Vimeo Grabber',
     version: '0.3.0',
-    description: 'Download separate Vimeo video and audio files.',
+    description: 'Download separate Vimeo video and audio files with a Linux merge command.',
     action: { default_popup: 'popup.html' },
     background: { service_worker: 'src/worker.ts', type: 'module' },
     permissions: ['downloads', 'storage'],

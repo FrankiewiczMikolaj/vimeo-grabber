@@ -18,7 +18,7 @@ pnpm verify
 - [ ] Tests and documentation match the changed behavior, or the reason they are unchanged is stated.
 - [ ] No secrets, private URLs, or personal data are included.
 - [ ] The title follows Conventional Commits and the diff is focused (aim for under 300 lines).
-- [ ] This PR remains draft for Mikołaj's review; M0 work has milestone `M0 Foundation`.
+- [ ] This PR remains draft for Mikołaj's review and uses the correct milestone (`M3 Download` for current download work).
 
 ## Limits and risks
 

@@ -12,9 +12,10 @@
     "build": "vite build",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
+    "deadcode": "knip",
     "unit": "node --test test/*.test.mjs",
     "smoke": "xvfb-run -a env SMOKE_HEADED=1 node scripts/smoke.mjs",
-    "verify": "pnpm lint && pnpm typecheck && pnpm build && pnpm unit && pnpm smoke"
+    "verify": "pnpm lint && pnpm typecheck && pnpm deadcode && pnpm build && pnpm unit && pnpm smoke"
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "3.0.0",
@@ -22,6 +23,7 @@
     "@types/chrome": "^0.3.6",
     "@types/node": "^24.19.2",
     "eslint": "10.13.0",
+    "knip": "6.43.0",
     "playwright": "1.64.1",
     "typescript": "5.9.3",
     "typescript-eslint": "8.72.1",

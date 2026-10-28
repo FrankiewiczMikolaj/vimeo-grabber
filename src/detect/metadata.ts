@@ -1,8 +1,8 @@
 import type { DetectionSource, ManifestReference, NormalisedVideo } from './model';
 import { normalisePlayerConfig } from './normalise';
 
-export const METADATA_LIMIT = 1_048_576;
-export const METADATA_TIMEOUT = 8_000;
+const METADATA_LIMIT = 1_048_576;
+const METADATA_TIMEOUT = 8_000;
 export type MetadataResult =
   | { readonly status: 'fetched'; readonly text: string; readonly responseUrl: string }
   | { readonly status: 'permission-needed'; readonly origin: string }

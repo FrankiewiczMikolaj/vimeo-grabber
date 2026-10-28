@@ -51,7 +51,7 @@ The parser performs no I/O and works in an MV3 `ServiceWorkerGlobalScope`, where
 `DOMParser` is absent. No offscreen document or new permissions are required.
 
 `node --test test/dash-mpd.test.mjs` covers exact owned resources and hostile XML.
-The compiled extension harness (`pnpm smoke`) checks exact ordered references,
-signed queries and candidate/Track provenance through popup-state serialization,
-with all requests intercepted and zero media/init/key/license requests.
+The detection phase of the compiled extension harness (`pnpm smoke`) checks exact
+ordered references, signed queries and candidate/Track provenance through popup-state
+serialization, with all requests intercepted and zero media/init/key/license requests.
 This does not prove live Vimeo compatibility.

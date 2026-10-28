@@ -120,7 +120,6 @@ export function createFrameState(extensionId: string, resolve: FrameResolver) {
       if (!frames?.size) tabs.delete(tabId);
     },
     clearTab(tabId: number) { tabs.delete(tabId); },
-    clear() { tabs.clear(); },
     videoCount(tabId: number): number {
       const ids = new Set<string>();
       for (const frame of tabs.get(tabId)?.values() ?? []) {

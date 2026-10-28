@@ -1,10 +1,10 @@
 # Vimeo adaptive DASH JSON
 
 `src/detect/dash-json.ts` exports `parseDashJson(input, manifest, responseUrl?)`.
-Pass decoded JSON, the original shared `ManifestReference`, and the final manifest
-response URL after redirects. The response URL defaults to `manifest.url`.
-This pure API does not fetch, evaluate scripts, read segments/initialization data,
-or validate permissions. URL validation is not fetch authorization.
+Pass decoded JSON, the original shared `ManifestReference`, and the authorised
+manifest response URL, which defaults to `manifest.url`. The transport rejects redirects.
+This pure API does not fetch media, evaluate scripts or validate permissions.
+It decodes inline base64 only to validate the reference. URL validation is not fetch authorization.
 The metadata transport independently checks origins, provenance, redirects and permissions.
 
 ## Supported metadata
@@ -40,7 +40,7 @@ The metadata transport independently checks origins, provenance, redirects and p
   by decoding and re-encoding) or a URL-form value with an explicit scheme, path
   marker or dot/query. Base64 stays text in the serialisable contract; no byte
   buffers cross popup polling. Opaque non-base64 names are unsafe, not guessed.
-  A future writer decodes base64 once and writes initialization before media.
+  The download writer decodes base64 once and writes initialization before media.
 - `segments[].url` supplies ordered media resources. No segments means unknown;
   an invalid resource makes the whole download reference unsafe. URL init remains
   distinct from inline init. No init or media request occurs here.

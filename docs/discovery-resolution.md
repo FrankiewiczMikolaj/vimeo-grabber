@@ -27,7 +27,7 @@ status precedence or first-success projection. Unknown track fields stay null.
 Failed, malformed or protected candidates cannot erase a usable sibling. Chrome
 grants apply only to the same exact origin; this function never requests one.
 Signed URLs and candidate IDs stay in memory, not diagnostics or rendered text.
-Track URL/init/segment fields and download behavior are unchanged.
+Download eligibility is separate from metadata status; the download page owns media fetching.
 
 `mise exec -- node --test test/resolve.test.mjs test/metadata.test.mjs` compiles the
 actual resolver and transport into disposable MV3 workers in offline Chromium.

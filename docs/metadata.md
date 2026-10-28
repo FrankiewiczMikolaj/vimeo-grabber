@@ -25,9 +25,9 @@ It does not change production permissions or connect detected URLs to downloads.
 
 Inline data and source provenance are supplied by a trusted extension caller.
 A receipt is not proof of a Chrome sender's identity: do not expose these methods
-as an arbitrary message-to-fetch bridge. Later runtime integration must validate
-extension senders, frame/document identity and discovery envelopes before admitting
-inline data. Permission prompts and navigation-safe aggregation also belong there.
+as an arbitrary message-to-fetch bridge. The worker validates extension senders,
+frame/document identity and discovery envelopes before admitting inline data.
+Permission prompts and navigation-safe aggregation belong to the runtime.
 
 Every request uses the real `chrome.permissions.contains` for the exact origin.
 Missing access returns `permission-needed` with that origin; API failure is explicit.
@@ -44,4 +44,4 @@ actual Chromium permissions, including absent optional CDN and absent config gra
 no permission API is replaced. It covers inline-without-config-HTTP, forged receipts,
 invalid URLs, query bytes, redirects, HTTP/type/size/timeout/network failures and
 malformed-config transport success. Redacted evidence is `artifacts/metadata/evidence.json`.
-Production sender validation, popup prompts and live Vimeo compatibility are not proven.
+Production sender validation, popup prompts and live Vimeo compatibility are not proven by this isolated transport test.

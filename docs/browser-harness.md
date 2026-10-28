@@ -2,9 +2,10 @@
 
 `pnpm verify` builds the unpacked MV3 extension and runs an offline detection and
 download smoke through the actual Chromium action popup. Owned HTML, metadata and
-generated fragmented MP4 stand in for Vimeo responses. The popup lists qualities
-from matching Vimeo frames, including a player under an unrelated top page. A real
-quality-button gesture opens the dedicated owner page and saves native downloads.
+generated fragmented MP4 stand in for Vimeo responses. The popup offers supported
+download actions for videos from matching Vimeo frames, including a player under
+an unrelated top page. A real quality-button gesture opens the dedicated owner page
+and saves native downloads. Technical track lists and source diagnostics are absent.
 
 ## Run
 
@@ -23,7 +24,7 @@ pnpm verify
 ```
 
 `pnpm smoke` expects `dist/` and runs headed Chromium under xvfb.
-`pnpm verify` runs lint, typecheck, build, unit checks and the smoke.
+`pnpm verify` runs lint, typecheck, pinned Knip, build, unit checks and the smoke.
 The entry point is `scripts/smoke.mjs`.
 
 ## Action entry and detection boundary
@@ -83,8 +84,10 @@ extension are removed. No production storage API or acknowledgement is bypassed.
 The original HLS action, native deny/grant/revoke, same-document update, frame
 removal/navigation and execution-context-loss checks remain in the default smoke.
 The same granted exact origin serves the additional owned DASH JSON and MPD
-fixtures. The popup asserts every video/audio field, including representation,
-group, codec, MIME type, bandwidth, dimensions, frame rate, language and channels.
+fixtures. Data-level parser tests check representation, group, codec, MIME type,
+bandwidth, dimensions, frame rate, language and channels. The harness checks
+candidate/track identity and exact ordered download references through worker state,
+not popup technical cards; those cards and source diagnostics must not exist in the DOM.
 
 HLS succeeds before a second DASH origin is granted. Native Return activates
 the focused permission button; Escape denies and Tab then Return grants Chrome's
@@ -112,8 +115,8 @@ An unrelated top page nests another unrelated page with Vimeo players. It also
 contains an inline decoy config that must not become a result. The matrix has five
 unique video IDs, an unavailable duplicate of a valid ID, malformed-first JSON
 fallback, and a delayed player that exposes MPD through its config endpoint only.
-Protected, unsupported and malformed metadata remain visible without tracks and
-cannot erase valid sibling results. Switching to an empty tab and back proves
+Protected, unsupported and malformed results remain visible without download actions
+and cannot erase valid sibling results. Switching to an empty tab and back proves
 tab isolation. A held metadata response is released only after navigation to a
 different successful video; the popup must retain only the new document's video
 through three further polling intervals.
@@ -124,8 +127,8 @@ To prove the detector checks fail, break only the owned config-fallback response
 SMOKE_BREAK_DETECTION=1 SMOKE_ARTIFACT_DIR=/absolute/broken-detection pnpm smoke
 ```
 
-This must exit nonzero because the MPD qualities never appear. It retains
-`failure.png`, `diagnostics.json` (missing expected text, actual popup text and
+This must exit nonzero because the expected MPD candidate never resolves. It retains
+`failure.png`, `diagnostics.json` (failure details, actual popup text and
 request audit) and `trace.zip`. It does not replace runtime messages or Chrome
 APIs. Keep this evidence separate from a passing run.
 

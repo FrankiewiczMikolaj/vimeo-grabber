@@ -13,8 +13,8 @@ use `pull_request_target` or execute package scripts from a pull request.
 GitHub controls token permissions for fork pull requests.
 
 Inspect **Actions → CodeQL** for run results and **Security → Code scanning**
-for alerts. After this workflow reaches `main`, confirm that advanced setup is
-active and that default CodeQL setup is not also running. Scheduled workflows
+for alerts. The workflow is on `main`; confirm in repository settings that advanced
+setup is active and default CodeQL setup is not also running. Scheduled workflows
 run from the default branch. A local configuration check does not prove that
 GitHub accepted an analysis upload.
 

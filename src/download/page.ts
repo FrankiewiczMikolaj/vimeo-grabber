@@ -73,7 +73,7 @@ async function run() {
             lastProgress = performance.now();
             if (message) retryNotice = ` — ${message}`;
             bar.max = total; bar.value = done;
-            segmentSummary = `${done}/${total} segments, ${(bytes / 1024 ** 2).toFixed(2)} MB`;
+            segmentSummary = `${done}/${total} segments, ${(bytes / 1024 ** 2).toFixed(2)} MiB`;
             detail.textContent = `${name}: ${segmentSummary}${retryNotice}`;
           }, directory);
           await writer.close(); writer = undefined;
@@ -86,7 +86,7 @@ async function run() {
             await authority();
             const [item] = await chrome.downloads.search({ id: activeDownload });
             if (!item || item.state === 'interrupted') throw new Error(`Native download ${item?.error ?? 'disappeared'}`);
-            detail.textContent = `${name}: ${segmentSummary} — saving ${(item.bytesReceived / 1024 ** 2).toFixed(2)}/${(item.totalBytes / 1024 ** 2).toFixed(2)} MB`;
+            detail.textContent = `${name}: ${segmentSummary} — saving ${(item.bytesReceived / 1024 ** 2).toFixed(2)}/${item.totalBytes < 0 ? 'unknown' : (item.totalBytes / 1024 ** 2).toFixed(2)} MiB`;
             if (item.bytesReceived !== received) { received = item.bytesReceived; lastProgress = performance.now(); }
             if (item.state === 'complete') {
               if (!item.filename.startsWith('/')) throw new Error('Absolute completed path unavailable');
@@ -117,7 +117,7 @@ async function run() {
         }
       }
       status.textContent = completed === tracks.length ? (tracks.length === 2 ? 'Both files completed.' : 'Audio file completed.') :
-        completed ? 'Partial failure. The completed file is kept; the companion failed.' : 'Download failed. No paired success.';
+        completed ? 'Partial failure. The completed file is kept; the companion failed.' : 'Download failed. No files completed.';
       if (tracks.length === 2 && completed === 2 && !controller.signal.aborted) {
         const section = document.createElement('section');
         const command = document.createElement('pre');

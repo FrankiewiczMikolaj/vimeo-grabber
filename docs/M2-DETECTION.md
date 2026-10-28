@@ -1,5 +1,8 @@
 # M2 Detection · v0.3.0
 
+Historical M2 plan for v0.3.0, retained as design and evidence context. Current
+download capabilities and limits are in [M3 Download](M3-DOWNLOAD.md) and README.
+
 ## Outcome and boundary
 
 List real Vimeo videos with available qualities and separate audio tracks, including
