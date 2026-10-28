@@ -201,11 +201,13 @@ else: raise RuntimeError('Native Save File dialog not found')
       const output = resolve(directory, `${filenameStem(config.video.title, '91')}.mp4`);
       execFileSync('ffmpeg', ['-v', 'error', '-i', output, '-f', 'null', '-']);
       const outputBytes = await readFile(output);
+      const existing = 'Owned existing output: must not be replaced';
+      await writeFile(output, existing);
       const repeated = spawnSync('bash', ['-c', command], { cwd: artifacts, encoding: 'utf8' });
-      assert.notEqual(repeated.status, 0, 'existing output is refused');
       assert.match(repeated.stderr, /already exists|Not overwriting/);
-      assert.deepEqual(await readFile(output), outputBytes);
-      await writeFile(resolve(artifacts, `merge-${name}.json`), JSON.stringify({ command, clipboard: command, paths, output, sourcesUnchanged: true, noInjectedCommand: true, log }, null, 2));
+      assert.equal(await readFile(output, 'utf8'), existing, 'existing output bytes are not overwritten');
+      await writeFile(output, outputBytes);
+      await writeFile(resolve(artifacts, `merge-${name}.json`), JSON.stringify({ command, clipboard: command, paths, output, existingOutputRefused: true, refusal: repeated.stderr, sourcesUnchanged: true, noInjectedCommand: true, log }, null, 2));
       await owner.screenshot({ path: resolve(artifacts, `merge-${name}-copied.png`) });
       await owner.evaluate(() => { globalThis.navigator.clipboard.writeText = async () => { throw new Error('owned clipboard failure'); }; });
       await owner.getByRole('button', { name: 'Copy command', exact: true }).click();
