@@ -12,9 +12,11 @@ and saves native downloads. Technical track lists and source diagnostics are abs
 Use Node 24+, the pinned pnpm version, Playwright 1.64.1 and its installed
 Chromium revision 1248. Linux execution needs `xvfb-run`, Python 3, libX11 and
 libXtst for native permission-dialog key input; Playwright's Chromium dependencies
-provide the X11 libraries. FFmpeg with libx264 and AAC generates and decodes the
-owned 1920x1080 video and matching audio; `mise.toml` pins the local static build. Provision these tools before
-the harness; the harness does not install system packages.
+provide the X11 libraries. GTK 3 (`libgtk-3-0t64` on Ubuntu 24.04) supplies actual
+Save As dialogs; the harness selects `--gtk-version=3`. FFmpeg with libx264, AAC
+and x11grab generates/decodes owned media and captures native desktop frames.
+`mise.toml` pins the local static build. Provision these tools before the harness;
+the harness does not install system packages.
 
 ```sh
 pnpm install --frozen-lockfile
@@ -135,9 +137,17 @@ APIs. Keep this evidence separate from a passing run.
 ## Offline download matrix
 
 `scripts/download-proof.mjs` continues in the same owned Chromium profile.
-The browser profile sets its real download directory under the evidence directory;
-the harness restores Chromium's default download behavior so suggested filenames
-are not replaced by CDP GUIDs. Downloads API state and disk bytes must agree.
+The harness uses real CDP download behavior with suggested filenames (not GUIDs).
+The baseline HLS pair now holds each real Save As dialog open for at least 32
+seconds. Owned filename collisions and a real `onDeterminingFilename` suggestion
+with `conflictAction: 'prompt'` force those dialogs without changing production
+filenames or APIs. Native X11 input clicks the real GTK Save button; this also
+works under Xvfb without a window manager to focus the dialog. Desktop frames
+retain both dialogs; native state must
+remain `in_progress` before accepting, and exact saved bytes must match afterwards.
+The rest of the matrix restores Chromium's default filename behavior. Native Cancel
+interrupts the companion; a file used as a destination directory forces a distinct
+native filesystem error. Both errors suppress the merge command.
 
 Clear HLS with protected DASH produces exactly two files. Clear DASH covers inline
 video initialization and URL audio initialization. Both use at least six real

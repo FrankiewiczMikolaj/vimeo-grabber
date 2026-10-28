@@ -63,9 +63,9 @@ unpacked installation requires rebuilding/replacing its files and reloading it i
 
 Chromium uses its download settings and may add filename collision suffixes.
 Chrome can show **Save As** when **Ask where to save each file before downloading**
-is enabled, despite the extension requesting `saveAs: false`. Known issue #67:
-leaving that dialog open for more than 30 seconds can time out the track even
-after assembly finishes; the pending-save timeout fix is queued.
+is enabled, despite the extension requesting `saveAs: false`. Each file has its
+own native save. Leave the download tab open while either dialog waits; the
+30-second network inactivity limit does not apply to native saving.
 Current title names are sanitised and length-bounded, with `vimeo-ID` fallback;
 further filename work (#68) is queued. The rights notice persists, but
 **download/audio/Copy actions do not yet enforce acknowledgement**; repair #44 is
@@ -160,8 +160,9 @@ file-byte total. Bitrate is not a file size. Progress starts from actual receive
 **Where are my files and why was the name changed?** Chromium's download settings
 choose the destination and may add collision suffixes. The download tab shows actual
 absolute paths after completion. Chrome's **Ask where to save each file before
-downloading** setting can show a Save As dialog. The pending-save timeout fix (#67)
-and further naming changes (#68) remain queued.
+downloading** setting can show a Save As dialog for each file. Native saving has
+no elapsed-time limit. Cancelling a native save shows **Save cancelled** and keeps
+any completed companion. Further naming changes (#68) remain queued.
 
 **Why can actions run before acknowledgement?** The notice is saved, but enforcement
 is a known unresolved issue (#44). This cleanup does not claim to fix that gate.

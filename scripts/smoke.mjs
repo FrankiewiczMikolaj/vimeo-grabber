@@ -116,7 +116,7 @@ try {
   } }));
   assert.deepEqual(manifest.optional_host_permissions, ['https://*.vimeocdn.com/*']);
   context = await chromium.launchPersistentContext(profile, { channel: 'chromium', headless: false,
-    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`, '--enable-unsafe-extension-debugging'] });
+    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`, '--enable-unsafe-extension-debugging', '--gtk-version=3'] });
   await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
   const master = await readFile('test/fixtures/hls-master.m3u8', 'utf8');
   const config = { video: { id: 20, title: '<img src=x onerror=alert(1)> Owned video' }, request: { files: { hls: {
