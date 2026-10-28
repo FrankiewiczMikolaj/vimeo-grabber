@@ -6,6 +6,16 @@ const state = createFrameState(chrome.runtime.id, resolveDiscovery);
 const connections = new Map<string, chrome.runtime.Port>();
 const permissionAttempts = new Map<number, Set<string>>();
 const downloads = new Map<string, { tabId: number; candidateId: string; trackId: string; owner?: number }>();
+function updateBadge(tabId: number) {
+  const count = state.videoCount(tabId);
+  // A tab can close while a publication is resolving. Its badge no longer exists.
+  void chrome.action.setBadgeText({ tabId, text: count ? String(count) : '' }).catch(() => {});
+}
+void chrome.action.setBadgeBackgroundColor({ color: '#174e6f' });
+// Chrome retains action state across worker lifetimes; documents replay live data.
+void chrome.tabs.query({}).then(tabs => {
+  for (const tab of tabs) if (tab.id !== undefined) updateBadge(tab.id);
+});
 chrome.tabs.onRemoved.addListener(tabId => {
   for (const [token, intent] of downloads) if (intent.owner === tabId || intent.tabId === tabId) downloads.delete(token);
 });
@@ -24,13 +34,18 @@ chrome.runtime.onConnect.addListener(port => {
   connections.set(key, port);
   previous?.disconnect();
   state.activate(tabId, frameId, documentId);
+  updateBadge(tabId);
   port.onMessage.addListener(message => {
-    if (connections.get(key) === port) void state.publish(message, sender);
+    if (connections.get(key) !== port) return;
+    const publication = state.publish(message, sender);
+    updateBadge(tabId);
+    void publication.then(() => updateBadge(tabId));
   });
   port.onDisconnect.addListener(() => {
     if (connections.get(key) !== port) return;
     connections.delete(key);
     state.remove(tabId, frameId, documentId);
+    updateBadge(tabId);
   });
   port.postMessage({ type: 'report', frameUrl: sender.url });
 });
@@ -45,6 +60,7 @@ chrome.permissions.onAdded.addListener(() => replay());
 chrome.permissions.onRemoved.addListener(() => replay());
 function clearTab(tabId: number) {
   state.clearTab(tabId);
+  updateBadge(tabId);
   permissionAttempts.delete(tabId);
   for (const [key, port] of connections) {
     if (port.sender?.tab?.id !== tabId) continue;

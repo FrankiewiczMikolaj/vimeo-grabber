@@ -28,12 +28,13 @@ The entry point is `scripts/smoke.mjs`.
 
 ## Action entry and detection boundary
 
-The harness opens an extension bootstrap tab only to obtain an extension
-execution context. It focuses the owned page and uses `chrome.action.openPopup()`
-to create the actual action target. That target is a CDP child session, not a
-Playwright Page. It must be an actual popup view; direct navigation to popup.html
-is not a substitute. Chrome closes this popup when it shows the native permission
-dialog; the harness reopens the action after each decision.
+The harness opens the extension's static `manifest.json` only to obtain an
+extension execution context. This bootstrap runs no popup script or detection
+polling. It focuses the owned page and uses `chrome.action.openPopup()` to create
+the actual action target. That target is a CDP child session, not a Playwright
+Page. It must be an actual popup view; direct navigation to popup.html is not a
+substitute. Chrome closes this popup when it shows the native permission dialog;
+the harness reopens the action after each decision.
 
 This is action API activation, not a physical toolbar click or keyboard action.
 It grants no `activeTab` access. Production content scripts run in matching HTTPS
@@ -47,6 +48,14 @@ keys or licenses. It does not replace fetch, downloads, permissions or worker AP
 Optional CDN permission requests must use the real Chrome API after a real popup gesture and
 contain only an encountered exact HTTPS origin. Never grant the declared CDN
 wildcard or add a production permission bypass for a test.
+
+The harness reads real `chrome.action.getBadgeText` and
+`chrome.action.getBadgeBackgroundColor` values per tab. `diagnostics.json` retains
+the text and existing action accent `[23, 78, 111, 255]`. Checks cover discovery
+before any popup opens, duplicate CDNs/frames/captures, distinct IDs, independent
+tabs, background discovery, closed tabs, worker reconstruction, last-frame
+removal, navigation while metadata is held, and rejection after its release.
+Badge state uses only live in-memory detection, not popup refresh or storage.
 
 ## First-use notice
 
