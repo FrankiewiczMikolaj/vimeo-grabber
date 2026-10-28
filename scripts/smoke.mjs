@@ -488,7 +488,8 @@ try {
   diagnostics.referenceOnly = { unexpectedRequests: diagnostics.unexpected.length,
     mediaInitKeyLicenseRequests: diagnostics.requests.filter(value => /\.(?:m4s|mp4|ts|key)(?:[?]|$)|license/.test(value)).length };
   assert.equal(diagnostics.referenceOnly.mediaInitKeyLicenseRequests, 0);
-  diagnostics.downloads = await downloadProof({ context, active, bootstrap, open, evaluate, waitText, key, artifacts });
+  diagnostics.downloads = await downloadProof({ context, active, bootstrap, open, evaluate, waitText, capture, key, artifacts });
+  assert.deepEqual(diagnostics.unexpected, []);
   await session.detach();
 } catch (error) {
   failure = error; diagnostics.error = error.stack;

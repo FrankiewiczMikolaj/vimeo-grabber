@@ -3,9 +3,8 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import { Buffer } from 'node:buffer';
 
-export async function downloadProof({ context, active, bootstrap, open, evaluate, waitText, key, artifacts }) {
+export async function downloadProof({ context, active, bootstrap, open, evaluate, waitText, capture, key, artifacts }) {
   const directory = resolve(artifacts, 'native-downloads');
   await mkdir(directory, { recursive: true });
   const cdp = await context.newCDPSession(bootstrap);
@@ -35,21 +34,36 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
     hls: { cdns: { owned: { url: `${base}master.m3u8` } } },
     dash: { cdns: { protected: { url: `${base}protected.mpd` } } },
   } } };
+  const dashConfig = { ...config, request: { files: { dash: { cdns: { owned: { url: `${base}clear.json` } } } } } };
   const route = async route => {
     const url = route.request().url();
-    if (url === 'https://player.vimeo.com/video/91') return route.fulfill({ contentType: 'text/html', body: `<script type="application/json">${JSON.stringify(config)}</script>` });
-    if (url === 'https://player.vimeo.com/video/91/config') return route.fulfill({ contentType: 'application/json', body: JSON.stringify(config) });
+    const selectedConfig = mode === 'dash' ? dashConfig : config;
+    if (url === 'https://player.vimeo.com/video/91') return route.fulfill({ contentType: 'text/html', body: `<script type="application/json">${JSON.stringify(selectedConfig)}</script>` });
+    if (url === 'https://player.vimeo.com/video/91/config') return route.fulfill({ contentType: 'application/json', body: JSON.stringify(selectedConfig) });
     if (!url.startsWith(base)) return route.fallback();
     const name = url.slice(base.length);
     requests.push(name);
+    if (name === 'clear.json?base64_init=1') return route.fulfill({ contentType: 'application/json',
+      body: JSON.stringify(Object.fromEntries(['video', 'audio'].map(kind => [kind, [{
+        id: kind, height: kind === 'video' ? 64 : undefined, codecs: kind === 'video' ? 'avc1.42c00a' : 'mp4a.40.2',
+        mime_type: `${kind}/mp4`, init_segment: kind === 'video' ? media[kind].init.toString('base64') : `${base}audio-init.mp4`,
+        segments: [{ url: `${base}${kind}-first.m4s` }, { url: `${base}${kind}-second.m4s` }],
+      }]]))) });
+    const part = /^(video|audio)-(first|second)\.m4s$/.exec(name);
+    if (part) {
+      const bytes = media[part[1]].segment;
+      const middle = Math.floor(bytes.length / 2);
+      return route.fulfill({ body: part[2] === 'first' ? bytes.subarray(0, middle) : bytes.subarray(middle) });
+    }
     if (name === 'protected.mpd') return route.fulfill({ body: '<MPD><ContentProtection schemeIdUri="owned"/></MPD>', contentType: 'application/dash+xml' });
     if (name === 'master.m3u8') return route.fulfill({ body: mode === 'missing' ? master.replace(',URI="audio.m3u8"', '') : master, contentType: 'application/vnd.apple.mpegurl' });
     const kind = name.startsWith('audio') ? 'audio' : 'video';
+    if (mode === 'redirect' && name.endsWith('-init.mp4')) return route.fulfill({ status: 302, headers: { location: 'https://unseen.vimeocdn.com/forbidden' } });
     if (name === 'video.m3u8' || name === 'audio.m3u8') {
-      const playlist = `#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:2\n${mode === 'encrypted' ? '#EXT-X-KEY:METHOD=AES-128,URI="forbidden.key"\n' : ''}#EXT-X-MAP:URI="${kind}-init.mp4"\n#EXTINF:1,\n${kind}-segment.m4s\n#EXT-X-ENDLIST\n`;
+      const playlist = `#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:2\n${mode === 'encrypted' ? '#EXT-X-KEY:METHOD=AES-128,URI="forbidden.key"\n' : ''}#EXT-X-MAP:URI="${mode === 'origin' ? 'https://unseen.vimeocdn.com/forbidden' : `${kind}-init.mp4`}"\n#EXTINF:1,\n${kind}-segment.m4s\n#EXT-X-ENDLIST\n`;
       return route.fulfill({ body: playlist, contentType: 'application/vnd.apple.mpegurl' });
     }
-    if (name === 'audio-segment.m4s' && ['partial', 'cancel', 'revoke', 'invalidate'].includes(mode)) {
+    if (name === 'audio-segment.m4s' && ['partial', 'cancel', 'timeout', 'revoke', 'invalidate'].includes(mode)) {
       requested(); await held;
       if (mode === 'partial') return route.abort('failed');
     }
@@ -58,7 +72,7 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
     throw new Error(`Unowned download request: ${url}`);
   };
   await context.route('**/*', route);
-  const native = () => bootstrap.evaluate(() => chrome.downloads.search({}));
+  const native = () => bootstrap.evaluate(() => globalThis.chrome.downloads.search({}));
   async function prepare(next) {
     mode = next;
     heldStarted = new Promise(resolve => { requested = resolve; });
@@ -69,7 +83,7 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
     if (!await evaluate("chrome.permissions.contains({origins:['https://owned.vimeocdn.com/*']})")) {
       await evaluate("document.querySelector('.permission button').focus(); true"); key('Return');
       await delay(700);
-      if (!await bootstrap.evaluate(() => chrome.permissions.contains({ origins: ['https://owned.vimeocdn.com/*'] }))) {
+      if (!await bootstrap.evaluate(() => globalThis.chrome.permissions.contains({ origins: ['https://owned.vimeocdn.com/*'] }))) {
         key('Tab'); key('Return');
       }
       await open();
@@ -83,43 +97,81 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
     key('Return');
     const owner = await page;
     await owner.waitForLoadState();
+    assert.equal(await bootstrap.evaluate(() => globalThis.chrome.extension.getViews({ type: 'popup' }).length), 0);
     return owner;
   }
   async function finish(owner, text, name) {
-    await owner.getByText(text, { exact: true }).waitFor({ timeout: 20000 });
-    await owner.waitForFunction(() => document.querySelector('#cancel').disabled);
+    try { await owner.getByText(text, { exact: true }).waitFor({ timeout: 40000 }); }
+    catch (error) {
+      await owner.screenshot({ path: resolve(artifacts, `download-${name}-failure.png`) });
+      await writeFile(resolve(artifacts, `download-${name}-failure.txt`), await owner.locator('body').innerText());
+      throw error;
+    }
+    await owner.waitForFunction(() => globalThis.document.querySelector('#cancel').disabled);
     await owner.screenshot({ path: resolve(artifacts, `download-${name}.png`) });
     const rows = await owner.locator('#outcomes li').evaluateAll(rows => rows.map(row => ({ text: row.textContent, state: row.dataset.state, path: row.dataset.path })));
     assert.equal(await owner.evaluate(async () => {
-      const root = await navigator.storage.getDirectory();
-      try { await root.getDirectoryHandle('vimeo-download'); return false; } catch { return true; }
+      const root = await globalThis.navigator.storage.getDirectory();
+      try { await root.getDirectoryHandle('vimeo-download'); return false; }
+      catch (error) { if (error.name === 'NotFoundError') return true; throw error; }
     }), true, 'owned temporary files removed');
     await owner.close();
     return rows;
   }
   const report = {};
   try {
-    await prepare('pair');
-    await waitText('Protected content.');
-    let before = (await native()).length;
-    let owner = await start('Download 64p');
-    // Opening the owner closes the actual action popup. It must not own the bytes.
-    report.pair = await finish(owner, 'Both files completed.', 'pair');
-    await writeFile(resolve(artifacts, 'native-items.json'), JSON.stringify(await native(), null, 2));
-    assert.equal((await native()).length - before, 2);
-    for (const [index, kind] of ['video', 'audio'].entries()) {
-      assert.equal(report.pair[index].state, 'complete');
-      assert.ok(report.pair[index].path.startsWith(directory + '/'));
-      assert.deepEqual(await readFile(report.pair[index].path), media[kind].bytes);
-      execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-i', report.pair[index].path, '-f', 'null', '-']);
+    await bootstrap.evaluate(async () => {
+      const root = await globalThis.navigator.storage.getDirectory();
+      const directory = await root.getDirectoryHandle('vimeo-download', { create: true });
+      const file = await directory.getFileHandle('orphan', { create: true });
+      const writer = await file.createWritable(); await writer.write('owned orphan'); await writer.close();
+    });
+    let before;
+    let owner;
+    for (const scenario of ['pair', 'dash']) {
+      await prepare(scenario);
+      if (scenario === 'pair') {
+        await waitText('DASH is protected. Plain HLS video and matching separate audio are available.');
+        await capture('download-hls-ready');
+      }
+      before = (await native()).length;
+      owner = await start('Download 64p');
+      assert.match(owner.url(), /download\.html#[a-f0-9-]+$/);
+      report[scenario] = await finish(owner, 'Both files completed.', scenario);
+      assert.equal((await native()).length - before, 2);
+      for (const [index, kind] of ['video', 'audio'].entries()) {
+        const row = report[scenario][index];
+        assert.equal(row.state, 'complete');
+        assert.ok(row.path.startsWith(directory + '/'));
+        assert.match(row.path, kind === 'video' ? /vimeo-91-video-1(?: \(\d+\))?\.mp4$/ : /vimeo-91-audio-2(?: \(\d+\))?\.m4a$/);
+        assert.deepEqual(await readFile(row.path), media[kind].bytes);
+        execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-i', row.path, '-f', 'null', '-']);
+      }
+      assert.notEqual(report[scenario][0].path, report[scenario][1].path);
     }
-    assert.notEqual(report.pair[0].path, report.pair[1].path);
+    report.orphanRecovery = true;
     await prepare('audio'); before = (await native()).length;
     owner = await start('Audio only');
     report.audio = await finish(owner, 'Audio file completed.', 'audio');
     assert.equal((await native()).length - before, 1);
     assert.deepEqual(await readFile(report.audio[0].path), media.audio.bytes);
-    for (const scenario of ['partial', 'cancel', 'revoke', 'invalidate']) {
+    await prepare('native-cancel'); before = (await native()).length;
+    await bootstrap.evaluate(() => {
+      let count = 0;
+      const cancelCompanion = item => {
+        if (++count === 2) { globalThis.chrome.downloads.onCreated.removeListener(cancelCompanion); void globalThis.chrome.downloads.cancel(item.id); }
+      };
+      globalThis.chrome.downloads.onCreated.addListener(cancelCompanion);
+    });
+    owner = await start('Download 64p');
+    report.nativeCancel = await finish(owner, 'Partial failure. The completed file is kept; the companion failed.', 'native-cancel');
+    assert.deepEqual(report.nativeCancel.map(row => row.state), ['complete', 'failed']);
+    assert.deepEqual(await readFile(report.nativeCancel[0].path), media.video.bytes);
+    const cancelled = (await native()).filter(item => item.state === 'interrupted');
+    assert.equal((await native()).length - before, 2);
+    assert.equal(cancelled.length, 1);
+    assert.equal(cancelled[0].error, 'USER_CANCELED');
+    for (const scenario of ['partial', 'cancel', 'timeout', 'revoke', 'invalidate']) {
       await prepare(scenario); before = (await native()).length;
       owner = await start('Download 64p');
       await heldStarted;
@@ -127,23 +179,28 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
       assert.match(await owner.locator('#status').innerText(), /in progress/);
       await owner.screenshot({ path: resolve(artifacts, `download-${scenario}-running.png`) });
       if (scenario === 'cancel') await owner.getByRole('button', { name: 'Cancel', exact: true }).click();
-      if (scenario === 'revoke') await bootstrap.evaluate(() => chrome.permissions.remove({ origins: ['https://owned.vimeocdn.com/*'] }));
+      if (scenario === 'revoke') await bootstrap.evaluate(() => globalThis.chrome.permissions.remove({ origins: ['https://owned.vimeocdn.com/*'] }));
       if (scenario === 'invalidate') await active.goto('https://example.com/empty');
-      release();
+      if (scenario !== 'timeout') release();
       report[scenario] = await finish(owner, 'Partial failure. The completed file is kept; the companion failed.', scenario);
+      release();
+      if (scenario === 'timeout') assert.match(report[scenario][1].text, /Timed out after 30 seconds/);
       assert.equal((await native()).length - before, 1);
       assert.deepEqual(report[scenario].map(row => row.state), ['complete', 'failed']);
       assert.deepEqual(await readFile(report[scenario][0].path), media.video.bytes);
     }
-    await prepare('encrypted'); before = (await native()).length;
-    owner = await start('Download 64p');
-    report.encrypted = await finish(owner, 'Download failed. No paired success.', 'encrypted');
-    assert.equal((await native()).length, before);
+    for (const scenario of ['encrypted', 'redirect', 'origin']) {
+      await prepare(scenario); before = (await native()).length;
+      owner = await start('Download 64p');
+      report[scenario] = await finish(owner, 'Download failed. No paired success.', scenario);
+      assert.equal((await native()).length, before);
+    }
     await prepare('missing');
     assert.equal(await evaluate("[...document.querySelectorAll('button')].filter(b=>b.textContent.startsWith('Download ')).length"), 0);
     report.missingSeparateAudio = true;
     assert.equal(requests.some(name => /unrelated|forbidden|license/.test(name)), false);
     report.requests = requests;
+    report.nativeItems = await native();
     await writeFile(resolve(artifacts, 'download-proof.json'), JSON.stringify(report, null, 2));
     return report;
   } finally { release?.(); await context.unroute('**/*', route); await cdp.detach(); }

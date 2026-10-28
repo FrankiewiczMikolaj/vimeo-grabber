@@ -59,6 +59,11 @@ Encrypted, combined, live, byte-range and unknown forms are rejected. Files rema
 separate. Completed paths are shown only after native completion; a failed companion
 does not remove the completed file. Linux command formatting follows in issue #43.
 
+Assembly uses temporary disk-backed storage, at most 4 GiB per file, 10,000 ordered
+resources, 1 MiB of initialization or playlist data and 1 MiB per streamed chunk.
+Thirty seconds without progress fails the track. Quota failures are not retried.
+One download page owns assembly at a time; the next owner removes orphan data.
+
 ## v0.3.0 known limits
 
 The released v0.3.0 can hide DASH after HLS succeeds; this checkout fixes that

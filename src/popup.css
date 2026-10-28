@@ -5,6 +5,9 @@
   font-synthesis: none;
 }
 body { width: 400px; margin: 0; }
+body.download-page { width: auto; max-width: 960px; margin: auto; }
+.download-page li { overflow-wrap: anywhere; }
+article > button { margin: 4px 8px 4px 0; }
 main { padding: 20px; }
 h1 { margin: 8px 0 16px; font-size: 26px; }
 h2 { margin: 0 0 12px; font-size: 19px; }

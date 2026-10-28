@@ -1,3 +1,4 @@
 [tools]
 node = "24.22.1"
 pnpm = "10.34.8"
+"github:eugeneware/ffmpeg-static" = "b6.1.1"

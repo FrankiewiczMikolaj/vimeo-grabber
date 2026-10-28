@@ -1,5 +1,5 @@
 import type { DownloadResource, Track } from '../detect/model';
-import { validateInitialization } from './initialization';
+import { validateInitialization } from './initialization.ts';
 
 export const limits = { playlist: 1024 * 1024, chunk: 1024 * 1024, file: 4 * 1024 ** 3, resources: 10000 };
 

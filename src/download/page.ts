@@ -1,3 +1,4 @@
+import '../popup.css';
 import type { FrameCandidate } from '../detect/frame-state';
 import { selection } from './select';
 import { assemble } from './assemble';
@@ -49,12 +50,17 @@ async function run() {
         outcomes.append(row);
         let objectUrl: string | undefined;
         let writer: FileSystemWritableFileStream | undefined;
-        const deadline = setTimeout(() => controller.abort(new Error('Timed out after 10 minutes')), 600000);
+        let lastProgress = performance.now();
+        let received = -1;
+        const deadline = setInterval(() => {
+          if (performance.now() - lastProgress >= 30000) controller.abort(new Error('Timed out after 30 seconds without progress'));
+        }, 1000);
         try {
           status.textContent = 'Download in progress. Keep this download page open; the popup may close.';
           const file = await directory.getFileHandle(String(index), { create: true });
           writer = await file.createWritable();
           await assemble(track, writer, authority, controller.signal, bytes => {
+            lastProgress = performance.now();
             row.textContent = `${name}: assembling ${bytes} bytes`;
           });
           await writer.close(); writer = undefined;
@@ -66,8 +72,9 @@ async function run() {
           while (true) {
             await authority();
             const [item] = await chrome.downloads.search({ id: activeDownload });
-            if (!item || item.state === 'interrupted') throw new Error(item?.error ?? 'Native download disappeared');
+            if (!item || item.state === 'interrupted') throw new Error(`Native download ${item?.error ?? 'disappeared'}`);
             row.textContent = `${name}: saving ${item.bytesReceived}/${item.totalBytes} bytes`;
+            if (item.bytesReceived !== received) { received = item.bytesReceived; lastProgress = performance.now(); }
             if (item.state === 'complete') {
               if (!item.filename.startsWith('/')) throw new Error('Absolute completed path unavailable');
               row.textContent = `${name}: complete — ${item.filename}`;
@@ -85,9 +92,12 @@ async function run() {
           await writer?.abort().catch(() => {});
           row.dataset.state = 'failed';
           // Fetch errors can contain signed URLs. Keep the user-facing error bounded and private.
-          row.textContent = `${name}: failed (${error instanceof Error && /^(Cancelled|Timed out|Source|Exact-origin|Protected|Unsupported|No supported)/.test(error.message) ? error.message : 'assembly or native download failed'})`;
+          const reason = error instanceof DOMException && error.name === 'QuotaExceededError' ? 'temporary storage quota exceeded' :
+            error instanceof Error && /^(Cancelled|Timed out|Source|Exact-origin|Protected|Unsupported|No supported|Media request failed|Media size limit|File exceeds|Initialization limit|Native download)/.test(error.message)
+              ? error.message : 'assembly or native download failed';
+          row.textContent = `${name}: failed (${reason})`;
         } finally {
-          clearTimeout(deadline);
+          clearInterval(deadline);
           if (objectUrl) URL.revokeObjectURL(objectUrl);
           await directory.removeEntry(String(index)).catch(() => {});
         }

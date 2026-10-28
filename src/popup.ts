@@ -165,7 +165,9 @@ function render() {
     const audio = audioFor(candidate);
     const choices = candidate.tracks.filter(track => track.kind === 'video' && selection(candidate, track.id).length === 2);
     if (candidate.manifest?.protocol === 'hls' && choices.length) {
-      card.append(element('p', 'Plain HLS video and matching separate audio are available. Protected DASH is not used.'));
+      const protectedDash = snapshot!.results.some(other => other.videoId === candidate.videoId &&
+        other.frameId === candidate.frameId && other.manifest?.protocol === 'dash' && other.status === 'protected');
+      card.append(element('p', `${protectedDash ? 'DASH is protected. ' : ''}Plain HLS video and matching separate audio are available.`));
     }
     for (const track of [...choices, ...(audio ? [audio] : [])]) {
       const button = element('button', track.kind === 'audio' ? 'Audio only' :

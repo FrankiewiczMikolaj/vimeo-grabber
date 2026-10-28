@@ -1,14 +1,14 @@
 import type { PlaybackCandidate, Track } from '../detect/model';
 
-const available = (track: Track) => track.download.kind !== 'unavailable';
-const sameManifest = (a: Track, b: Track) => JSON.stringify(a.manifest) === JSON.stringify(b.manifest);
 const declaredDefault = (track: Track) => 'attributes' in track &&
   (track.attributes as Record<string, string>).DEFAULT === 'YES';
 
 export function audioFor(candidate: PlaybackCandidate, video?: Track): Track | undefined {
   if (candidate.status !== 'found') return;
-  return candidate.tracks.filter(track => track.kind === 'audio' && available(track)
-    && (!video || (sameManifest(track, video) && (video.manifest.protocol !== 'hls' ||
+  return candidate.tracks.filter(track => track.kind === 'audio' && track.download.kind !== 'unavailable'
+    && (!track.mimeType || track.mimeType === 'audio/mp4')
+    && JSON.stringify(track.manifest) === JSON.stringify(candidate.manifest)
+    && (!video || (JSON.stringify(track.manifest) === JSON.stringify(video.manifest) && (video.manifest.protocol !== 'hls' ||
       (video.groupId !== null && track.groupId === video.groupId)))))
     .sort((a, b) => Number(declaredDefault(b)) - Number(declaredDefault(a)) ||
       (b.bandwidth ?? 0) - (a.bandwidth ?? 0))[0];
@@ -16,7 +16,9 @@ export function audioFor(candidate: PlaybackCandidate, video?: Track): Track | u
 
 export function selection(candidate: PlaybackCandidate, trackId: string): readonly Track[] {
   const track = candidate.tracks.find(track => track.id === trackId);
-  if (candidate.status !== 'found' || !track || !available(track)) return [];
+  if (candidate.status !== 'found' || !track || track.download.kind === 'unavailable'
+    || JSON.stringify(track.manifest) !== JSON.stringify(candidate.manifest)
+    || (track.mimeType && track.mimeType !== `${track.kind}/mp4`)) return [];
   if (track.kind === 'audio') return [track];
   const audio = track.kind === 'video' ? audioFor(candidate, track) : undefined;
   return audio ? [track, audio] : [];
