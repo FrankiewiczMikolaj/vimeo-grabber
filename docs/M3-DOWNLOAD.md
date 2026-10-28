@@ -85,6 +85,36 @@ Per-file bars report segments and MB; retry/failure text and the keep-tab-open
 instruction stay on the owner page. Native completion alone publishes a path.
 Retire weaker tests rather than duplicating paths. Live Vimeo never gates CI.
 
+### Linux merge command
+
+After both native files complete, the download tab offers **Copy command**.
+Check `ffmpeg -version` in bash/zsh; Debian/Ubuntu users can install it with
+`sudo apt install ffmpeg`. Paste the displayed command into the terminal.
+Inputs are the actual absolute native paths, including uniqueness suffixes.
+POSIX single quoting preserves apostrophes and shell-shaped titles literally.
+`-map 0:v:0 -map 1:a:0 -c copy` merges without transcoding; `-n` refuses an
+existing output. The `.merged.mp4` output sits beside the saved video; both
+source files remain. Audio only and unsuccessful pairs have no ready command.
+Clipboard errors show a manual-copy instruction. Use at your own risk and only
+for content you have rights to download.
+
+Requested pair names are `<title> [720p].video.mp4` and `<title>.audio.m4a`;
+Audio only uses the same audio rule. Path separators, control/format characters
+and reserved filename punctuation become spaces. Leading/trailing dots and
+spaces are removed. The title stem is limited to 96 UTF-8 bytes, leaving room
+for quality/role/extensions and native suffixes; empty titles use `vimeo-ID`.
+
+Reproduce offline with `pnpm build` then
+`SMOKE_ARTIFACT_DIR=artifacts/merge-proof pnpm smoke` (use a fresh evidence directory).
+The real Chromium proof copies the displayed command through the clipboard,
+executes it with owned H.264/AAC tracks, checks copy mappings and decodes output,
+compares unchanged source bytes, and checks that shell-shaped titles execute
+no extra command. It replaces the old ID-name assertion with native title-name
+checks, including collision, empty and long Unicode titles. Inspect
+`merge-*-copied.png`, `merge-*-copy-failed.png`, `merge-*.sh`, `merge-*.json`,
+`download-*-running.png`, `download-audio.png` and `download-proof.json`.
+The clipboard error screenshot uses an injected write failure, not an OS failure.
+
 Request Bob's live check after #41 (second grant and separate DASH preference) and
 #45 (two usable files), reporting exact limits rather than claiming fixture proof
 is live compatibility. Keep issue order, drafts and roughly 300-line slices where

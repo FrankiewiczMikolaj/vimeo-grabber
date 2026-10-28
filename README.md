@@ -57,7 +57,16 @@ Keep the dedicated download tab open; closing the popup does not stop it. Clear
 fragmented MP4 with explicit ordered resources or finite HLS playlists is supported.
 Encrypted, combined, live, byte-range and unknown forms are rejected. Files remain
 separate. Completed paths are shown only after native completion; a failed companion
-does not remove the completed file. Linux command formatting follows in issue #43.
+does not remove the completed file.
+After both files complete, use **Copy command** in the download tab. In Linux
+bash/zsh, check `ffmpeg -version` first; on Debian/Ubuntu install it with
+`sudo apt install ffmpeg` if needed. Paste the command into your terminal.
+It uses the actual absolute saved paths, including native uniqueness suffixes,
+and copies video/audio codecs into a `.merged.mp4` beside the video. It never
+overwrites existing output (`-n`) or removes source files. If copying fails,
+select the displayed command manually. No command appears for Audio only or
+incomplete pairs. Title names retain quality/role/format suffixes; unsafe path
+characters are removed and long UTF-8 titles are bounded, with `vimeo-ID` fallback.
 
 Assembly uses temporary disk-backed storage, at most 4 GiB per file, 10,000 ordered
 resources, 1 MiB of initialization or playlist data and 64 MiB per media segment.

@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { segmentRequests } from './segment-requests.mjs';
 import { requestLifetimeProof } from './request-lifetime-proof.mjs';
+import { filenameStem, trackFilename } from '../src/download/filename.ts';
+import { access } from 'node:fs/promises';
 
 export async function downloadProof({ context, active, bootstrap, open, evaluate, waitText, capture, key, artifacts }) {
   const directory = resolve(artifacts, 'native-downloads');
@@ -41,7 +43,8 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
   const retryTimes = [];
   const base = 'https://owned.vimeocdn.com/download/';
   const master = '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1,CODECS="wvtt"\n/drm/subtitle.vtt\n#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English",URI="/drm/subtitle.vtt"\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="sound",NAME="Default",DEFAULT=YES,URI="audio.m3u8"\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="other",NAME="Unrelated",URI="unrelated.m3u8"\n#EXT-X-STREAM-INF:BANDWIDTH=24000000,RESOLUTION=1920x1080,CODECS="avc1.42c00a,mp4a.40.2",AUDIO="sound"\nvideo.m3u8\n';
-  const config = { video: { id: 91, title: 'Owned download proof' }, request: { drm: { widevine: true }, files: {
+  const hostileTitle = "Owned ' $(touch PWNED) ; `touch PWNED` /\\:*?\"<>|\n proof";
+  const config = { video: { id: 91, title: hostileTitle }, request: { drm: { widevine: true }, files: {
     hls: { cdns: { owned: { url: `${base}master.m3u8` } } },
     dash: { cdns: { protected: { url: `${base}protected.mpd` } } },
     hls_cenc: { cdns: { owned: { url: `${base}unrelated-drm.m3u8` } } },
@@ -52,7 +55,7 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
     const selectedConfig = mode === 'dash' ? dashConfig : mode === 'drm-config' ?
       { ...config, request: { ...config.request, drm: { hls: { fairplay: true } } } } : mode === 'drm-master' ?
         { ...config, request: { ...config.request, files: { hls: { cdns: { owned: { url: `${base}drm/cbcs,master.m3u8` } } } } } } : config;
-    if (url === 'https://player.vimeo.com/video/91') return route.fulfill({ contentType: 'text/html', body: `<script type="application/json">${JSON.stringify(selectedConfig)}</script>` });
+    if (url === 'https://player.vimeo.com/video/91') return route.fulfill({ contentType: 'text/html; charset=utf-8', body: `<script type="application/json">${JSON.stringify(selectedConfig)}</script>` });
     if (url === 'https://player.vimeo.com/video/91/config') return route.fulfill({ contentType: 'application/json', body: JSON.stringify(selectedConfig) });
     if (!url.startsWith(base)) return route.fallback();
     const name = url.slice(base.length);
@@ -99,12 +102,13 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
   const native = () => bootstrap.evaluate(() => globalThis.chrome.downloads.search({}));
   async function prepare(next) {
     mode = next;
+    config.video.title = next === 'empty' ? '' : next === 'long' ? '界'.repeat(300) : hostileTitle;
     segments.reset(); attempts = new Map(); completionOrder = [];
     heldStarted = new Promise(resolve => { requested = resolve; });
     held = new Promise(resolve => { release = resolve; });
     await active.goto('https://player.vimeo.com/video/91');
     await open();
-    await waitText('Owned download proof');
+    await waitText(next === 'empty' ? 'Video 91' : next === 'long' ? '界' : "Owned '");
     if (!await evaluate("chrome.permissions.contains({origins:['https://owned.vimeocdn.com/*']})")) {
       await evaluate("document.querySelector('.permission button').focus(); true"); key('Return');
       await delay(700);
@@ -134,6 +138,35 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
       throw error;
     }
     await owner.waitForFunction(() => globalThis.document.querySelector('#cancel').disabled);
+    const ready = text === 'Both files completed.';
+    assert.equal(await owner.locator('#merge-command').count(), ready ? 1 : 0);
+    assert.equal(await owner.getByRole('button', { name: 'Copy command', exact: true }).count(), ready ? 1 : 0);
+    if (ready) {
+      const command = await owner.locator('#merge-command').innerText();
+      const paths = await owner.locator('#outcomes li').evaluateAll(rows => rows.map(row => row.dataset.path));
+      await owner.bringToFront();
+      await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+      await owner.getByRole('button', { name: 'Copy command', exact: true }).click();
+      await owner.getByText('Command copied.', { exact: true }).waitFor();
+      assert.equal(await owner.evaluate(() => globalThis.navigator.clipboard.readText()), command);
+      await writeFile(resolve(artifacts, `merge-${name}.sh`), command + '\n');
+      const before = await Promise.all(paths.map(path => readFile(path)));
+      const merged = spawnSync('bash', ['-c', command], { cwd: artifacts, encoding: 'utf8' });
+      assert.equal(merged.status, 0, merged.stderr);
+      const log = merged.stderr;
+      assert.match(log, /Stream #0:0 -> #0:0 \(copy\)/);
+      assert.match(log, /Stream #1:0 -> #0:1 \(copy\)/);
+      for (const [index, path] of paths.entries()) assert.deepEqual(await readFile(path), before[index], 'merge preserves source');
+      await assert.rejects(access(resolve(artifacts, 'PWNED')), { code: 'ENOENT' });
+      const output = paths[0].replace(/\.mp4$/, '.merged.mp4');
+      execFileSync('ffmpeg', ['-v', 'error', '-i', output, '-f', 'null', '-']);
+      await writeFile(resolve(artifacts, `merge-${name}.json`), JSON.stringify({ command, clipboard: command, paths, output, sourcesUnchanged: true, noInjectedCommand: true, log }, null, 2));
+      await owner.screenshot({ path: resolve(artifacts, `merge-${name}-copied.png`) });
+      await owner.evaluate(() => { globalThis.navigator.clipboard.writeText = async () => { throw new Error('owned clipboard failure'); }; });
+      await owner.getByRole('button', { name: 'Copy command', exact: true }).click();
+      await owner.getByText('Copy failed. Select and copy the command manually.', { exact: true }).waitFor();
+      await owner.screenshot({ path: resolve(artifacts, `merge-${name}-copy-failed.png`) });
+    }
     segments.check();
     await owner.screenshot({ path: resolve(artifacts, `download-${name}.png`) });
     const rows = await owner.locator('#outcomes li').evaluateAll(rows => rows.map(row => ({ text: row.textContent, state: row.dataset.state, path: row.dataset.path })));
@@ -155,7 +188,7 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
     });
     let before;
     let owner;
-    for (const scenario of ['pair', 'dash', 'retry']) {
+    for (const scenario of ['pair', 'dash', 'retry', 'empty', 'long']) {
       await prepare(scenario);
       if (scenario === 'pair') {
         await waitText('DASH is protected. Plain HLS video and matching separate audio are available.');
@@ -174,7 +207,8 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
         const row = report[scenario][index];
         assert.equal(row.state, 'complete');
         assert.ok(row.path.startsWith(directory + '/'));
-        assert.match(row.path, kind === 'video' ? /vimeo-91-video-1(?: \(\d+\))?\.mp4$/ : /vimeo-91-audio-2(?: \(\d+\))?\.m4a$/);
+        const requestedName = trackFilename(filenameStem(config.video.title, '91'), kind, 1080);
+        assert.equal(row.path.split('/').at(-1).replace(/ \(\d+\)(\.[^.]+)$/, '$1'), requestedName);
         assert.deepEqual(await readFile(row.path), media[kind].bytes);
         execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-i', row.path, '-f', 'null', '-']);
         if (kind === 'video') {
@@ -239,6 +273,8 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
       owner = await start('Download 1080p');
       await heldStarted;
       assert.equal(await owner.locator('#outcomes li[data-state="complete"]').count(), 1);
+      assert.equal(await owner.locator('#merge-command').count(), 0, 'no command for pending companion');
+      assert.equal(await owner.getByRole('button', { name: 'Copy command', exact: true }).count(), 0);
       assert.match(await owner.locator('#status').innerText(), /in progress/);
       await owner.screenshot({ path: resolve(artifacts, `download-${scenario}-running.png`) });
       if (scenario === 'cancel') await owner.getByRole('button', { name: 'Cancel', exact: true }).click();
