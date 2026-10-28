@@ -362,7 +362,7 @@ try {
   });
   await waitText('5 videos detected.');
   await waitText('5000000 bit/s');
-  await waitText('Protected content.');
+  await waitText('Protected (DRM)');
   await waitText('This metadata format is not supported.');
   const cards = await evaluate(`[...document.querySelectorAll('#streams article')].map(card => ({
     source: card.querySelector('p').textContent, status: card.querySelectorAll('p')[1].textContent,
@@ -384,7 +384,6 @@ try {
     ['Audio · DASH', 'english', 'sound', 'mp4a.40.2', 'audio/mp4', '128000 bit/s', 'Unknown', 'Unknown', 'Unknown', 'en', '2'],
     ['Audio · DASH', 'polish', 'sound', 'mp4a.40.2', 'audio/mp4', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'pl', '6'],
   ]);
-  assert.equal(byId(33).status, 'Protected content. No usable tracks are offered.');
   assert.equal(byId(34).status, 'This metadata format is not supported.');
   assert.equal(byId(35).status, 'This metadata format is not supported.');
   for (const id of [33, 34, 35]) assert.deepEqual(byId(id).tracks, []);

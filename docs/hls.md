@@ -33,8 +33,15 @@ positive finite values; malformed optional numeric metadata remains null.
 Malformed headers, attributes, required bandwidth, missing URIs/groups, duplicate
 rendition identities and invalid playlist URLs yield unavailable with empty results.
 Unknown tags are ignored. Media playlists, I-frame variants and variable definitions
-are unsupported; this parser does not expand variables or fetch children. Non-NONE
-KEY/SESSION-KEY methods yield protected, with metadata retained when structurally
-valid. Protection does not imply supported decryption or access to keys. A master
-cannot prove that child playlists are unprotected. This is synthetic-fixture proof,
-not evidence of live Vimeo compatibility or of a downloadable stream.
+are unsupported; this parser does not expand variables or fetch children.
+`hlsProtection` is shared by detection and download-time media-playlist assembly.
+Any `/drm/` path segment in the master, response, video variant or audio rendition
+URL marks the candidate protected. Subtitle renditions and `.vtt` audio locators
+do not supply protection evidence. All video/audio locators are inspected, not
+the first `EXT-X-MEDIA` entry. KEY/SESSION-KEY `SAMPLE-AES` and `SAMPLE-AES-CTR`,
+FairPlay, Widevine and PlayReady KEYFORMAT declarations also mark it protected.
+Protected candidates offer no download buttons and use the same wording as DASH.
+AES-128 alone is unsupported encryption, not DRM; NONE alone is clear.
+A master cannot prove children clear. Child-only DRM is refused in the download
+tab as “Protected (DRM), cannot download” before initialization or media access.
+No keys or licenses are fetched. Owned fixtures are not live compatibility proof.

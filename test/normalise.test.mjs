@@ -77,3 +77,15 @@ test('only positive config protection declarations suppress clear alternatives',
     assert.equal(result.manifests.length, 4);
   }
 });
+
+test('request DRM needs HLS scope or an exact encrypted HLS candidate match', () => {
+  const url = 'https://owned.vimeocdn.com/clear.m3u8';
+  const make = (drm, encryptedUrl) => ({ video: { id: 1 }, request: { drm, files: {
+    hls: { cdns: { owned: { url } } },
+    hls_cenc: { cdns: { owned: { url: encryptedUrl } } },
+  } } });
+  assert.equal(normalise(make({ widevine: { license_url: 'https://license.invalid' } }, url + '?other')).manifests[0].protected, undefined);
+  assert.equal(normalise(make({ hls: { enabled: false } }, url + '?other')).manifests[0].protected, undefined);
+  assert.equal(normalise(make({ hls: { fairplay: true } }, url + '?other')).manifests[0].protected, true);
+  assert.equal(normalise(make({ fairplay: true }, url)).manifests[0].protected, true);
+});

@@ -55,6 +55,13 @@ query replacement. MPD supports explicit complete SegmentList resources; a base
 directory, SegmentBase, template, byte range or partial inherited list is not
 guessed into a file. Detection `found` still means metadata, not download eligibility.
 
+HLS detection and assembly share the protection rules in `docs/hls.md`.
+DRM master/selected video/audio paths, DRM KEY/SESSION-KEY declarations and
+positively candidate-scoped config DRM suppress download buttons. Unrelated
+`request.drm` capabilities and `files.hls_cenc` alternatives do not suppress clear
+HLS. Child playlists remain download-time metadata; child-only DRM displays
+“Protected (DRM), cannot download” without key/license/media requests.
+
 ## Permissions and proof
 
 Keep the current Vimeo frame boundary and exact encountered CDN grants. Add only

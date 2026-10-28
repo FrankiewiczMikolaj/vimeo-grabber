@@ -32,7 +32,8 @@ function config(v: unknown): boolean {
   return !!u && u.origin === 'https://player.vimeo.com' && /^\/video\/[1-9]\d*\/config$/.test(u.pathname);
 }
 function manifest(v: unknown, alternative = false): boolean {
-  if (!record(v) || !keys(v, ['protocol', 'cdn', 'url'])) return false;
+  if (!record(v) || !keys(v, v.protected === true ? ['protocol', 'cdn', 'url', 'protected'] :
+    ['protocol', 'cdn', 'url'])) return false;
   const u = url(v.url);
   return (v.protocol === 'dash' || v.protocol === 'hls') && text(v.cdn)
     && !!u && (alternative || u.hostname === 'vimeocdn.com' || u.hostname.endsWith('.vimeocdn.com'));

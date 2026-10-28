@@ -5,7 +5,7 @@ import type { InlineMetadata, MetadataResult } from './metadata';
 import { normalisePlayerConfig } from './normalise';
 import { parseDashJson } from './dash-json';
 import { parseDashMpd } from './dash-mpd';
-import { parseHls } from './hls';
+import { hlsProtection, parseHls } from './hls';
 
 /** Caller authenticates the sender and frame URL. No prompts, retries or media fetches. */
 export async function resolveDiscovery(
@@ -16,7 +16,9 @@ export async function resolveDiscovery(
   const candidate = (video: NormalisedVideo, manifest: ManifestReference | null): PlaybackCandidate => ({
     id: JSON.stringify([video.id, video.source.frameUrl, video.source.configUrl, manifest]),
     videoId: video.id, title: video.title, source: video.source, manifest,
-    status: video.status === 'protected' ? 'protected' : 'unavailable', tracks: [], permissionOrigins: [],
+    status: video.status === 'protected' || manifest?.protected ||
+      (manifest?.protocol === 'hls' && hlsProtection('', [manifest.url]) === 'protected')
+      ? 'protected' : 'unavailable', tracks: [], permissionOrigins: [],
   });
   const saveConfig = (video: NormalisedVideo, response?: MetadataResult) => {
     const result = candidate(video, null);

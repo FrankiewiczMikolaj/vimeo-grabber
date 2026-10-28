@@ -1,9 +1,13 @@
 import type { DownloadResource, Track } from '../detect/model';
+import { hlsProtection } from '../detect/hls.ts';
 import { validateInitialization } from './initialization.ts';
 
 export const limits = { playlist: 1024 * 1024, chunk: 1024 * 1024, file: 4 * 1024 ** 3, resources: 10000 };
 
 export function mediaPlaylist(text: string, base: string): readonly DownloadResource[] {
+  const protection = hlsProtection(text, [base]);
+  if (protection === 'protected') throw new Error('Protected (DRM), cannot download');
+  if (protection === 'unsupported') throw new Error('Unsupported HLS encryption');
   const lines = text.trim().split(/\r?\n/).map(line => line.trim()).filter(Boolean);
   if (lines.shift() !== '#EXTM3U' || !lines.includes('#EXT-X-ENDLIST')) throw new Error('Unsupported live or malformed HLS');
   const resources: DownloadResource[] = [];
@@ -17,6 +21,7 @@ export function mediaPlaylist(text: string, base: string): readonly DownloadReso
       if (pending) throw new Error('Missing HLS segment');
       pending = true;
     } else if (line.startsWith('#')) {
+      if (/^#EXT-X-(?:SESSION-KEY|KEY):/.test(line)) continue; // Only METHOD=NONE reaches here.
       if (!/^#EXT-X-(?:VERSION:\d+|TARGETDURATION:\d+|MEDIA-SEQUENCE:\d+|PLAYLIST-TYPE:VOD|ENDLIST|INDEPENDENT-SEGMENTS)$/.test(line)) {
         throw new Error('Protected or unsupported HLS directive');
       }

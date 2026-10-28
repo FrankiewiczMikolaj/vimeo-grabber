@@ -26,7 +26,8 @@ export function normalisePlayerConfig(config: unknown, source: DetectionSource):
   const video = fields(root.video);
   const id = identity(video.id);
   if (id === null) return null;
-  const files = fields(fields(root.request).files);
+  const request = fields(root.request);
+  const files = fields(request.files);
   const manifests: ManifestReference[] = [];
   for (const protocol of ['dash', 'hls'] as const satisfies readonly Protocol[]) {
     const descriptor = fields(files[protocol]);
@@ -43,7 +44,13 @@ export function normalisePlayerConfig(config: unknown, source: DetectionSource):
         const url = entry[key];
         if (manifestUrl(url) && !manifests.some(item =>
           item.protocol === protocol && item.cdn === cdn && item.url === url)) {
-          manifests.push({ protocol, cdn, url });
+          // A capability elsewhere in request.drm/hls_cenc is not evidence for this URL.
+          const scopedDrm = protocol === 'hls' && (
+            hasProtection({ drm: fields(request.drm).hls }) ||
+            (Object.values(fields(fields(files.hls_cenc).cdns)).some(value =>
+              fields(value).url === url) && hasProtection(request)));
+          manifests.push({ protocol, cdn, url,
+            ...(hasProtection(descriptor) || hasProtection(entry) || scopedDrm ? { protected: true as const } : {}) });
         }
       }
     }

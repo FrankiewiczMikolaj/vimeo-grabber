@@ -24,7 +24,7 @@ const labels: Record<DetectionStatus, string> = {
   unavailable: 'Qualities are unavailable.',
   'permission-needed': 'Metadata access is needed to inspect qualities.',
   denied: 'Metadata access was denied. Qualities are unavailable.',
-  protected: 'Protected content. No usable tracks are offered.',
+  protected: 'Protected (DRM), cannot download. No usable tracks are offered.',
   unsupported: 'This metadata format is not supported.',
 };
 

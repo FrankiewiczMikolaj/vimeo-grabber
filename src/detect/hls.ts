@@ -43,6 +43,23 @@ function resolve(uri: string, base: string): string {
   return url.href;
 }
 
+/** Shared metadata-only classification. Never follows key, license or media URLs. */
+export function hlsProtection(text: string, urls: readonly string[]): 'protected' | 'unsupported' | null {
+  if (urls.some(url => /(?:^|\/)drm(?:\/|$)/i.test(new URL(url).pathname))) return 'protected';
+  let encrypted = false;
+  for (const line of text.split(/\r?\n/).map(line => line.trim())) {
+    if (!/^#EXT-X-(?:SESSION-KEY|KEY):/.test(line)) continue;
+    const a = attributes(line.slice(line.indexOf(':') + 1));
+    if (!a.METHOD) throw new Error('Missing key method');
+    if (/^SAMPLE-AES(?:-CTR)?$/i.test(a.METHOD) ||
+      /^(?:com\.apple\.streamingkeydelivery|com\.widevine(?:\.alpha)?|com\.microsoft\.playready|urn:uuid:(?:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed|9a04f079-9840-4286-ab92-e65be0885f95))$/i.test(a.KEYFORMAT ?? '')) {
+      return 'protected';
+    }
+    encrypted ||= a.METHOD !== 'NONE' || (a.KEYFORMAT !== undefined && a.KEYFORMAT !== 'identity');
+  }
+  return encrypted ? 'unsupported' : null;
+}
+
 /** Metadata only. The caller authorises responseUrl and any subsequent requests. */
 export function parseHls(text: string, manifest: ManifestReference, responseUrl = manifest.url): HlsResult {
   const empty = (status: DetectionStatus): HlsResult => ({ status, tracks: [], audioGroups: [] });
@@ -54,7 +71,6 @@ export function parseHls(text: string, manifest: ManifestReference, responseUrl 
     const audioGroups: HlsAudioRendition[] = [];
     const variants: { attributes: Attributes; uri: string }[] = [];
     let pending: Attributes | null = null;
-    let protectedContent = false;
     let unsupported = false;
     for (const line of lines) {
       if (line.startsWith('#EXT-X-STREAM-INF:')) {
@@ -73,9 +89,7 @@ export function parseHls(text: string, manifest: ManifestReference, responseUrl 
           uri: a.URI === undefined ? null : resolve(a.URI, responseUrl),
           language: a.LANGUAGE ?? null, channels: a.CHANNELS ?? null, attributes: a });
       } else if (/^#EXT-X-(SESSION-KEY|KEY):/.test(line)) {
-        const a = attributes(line.slice(line.indexOf(':') + 1));
-        if (!a.METHOD) throw new Error('Missing key method');
-        protectedContent ||= a.METHOD !== 'NONE';
+        // Classified once below, together with the actual video/audio locators.
       } else if (/^#EXT(?:INF:|-X-(?:TARGETDURATION:|MAP:|I-FRAME-STREAM-INF:|DEFINE:))/.test(line)) {
         unsupported = true;
       } else if (!line.startsWith('#')) {
@@ -86,6 +100,10 @@ export function parseHls(text: string, manifest: ManifestReference, responseUrl 
       }
     }
     if (pending) throw new Error('Missing variant URI');
+    const protection = hlsProtection(text, [manifest.url, responseUrl, ...variants.map(v => v.uri),
+      ...audioGroups.flatMap(group => group.uri === null || /\.vtt$/i.test(new URL(group.uri).pathname) ? [] : [group.uri])]);
+    const protectedContent = protection === 'protected';
+    unsupported ||= protection === 'unsupported';
     const tracks: HlsTrack[] = variants.map(({ attributes: a, uri }, index) => {
       const groupId = a.AUDIO ?? null;
       const group = audioGroups.filter(g => g.groupId === groupId);

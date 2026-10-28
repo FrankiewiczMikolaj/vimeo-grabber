@@ -29,15 +29,18 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
   let heldStarted;
   const requests = [];
   const base = 'https://owned.vimeocdn.com/download/';
-  const master = '#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="sound",NAME="Default",DEFAULT=YES,URI="audio.m3u8"\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="other",NAME="Unrelated",URI="unrelated.m3u8"\n#EXT-X-STREAM-INF:BANDWIDTH=100000,RESOLUTION=64x64,CODECS="avc1.42c00a,mp4a.40.2",AUDIO="sound"\nvideo.m3u8\n';
-  const config = { video: { id: 91, title: 'Owned download proof' }, request: { files: {
+  const master = '#EXTM3U\n#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English",URI="/drm/subtitle.vtt"\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="sound",NAME="Default",DEFAULT=YES,URI="audio.m3u8"\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="other",NAME="Unrelated",URI="unrelated.m3u8"\n#EXT-X-STREAM-INF:BANDWIDTH=100000,RESOLUTION=64x64,CODECS="avc1.42c00a,mp4a.40.2",AUDIO="sound"\nvideo.m3u8\n';
+  const config = { video: { id: 91, title: 'Owned download proof' }, request: { drm: { widevine: true }, files: {
     hls: { cdns: { owned: { url: `${base}master.m3u8` } } },
     dash: { cdns: { protected: { url: `${base}protected.mpd` } } },
+    hls_cenc: { cdns: { owned: { url: `${base}unrelated-drm.m3u8` } } },
   } } };
   const dashConfig = { ...config, request: { files: { dash: { cdns: { owned: { url: `${base}clear.json` } } } } } };
   const route = async route => {
     const url = route.request().url();
-    const selectedConfig = mode === 'dash' ? dashConfig : config;
+    const selectedConfig = mode === 'dash' ? dashConfig : mode === 'drm-config' ?
+      { ...config, request: { ...config.request, drm: { hls: { fairplay: true } } } } : mode === 'drm-master' ?
+        { ...config, request: { ...config.request, files: { hls: { cdns: { owned: { url: `${base}drm/cbcs,master.m3u8` } } } } } } : config;
     if (url === 'https://player.vimeo.com/video/91') return route.fulfill({ contentType: 'text/html', body: `<script type="application/json">${JSON.stringify(selectedConfig)}</script>` });
     if (url === 'https://player.vimeo.com/video/91/config') return route.fulfill({ contentType: 'application/json', body: JSON.stringify(selectedConfig) });
     if (!url.startsWith(base)) return route.fallback();
@@ -56,11 +59,16 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
       return route.fulfill({ body: part[2] === 'first' ? bytes.subarray(0, middle) : bytes.subarray(middle) });
     }
     if (name === 'protected.mpd') return route.fulfill({ body: '<MPD><ContentProtection schemeIdUri="owned"/></MPD>', contentType: 'application/dash+xml' });
-    if (name === 'master.m3u8') return route.fulfill({ body: mode === 'missing' ? master.replace(',URI="audio.m3u8"', '') : master, contentType: 'application/vnd.apple.mpegurl' });
+    if (name === 'master.m3u8') return route.fulfill({ body: mode === 'missing' ? master.replace(',URI="audio.m3u8"', '') :
+      mode === 'drm-audio' ? master.replace('URI="audio.m3u8"', 'URI="drm/cbcs,audio.m3u8"') :
+      mode === 'drm-session' ? `${master}#EXT-X-SESSION-KEY:METHOD=SAMPLE-AES,URI="skd://drm",KEYFORMAT="com.apple.streamingkeydelivery"\n` : master,
+      contentType: 'application/vnd.apple.mpegurl' });
     const kind = name.startsWith('audio') ? 'audio' : 'video';
     if (mode === 'redirect' && name.endsWith('-init.mp4')) return route.fulfill({ status: 302, headers: { location: 'https://unseen.vimeocdn.com/forbidden' } });
     if (name === 'video.m3u8' || name === 'audio.m3u8') {
-      const playlist = `#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:2\n${mode === 'encrypted' ? '#EXT-X-KEY:METHOD=AES-128,URI="forbidden.key"\n' : ''}#EXT-X-MAP:URI="${mode === 'origin' ? 'https://unseen.vimeocdn.com/forbidden' : `${kind}-init.mp4`}"\n#EXTINF:1,\n${kind}-segment.m4s\n#EXT-X-ENDLIST\n`;
+      const encryption = mode === 'encrypted' ? '#EXT-X-KEY:METHOD=AES-128,URI="forbidden.key"\n' :
+        mode === 'drm-child' ? '#EXT-X-KEY:METHOD=SAMPLE-AES,URI="skd://drm",KEYFORMAT="com.apple.streamingkeydelivery"\n' : '';
+      const playlist = `#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:2\n${encryption}#EXT-X-MAP:URI="${mode === 'origin' ? 'https://unseen.vimeocdn.com/forbidden' : `${kind}-init.mp4`}"\n#EXTINF:1,\n${kind}-segment.m4s\n#EXT-X-ENDLIST\n`;
       return route.fulfill({ body: playlist, contentType: 'application/vnd.apple.mpegurl' });
     }
     if (name === 'audio-segment.m4s' && ['partial', 'cancel', 'timeout', 'revoke', 'invalidate'].includes(mode)) {
@@ -88,7 +96,8 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
       }
       await open();
     }
-    await waitText(next === 'missing' ? 'Combined video and audio' : 'Download 64p');
+    await waitText(next.startsWith('drm-') && next !== 'drm-child' ? 'Protected (DRM)' :
+      next === 'missing' ? 'Combined video and audio' : 'Download 64p');
     assert.equal(context.pages().filter(page => page.url().includes('/download.html')).length, 0, 'preparation must not start downloads');
   }
   async function start(label) {
@@ -150,6 +159,22 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
       assert.notEqual(report[scenario][0].path, report[scenario][1].path);
     }
     report.orphanRecovery = true;
+    for (const scenario of ['drm-master', 'drm-audio', 'drm-session', 'drm-config']) {
+      const start = requests.length;
+      before = (await native()).length;
+      await prepare(scenario);
+      assert.equal(await evaluate("[...document.querySelectorAll('button')].some(b => /^(Download |Audio only)/.test(b.textContent))"), false);
+      await capture(`download-${scenario}`);
+      assert.equal((await native()).length, before);
+      assert.ok(requests.slice(start).every(name => name === 'master.m3u8' || name === 'protected.mpd'));
+      report[scenario] = { protected: true, noButtons: true, metadataOnly: true };
+    }
+    await prepare('drm-child');
+    before = (await native()).length;
+    owner = await start('Download 64p');
+    report.drmChild = await finish(owner, 'Download failed. No paired success.', 'drm-child');
+    assert.ok(report.drmChild.every(row => row.text.includes('Protected (DRM), cannot download')));
+    assert.equal((await native()).length, before);
     await prepare('audio'); before = (await native()).length;
     owner = await start('Audio only');
     report.audio = await finish(owner, 'Audio file completed.', 'audio');

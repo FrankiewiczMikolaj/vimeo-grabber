@@ -26,12 +26,18 @@ The frame observer and worker resolver use this shared model for detection.
   otherwise `found` when manifest references exist, or `unavailable`.
   Empty/disabled DRM containers do not imply protection. `found` does not mean
   parsed tracks or successful access. No denial, codec, resolution or audio is inferred.
+  Candidate-local descriptor/CDN protection is recorded as `ManifestReference.protected`.
+  Positive `request.drm.hls` also applies to HLS candidates. Other `request.drm`
+  declarations apply only where that candidate's exact URL also occurs under
+  `files.hls_cenc.cdns`. Unrelated DRM capabilities or encrypted alternatives do not
+  suppress clear HLS. Protected references are resolved without fetching a manifest.
 - `tracks` is empty until a manifest parser supplies metadata. Inputs are not mutated.
 
 ## Shared types (`src/detect/model.ts`)
 
 `Protocol` is `dash | hls`. `DetectionSource` contains `frameUrl` and nullable
-`configUrl`. `ManifestReference` contains `protocol`, CDN key `cdn`, and `url`.
+`configUrl`. `ManifestReference` contains `protocol`, CDN key `cdn`, `url`, and
+optional `protected: true` for positively candidate-scoped config declarations.
 `NormalisedVideo` contains `id`, nullable `title`, `source`, `status`, `manifests`,
 and `tracks`. All fields and returned array types are readonly (not runtime frozen).
 `DetectionStatus` is `pending | found | unavailable | permission-needed | denied |
