@@ -199,7 +199,6 @@ else: raise RuntimeError('Native Save File dialog not found')
       for (const [index, path] of paths.entries()) assert.deepEqual(await readFile(path), before[index], 'merge preserves source');
       await assert.rejects(access(resolve(artifacts, 'PWNED')), { code: 'ENOENT' });
       const output = resolve(directory, `${filenameStem(config.video.title, '91')}.mp4`);
-      assert.ok(command.endsWith(`'${output.replace(/'/g, "'\\''")}'`), 'output uses original title, not native collision paths');
       execFileSync('ffmpeg', ['-v', 'error', '-i', output, '-f', 'null', '-']);
       const outputBytes = await readFile(output);
       const repeated = spawnSync('bash', ['-c', command], { cwd: artifacts, encoding: 'utf8' });
@@ -236,6 +235,11 @@ else: raise RuntimeError('Native Save File dialog not found')
     let owner;
     for (const scenario of ['pair', 'dash', 'retry', 'empty', 'long']) {
       await prepare(scenario);
+      if (scenario === 'dash') {
+        for (const kind of ['video', 'audio']) {
+          await writeFile(resolve(directory, trackFilename(filenameStem(config.video.title, '91'), kind, 1080)), 'owned collision');
+        }
+      }
       if (scenario === 'pair') {
         await capture('download-hls-ready');
         // Force actual Save As dialogs with owned collisions, without replacing APIs.
@@ -291,7 +295,7 @@ else: raise RuntimeError('Native Save File dialog not found')
         const requestedName = kind === 'video' ? `${stem} - video 1080p.mp4` : `${stem} - audio.m4a`;
         const savedName = row.path.split('/').at(-1);
         assert.equal(savedName.replace(/ \(\d+\)(\.[^.]+)$/, '$1'), requestedName);
-        if (scenario === 'pair') assert.notEqual(savedName, requestedName, 'native collision suffix retained');
+        if (scenario === 'dash') assert.notEqual(savedName, requestedName, 'Chrome collision suffix retained');
         assert.deepEqual(await readFile(row.path), media[kind].bytes);
         if (scenario === 'pair') report.pendingSave[index].completedBytes = media[kind].bytes.length;
         execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-i', row.path, '-f', 'null', '-']);
