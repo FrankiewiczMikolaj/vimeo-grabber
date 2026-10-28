@@ -62,9 +62,12 @@ unpacked installation requires rebuilding/replacing its files and reloading it i
    the completed file intact; it does not make an incomplete pair successful.
 
 Chromium uses its download settings and may add filename collision suffixes.
-There is no per-download Save As prompt in this checkout. Current title names are
-sanitised and length-bounded, with `vimeo-ID` fallback; further filename work (#68)
-and Save As (#67) are queued, not delivered here. The rights notice persists, but
+Chrome can show **Save As** when **Ask where to save each file before downloading**
+is enabled, despite the extension requesting `saveAs: false`. Known issue #67:
+leaving that dialog open for more than 30 seconds can time out the track even
+after assembly finishes; the pending-save timeout fix is queued.
+Current title names are sanitised and length-bounded, with `vimeo-ID` fallback;
+further filename work (#68) is queued. The rights notice persists, but
 **download/audio/Copy actions do not yet enforce acknowledgement**; repair #44 is
 queued. Read and acknowledge the notice before using these actions.
 
@@ -156,7 +159,9 @@ file-byte total. Bitrate is not a file size. Progress starts from actual receive
 
 **Where are my files and why was the name changed?** Chromium's download settings
 choose the destination and may add collision suffixes. The download tab shows actual
-absolute paths after completion. A Save As prompt and further naming changes are queued.
+absolute paths after completion. Chrome's **Ask where to save each file before
+downloading** setting can show a Save As dialog. The pending-save timeout fix (#67)
+and further naming changes (#68) remain queued.
 
 **Why can actions run before acknowledgement?** The notice is saved, but enforcement
 is a known unresolved issue (#44). This cleanup does not claim to fix that gate.

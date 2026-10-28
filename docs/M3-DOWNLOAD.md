@@ -2,9 +2,10 @@
 
 These are the unreleased checkout's contracts, not the published v0.3.0 feature set.
 See README for release installation, usage, permissions, privacy, disclaimer and FAQ.
-Acknowledgement enforcement (#44), Save As (#67) and further filename work (#68)
-remain queued; the current notice, native default saves and naming rules do not
-imply those fixes have landed.
+Acknowledgement enforcement (#44), the pending-save timeout fix (#67) and further
+filename work (#68) remain queued. Chrome can already show Save As according to
+its download settings; the current notice, native save request and naming rules
+do not imply those fixes have landed.
 
 ## Outcome and boundary
 
