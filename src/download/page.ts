@@ -2,6 +2,8 @@ import '../popup.css';
 import type { FrameCandidate } from '../detect/frame-state';
 import { selection } from './select';
 import { assemble } from './assemble';
+import { filenameStem, trackFilename } from './filename';
+import { mergeCommand } from '../shell/linux';
 
 const token = location.hash.slice(1);
 const status = document.querySelector<HTMLElement>('#status')!;
@@ -26,6 +28,8 @@ async function run() {
   const tracks = selection(candidate, current.trackId);
   if (!tracks.length) throw new Error('No supported separate tracks');
   const identity = JSON.stringify(current);
+  const stem = filenameStem(candidate.title, candidate.videoId);
+  const paths = new Map<string, string>();
   async function authority(value?: string) {
     controller.signal.throwIfAborted();
     if (JSON.stringify(await source()) !== identity) throw new Error('Source changed or permission revoked');
@@ -52,7 +56,7 @@ async function run() {
         row.append(detail, bar);
         let segmentSummary = '';
         let retryNotice = '';
-        const name = `vimeo-${candidate.videoId}-${track.kind}-${index + 1}.${track.kind === 'audio' ? 'm4a' : 'mp4'}`;
+        const name = trackFilename(stem, track.kind, track.height);
         outcomes.append(row);
         let objectUrl: string | undefined;
         let writer: FileSystemWritableFileStream | undefined;
@@ -90,6 +94,7 @@ async function run() {
               row.dataset.path = item.filename;
               row.dataset.state = 'complete';
               completed++;
+              paths.set(track.kind, item.filename);
               activeDownload = undefined;
               break;
             }
@@ -113,6 +118,30 @@ async function run() {
       }
       status.textContent = completed === tracks.length ? (tracks.length === 2 ? 'Both files completed.' : 'Audio file completed.') :
         completed ? 'Partial failure. The completed file is kept; the companion failed.' : 'Download failed. No paired success.';
+      if (tracks.length === 2 && completed === 2 && !controller.signal.aborted) {
+        const section = document.createElement('section');
+        const command = document.createElement('pre');
+        command.id = 'merge-command';
+        command.style.whiteSpace = 'pre-wrap';
+        command.textContent = mergeCommand(paths.get('video')!, paths.get('audio')!,
+          paths.get('video')!.split('/').at(-1)!.replace(/\.mp4$/, '.merged.mp4'));
+        const copy = document.createElement('button');
+        copy.textContent = 'Copy command';
+        const feedback = document.createElement('p');
+        feedback.setAttribute('role', 'status');
+        copy.onclick = async () => {
+          try {
+            await navigator.clipboard.writeText(command.textContent!);
+            feedback.textContent = 'Command copied.';
+          } catch {
+            feedback.textContent = 'Copy failed. Select and copy the command manually.';
+          }
+        };
+        const guidance = document.createElement('p');
+        guidance.textContent = 'Linux bash/zsh: check ffmpeg -version. If missing, install with sudo apt install ffmpeg. Run this command in your terminal. Existing output is not overwritten; source files are kept. Use at your own risk and only for content you have rights to download.';
+        section.append(command, copy, feedback, guidance);
+        outcomes.after(section);
+      }
     } finally { await root.removeEntry('vimeo-download', { recursive: true }); }
   });
 }
