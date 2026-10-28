@@ -12,6 +12,23 @@ The locked Playwright package selects the matching browser revision.
 `pnpm verify` runs lint, typecheck, build, unit tests, and the Chromium smoke check.
 Live Vimeo is not required. The workflow has only `contents: read` permission.
 
+## Ready-for-review checks
+
+Before reporting any PR ready, fetch `origin/main` and record its commit. Merge
+that revision into the PR branch normally if it is not already an ancestor;
+never rebase or force-push. Install the merged lockfile and run `pnpm verify`
+before the normal push.
+
+Wait for **Verify extension** and **CodeQL JavaScript/TypeScript** on the final
+PR head. Fetch main again before the ready notification. If main advanced,
+integrate it and repeat verification and checks. Report the tested main and
+PR head with the check results; this applies to documentation drafts too.
+
+The pull-request workflow checks out GitHub's synthetic PR merge, not only the
+branch head. That tests the base available when the run starts, not every later
+main commit. A green run also does not exclude a timing defect: waits must
+observe the exact state transition before asserting the final surface.
+
 ## Reproduce packaging on Linux
 
 Run `pnpm verify` first. From the generated `dist/` directory, run the same

@@ -24,13 +24,14 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 ## Repository setup
 
 - Mikołaj configured main protection; `Verify extension` and CodeQL must run on every PR, including planning and documentation drafts.
+- Ready notifications require the latest-main integration and final-head checks in `docs/ci.md`; fetch again after CI and repeat if main advanced.
 - Milestones M0–M5 and Backlog v1.1+ exist; the public Project auto-adds open issues and PRs, so make no Projects or Administration API calls.
 - Observed successful checks: `Verify extension` (PR #3 run 40480741113) and `CodeQL JavaScript/TypeScript` (PR #7 run 40482301541, including completed results upload).
 - Dependabot PRs #9–#12 belong to Mikołaj; do not edit, update, close, merge, or otherwise manage them.
 
 ## TRACK
 
-- M3 Download is authorised in order: independent candidates, Track URLs, separate files, Linux ffmpeg command, one-time notice; first review docs/M3-DOWNLOAD.md.
+- M3 plan is owner-merged; Track references are merged, paired downloads are next, then Linux command; notice may run alongside downloads only on disjoint files.
 - M2 is owner-closed; v0.3.0 is a GitHub pre-release at c9f2177, with live HLS page/embed evidence and DASH/notice gaps deferred to M3.
 - M1 is owner-closed; v0.2.0 is a GitHub pre-release at 90b88f2 and milestone M1 Walking skeleton is closed.
 
@@ -38,21 +39,24 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 <!-- Generated from spec/features/active/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
+- `F026-one-quality-click-saves-video-and-matching-audio` (🟠 ACTIVE): One quality click saves video and matching audio
 - `F023-users-download-separate-vimeo-video-and-audio-with-a-safe-merge-command` (🟠 ACTIVE): Users download separate Vimeo video and audio with a safe merge command
 
 ## NEXT
 
-- Merge the short M3 plan before implementation, then fix independent DASH/HLS candidates and per-origin state first (#41).
-- Add explicit Track download references with stacked DASH base resolution and inline init before media (#42).
-- Save selected video and audio as two real files with correct ordered bytes and browser completion (#45).
+- Candidates (#41) are owner-merged; preserve the issue comments on genuine DRM and separate-HLS fallback; Mikołaj chooses a non-DRM live DASH example.
+- Track references (#42) are owner-merged in PR #49 at b4ccfb5; F026 prepares one-click quality pairs and Audio only (#45).
+- Save exactly two completed files per quality click, one for Audio only, and retain completed files with honest partial-failure state (#45).
 - Generate the safely quoted Linux ffmpeg command from actual absolute download paths (#43).
-- Finish the one-time install disclaimer and retained acknowledgement last (#44).
+- Hold notice (#44) behind download integration while popup, worker, manifest and browser-harness changes overlap.
 - Use offline fixtures as CI truth; request Bob's live checks after candidates and downloads; at most two disjoint workers, fixed Codex Sol medium, no owner-merge bypass.
 
 ## PROVEN
 
 <!-- Generated from spec/features/done/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
+- `F025-tracks-expose-explicit-download-references-with-ordered-initialization` (🟢 PROVEN): Tracks expose explicit download references with ordered initialization; landed 2026-10-28
+- `F024-every-vimeo-playback-candidate-keeps-its-own-result-and-permission-state` (🟢 PROVEN): Every Vimeo playback candidate keeps its own result and permission state; landed 2026-10-27
 - `F022-chromium-proves-cross-frame-detection-without-media-downloads` (🟢 PROVEN): Chromium proves cross-frame detection without media downloads; landed 2026-10-27
 - `F021-the-popup-shows-qualities-from-live-vimeo-frames` (🟢 PROVEN): The popup shows qualities from live Vimeo frames; landed 2026-10-27
 - `F020-frame-discoveries-stay-scoped-to-their-live-tab-documents` (🟢 PROVEN): Frame discoveries stay scoped to their live tab documents; landed 2026-10-27
@@ -61,9 +65,7 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 - `F017-vimeo-frames-publish-fresh-discovery-snapshots` (🟢 PROVEN): Vimeo frames publish fresh discovery snapshots; landed 2026-10-27
 - `F016-vimeo-pages-expose-config-and-fallback-candidates` (🟢 PROVEN): Vimeo pages expose config and fallback candidates; landed 2026-10-27
 - `F015-dash-mpd-representations-retain-inherited-track-metadata` (🟢 PROVEN): DASH MPD representations retain inherited track metadata; landed 2026-10-27
-- `F014-hls-playlists-expose-variants-and-audio-groups` (🟢 PROVEN): HLS playlists expose variants and audio groups; landed 2026-10-27
-- `F013-dash-manifests-expose-separate-video-and-audio-tracks` (🟢 PROVEN): DASH manifests expose separate video and audio tracks; landed 2026-10-27
-- 2026-10: 22 landed. spec/features/done/2026-10/
+- 2026-10: 24 landed. spec/features/done/2026-10/
 
 ## PARKED
 
