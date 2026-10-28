@@ -2,8 +2,8 @@
 
 A Vimeo-only Chromium Manifest V3 extension. The English popup lists discovered
 Vimeo videos, video/audio/combined qualities, and unknown metadata from matching
-live frames, including players embedded on other sites. This is detection only:
-no media files are fetched and there is no download action.
+live frames, including players embedded on other sites. Each supported quality has
+one download button for separate video and matching audio; Audio only saves one file.
 
 ## Linux development
 
@@ -44,13 +44,20 @@ matching child frames under unrelated sites. The extension requires
 needs CDN access, the popup can request that exact encountered HTTPS origin on
 `vimeocdn.com` after you click its permission button. Denying access leaves the
 video visible without those qualities. Revoking access refreshes detection.
-No `downloads`, `activeTab`, `tabs`, scripting, or broad site permission is used.
-Signed config and manifest URLs stay in memory and are not displayed.
-See [the detection boundary](docs/M2-DETECTION.md).
+The `downloads` permission observes native completion and actual saved paths.
+No `activeTab`, `tabs`, scripting, or broad site permission is used.
+Signed config and manifest URLs stay in memory and are not displayed or stored.
+See [the download boundary and limits](docs/M3-DOWNLOAD.md).
 
 Each playback candidate keeps its own source, qualities and permission state.
 Usable HLS does not hide an extra DASH origin request. A resolved DASH candidate
 with separate video and audio is preferred; HLS and other alternatives stay visible.
+
+Keep the dedicated download tab open; closing the popup does not stop it. Clear
+fragmented MP4 with explicit ordered resources or finite HLS playlists is supported.
+Encrypted, combined, live, byte-range and unknown forms are rejected. Files remain
+separate. Completed paths are shown only after native completion; a failed companion
+does not remove the completed file. Linux command formatting follows in issue #43.
 
 ## v0.3.0 known limits
 
@@ -62,8 +69,7 @@ the popup rights/own-risk footer remains visible.
 ## Legal
 
 Only download content you have rights to. You install and use this project at
-your own risk. The author and contributors are not liable. This detection-only
-build does not download media. Distribution is planned through GitHub Releases,
-not browser stores.
+your own risk. The author and contributors are not liable. Distribution is planned
+through GitHub Releases, not browser stores.
 
 Licensed under the [MIT License](LICENSE).
