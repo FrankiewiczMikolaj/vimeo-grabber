@@ -121,6 +121,26 @@ redirects and ungranted resource origins produce no native download. Missing-URI
 audio cannot expose a quality-pair button. Every finished owner must remove its
 owned temporary directory. No unrelated audio, keys or licenses may be requested.
 
+Concurrency uses Chromium request lifetimes: `request` opens a slot;
+`requestfinished` (after body delivery) or `requestfailed` (including cancellation)
+closes it. A pending `route.fulfill()` or held fixture handler is not an outstanding
+browser request. Scenario resets require zero outstanding requests and check the
+previous peak before clearing it. Any peak above five fails, even if it was brief.
+
+Before native downloads, `scripts/request-lifetime-proof.mjs` exercises this counter
+with actual Chromium fetches. Five delivered responses can leave five fixture
+handlers pending. One cancelled held request leaves a handler pending while the
+next five requests start: six handlers, but only five outstanding requests.
+The same counter must reject six simultaneously held, non-cancelled requests.
+`request-lifetime-proof.json` retains both boundaries and terminal events;
+`download-proof.json` retains the native matrix's segment lifecycle events.
+
+The retained main failure (run 40665867873, artifact 12805418643) reached the
+timeout partial-failure surface before the route-handler counter asserted.
+The controlled scenario reproduces its accounting defect without rerunning that
+CI job. The failed artifact has no per-request lifecycle log, so its exact
+interleaving cannot be reconstructed. Production five-slot assembly is unchanged.
+
 `download-proof.json` records outcomes and actual completed paths.
 `download-*.png` records completion, progress and failure surfaces; generated
 `owned-*.mp4` and `native-downloads/` permit exact-byte and media inspection.

@@ -3,10 +3,13 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
+import { segmentRequests } from './segment-requests.mjs';
+import { requestLifetimeProof } from './request-lifetime-proof.mjs';
 
 export async function downloadProof({ context, active, bootstrap, open, evaluate, waitText, capture, key, artifacts }) {
   const directory = resolve(artifacts, 'native-downloads');
   await mkdir(directory, { recursive: true });
+  await requestLifetimeProof(context, artifacts);
   const cdp = await context.newCDPSession(bootstrap);
   await cdp.send('Browser.setDownloadBehavior', { behavior: 'default', eventsEnabled: true });
   const media = {};
@@ -32,8 +35,7 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
   let held;
   let heldStarted;
   const requests = [];
-  let inFlight = 0;
-  let peak = 0;
+  const segments = segmentRequests(context, request => /^https:\/\/owned\.vimeocdn\.com\/download\/(?:video|audio)-\d+\.m4s$/.test(request.url()));
   let attempts = new Map();
   let completionOrder = [];
   const retryTimes = [];
@@ -63,23 +65,19 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
       }]]))) });
     const part = /^(video|audio)-(\d+)\.m4s$/.exec(name);
     if (part) {
-      inFlight++; peak = Math.max(peak, inFlight);
-      assert.ok(inFlight <= 5, 'at most five segment requests');
       const attempt = (attempts.get(name) ?? 0) + 1;
       attempts.set(name, attempt);
-      try {
-        if (mode === 'retry' && name === 'video-0.m4s') {
-          retryTimes.push(Date.now());
-          if (attempt <= 3) return await route.fulfill({ status: 503, body: 'temporary' });
-        }
-        if (name === 'audio-0.m4s' && ['partial', 'cancel', 'timeout', 'revoke', 'invalidate'].includes(mode)) {
-          requested(); await held;
-          if (mode === 'partial') return await route.fulfill({ status: 503, body: 'temporary' });
-        }
-        await delay(100 * (5 - Number(part[2]) % 5));
-        completionOrder.push(name);
-        return await route.fulfill({ body: media[part[1]].segments[Number(part[2])] });
-      } finally { inFlight--; }
+      if (mode === 'retry' && name === 'video-0.m4s') {
+        retryTimes.push(Date.now());
+        if (attempt <= 3) return await route.fulfill({ status: 503, body: 'temporary' });
+      }
+      if (name === 'audio-0.m4s' && ['partial', 'cancel', 'timeout', 'revoke', 'invalidate'].includes(mode)) {
+        requested(); await held;
+        if (mode === 'partial') return await route.fulfill({ status: 503, body: 'temporary' });
+      }
+      await delay(100 * (5 - Number(part[2]) % 5));
+      completionOrder.push(name);
+      return await route.fulfill({ body: media[part[1]].segments[Number(part[2])] });
     }
     if (name === 'protected.mpd') return route.fulfill({ body: '<MPD><ContentProtection schemeIdUri="owned"/></MPD>', contentType: 'application/dash+xml' });
     if (name === 'master.m3u8') return route.fulfill({ body: mode === 'missing' ? master.replace(',URI="audio.m3u8"', '') :
@@ -101,7 +99,7 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
   const native = () => bootstrap.evaluate(() => globalThis.chrome.downloads.search({}));
   async function prepare(next) {
     mode = next;
-    peak = 0; attempts = new Map(); completionOrder = [];
+    segments.reset(); attempts = new Map(); completionOrder = [];
     heldStarted = new Promise(resolve => { requested = resolve; });
     held = new Promise(resolve => { release = resolve; });
     await active.goto('https://player.vimeo.com/video/91');
@@ -136,6 +134,7 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
       throw error;
     }
     await owner.waitForFunction(() => globalThis.document.querySelector('#cancel').disabled);
+    segments.check();
     await owner.screenshot({ path: resolve(artifacts, `download-${name}.png`) });
     const rows = await owner.locator('#outcomes li').evaluateAll(rows => rows.map(row => ({ text: row.textContent, state: row.dataset.state, path: row.dataset.path })));
     assert.equal(await owner.evaluate(async () => {
@@ -187,9 +186,9 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
         }
       }
       assert.notEqual(report[scenario][0].path, report[scenario][1].path);
-      assert.equal(peak, 5);
+      assert.equal(segments.peak, 5);
       assert.notEqual(completionOrder[0], 'video-0.m4s', 'responses complete out of source order');
-      report[scenario + 'Ordering'] = { peak, completionOrder, attempts: Object.fromEntries(attempts) };
+      report[scenario + 'Ordering'] = { peak: segments.peak, completionOrder, attempts: Object.fromEntries(attempts) };
       if (scenario === 'retry') {
         assert.equal(attempts.get('video-0.m4s'), 4);
         assert.equal(retryTimes.length, 4);
@@ -268,8 +267,10 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
     report.missingSeparateAudio = true;
     assert.equal(requests.some(name => /unrelated|forbidden|license/.test(name)), false);
     report.requests = requests;
+    segments.check();
+    report.segmentLifetimes = segments.events;
     report.nativeItems = await native();
     await writeFile(resolve(artifacts, 'download-proof.json'), JSON.stringify(report, null, 2));
     return report;
-  } finally { release?.(); await context.unroute('**/*', route); await cdp.detach(); }
+  } finally { release?.(); segments.dispose(); await context.unroute('**/*', route); await cdp.detach(); }
 }
