@@ -5,28 +5,30 @@ import { Buffer } from 'node:buffer';
 import { filenameStem, trackFilename } from '../src/download/filename.ts';
 import { mergeCommand } from '../src/shell/linux.ts';
 
-test('title names retain role and format within Linux component limits', () => {
-  for (const title of ['', ' ../\\\n\0:*?"<>| ', '界'.repeat(300), 'x'.repeat(500)]) {
+test('title names preserve role-like text, sanitize safely and bound UTF-8 stems', () => {
+  for (const [title, expected] of [
+    ['A video 1080p (1)', 'A video 1080p (1)'],
+    [' ../\\\n\0:*?"<>| ', 'vimeo-91'],
+    [null, 'vimeo-91'], ['', 'vimeo-91'],
+    ['界'.repeat(300), '界'.repeat(32)], ['x'.repeat(500), 'x'.repeat(96)],
+    [' cafe\u0301 / clip ', 'café clip'],
+  ]) {
     const stem = filenameStem(title, '91');
-    for (const [kind, suffix] of [['video', ' [720p].video.mp4'], ['audio', '.audio.m4a']]) {
-      const name = trackFilename(stem, kind, 720);
-      assert.ok(name.endsWith(suffix));
-      assert.ok(Buffer.byteLength(name) <= 120);
-      assert.ok(!/[\p{Cc}\\/]/u.test(name));
-      assert.ok(!name.startsWith('.'));
-    }
+    assert.equal(stem, expected);
+    assert.ok(Buffer.byteLength(stem) <= 96);
+    assert.equal(trackFilename(stem, 'video', 1080), `${expected} - video 1080p.mp4`);
+    assert.equal(trackFilename(stem, 'audio', null), `${expected} - audio.m4a`);
   }
-  assert.equal(filenameStem(null, '91'), 'vimeo-91');
-  assert.equal(filenameStem(' / . ', '91'), 'vimeo-91');
 });
 
 test('POSIX parsing preserves each native path as one literal argument', () => {
-  const video = "/tmp/it's $(false); `false` [720p].video (1).mp4";
-  const audio = '/tmp/sound & track (2).m4a';
-  const command = mergeCommand(video, audio, 'safe.merged.mp4');
+  const stem = filenameStem("it's $(false); `false` - video 1080p (1)", '91');
+  const video = `/tmp/${stem} - video 1080p (2).mp4`;
+  const audio = `/tmp/${stem} - audio (3).m4a`;
+  const command = mergeCommand(video, audio, `${stem}.mp4`);
   const script = `ffmpeg() { printf '%s\\0' "$@"; }; ${command}`;
   const args = execFileSync('bash', ['-c', script]).toString().split('\0');
-  assert.deepEqual(args, ['-n', '-i', video, '-i', audio, '-map', '0:v:0', '-map', '1:a:0', '-c', 'copy', '/tmp/safe.merged.mp4', '']);
+  assert.deepEqual(args, ['-n', '-i', video, '-i', audio, '-map', '0:v:0', '-map', '1:a:0', '-c', 'copy', `/tmp/${stem}.mp4`, '']);
   assert.throws(() => mergeCommand('relative.mp4', audio, 'out.mp4'));
   assert.throws(() => mergeCommand(video, audio, '../out.mp4'));
 });

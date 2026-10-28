@@ -66,8 +66,9 @@ Chrome can show **Save As** when **Ask where to save each file before downloadin
 is enabled, despite the extension requesting `saveAs: false`. Each file has its
 own native save. Leave the download tab open while either dialog waits; the
 30-second network inactivity limit does not apply to native saving.
-Current title names are sanitised and length-bounded, with `vimeo-ID` fallback;
-further filename work (#68) is queued. The rights notice persists, but
+Video saves use `<Title> - video <quality>.mp4`; audio, including Audio only,
+uses `<Title> - audio.m4a`. The safe title stem is limited to 96 UTF-8 bytes,
+with `vimeo-ID` fallback for an empty or missing title. The rights notice persists, but
 **download/audio/Copy actions do not yet enforce acknowledgement**; repair #44 is
 queued. Read and acknowledge the notice before using these actions.
 
@@ -75,7 +76,7 @@ queued. Read and acknowledge the notice before using these actions.
 
 After **both files complete**, select **Copy command** in the download tab. The
 command uses the actual absolute saved paths, including Chromium's collision
-suffixes, and creates a `.merged.mp4` beside the video.
+suffixes, and creates `<Title>.mp4` beside the video from the original safe title.
 
 In bash or zsh, check FFmpeg first:
 
@@ -88,8 +89,10 @@ sudo apt install ffmpeg
 Paste the displayed command into your terminal. It uses explicit video/audio
 mapping and `-c copy`, so it does not transcode. POSIX quoting preserves apostrophes
 and shell-shaped filenames literally. `-n` refuses to overwrite an existing output;
-source files remain. If copying fails, select and copy the displayed command
-manually. Audio only, pending pairs and failed pairs have no ready merge command.
+source files remain. If the output exists, change only the final output path in
+the command to an unused name, or rename the existing file. Keep both input paths
+unchanged. If copying fails, select and copy the displayed command manually.
+Audio only, pending pairs and failed pairs have no ready merge command.
 Windows/macOS shell commands are not supported in this version.
 
 ## Permissions

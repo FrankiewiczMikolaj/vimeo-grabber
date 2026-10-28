@@ -14,5 +14,5 @@ export function filenameStem(title: string | null, videoId: string): string {
 }
 
 export function trackFilename(stem: string, kind: string, height: number | null): string {
-  return kind === 'audio' ? `${stem}.audio.m4a` : `${stem} [${height ? `${height}p` : 'video'}].video.mp4`;
+  return kind === 'audio' ? `${stem} - audio.m4a` : `${stem} - video ${height ? `${height}p` : 'video'}.mp4`;
 }
