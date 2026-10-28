@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import process from 'node:process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { segmentRequests } from './segment-requests.mjs';
 import { requestLifetimeProof } from './request-lifetime-proof.mjs';
@@ -13,7 +14,8 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
   await mkdir(directory, { recursive: true });
   await requestLifetimeProof(context, artifacts);
   const cdp = await context.newCDPSession(bootstrap);
-  await cdp.send('Browser.setDownloadBehavior', { behavior: 'default', eventsEnabled: true });
+  const automatic = () => cdp.send('Browser.setDownloadBehavior', { behavior: 'default', eventsEnabled: true });
+  await automatic();
   const media = {};
   for (const kind of ['video', 'audio']) {
     const path = resolve(artifacts, `owned-${kind}.mp4`);
@@ -100,6 +102,32 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
   };
   await context.route('**/*', route);
   const native = () => bootstrap.evaluate(() => globalThis.chrome.downloads.search({}));
+  // Xvfb has no window manager to focus GTK dialogs; click their actual Save button.
+  function acceptNativeSave() {
+    return JSON.parse(execFileSync('python3', ['-c', `import ctypes,json
+x=ctypes.CDLL('libX11.so.6'); t=ctypes.CDLL('libXtst.so.6')
+x.XOpenDisplay.restype=ctypes.c_void_p; d=x.XOpenDisplay(None)
+x.XDefaultRootWindow.argtypes=[ctypes.c_void_p]; x.XDefaultRootWindow.restype=ctypes.c_ulong
+r=ctypes.c_ulong(); p=ctypes.c_ulong(); windows=ctypes.POINTER(ctypes.c_ulong)(); n=ctypes.c_uint()
+x.XQueryTree.argtypes=[ctypes.c_void_p,ctypes.c_ulong,ctypes.POINTER(ctypes.c_ulong),ctypes.POINTER(ctypes.c_ulong),ctypes.POINTER(ctypes.POINTER(ctypes.c_ulong)),ctypes.POINTER(ctypes.c_uint)]
+x.XQueryTree(d,x.XDefaultRootWindow(d),ctypes.byref(r),ctypes.byref(p),ctypes.byref(windows),ctypes.byref(n))
+x.XFetchName.argtypes=[ctypes.c_void_p,ctypes.c_ulong,ctypes.POINTER(ctypes.c_char_p)]
+for window in windows[:n.value]:
+ name=ctypes.c_char_p(); x.XFetchName(d,window,ctypes.byref(name))
+ if name.value != b'Save File': continue
+ gx=ctypes.c_int(); gy=ctypes.c_int(); w=ctypes.c_uint(); h=ctypes.c_uint(); b=ctypes.c_uint(); depth=ctypes.c_uint()
+ x.XGetGeometry.argtypes=[ctypes.c_void_p,ctypes.c_ulong,ctypes.POINTER(ctypes.c_ulong),ctypes.POINTER(ctypes.c_int),ctypes.POINTER(ctypes.c_int),ctypes.POINTER(ctypes.c_uint),ctypes.POINTER(ctypes.c_uint),ctypes.POINTER(ctypes.c_uint),ctypes.POINTER(ctypes.c_uint)]
+ x.XGetGeometry(d,window,ctypes.byref(r),ctypes.byref(gx),ctypes.byref(gy),ctypes.byref(w),ctypes.byref(h),ctypes.byref(b),ctypes.byref(depth))
+ t.XTestFakeMotionEvent.argtypes=[ctypes.c_void_p,ctypes.c_int,ctypes.c_int,ctypes.c_int,ctypes.c_ulong]
+ t.XTestFakeButtonEvent.argtypes=[ctypes.c_void_p,ctypes.c_uint,ctypes.c_int,ctypes.c_ulong]
+ t.XTestFakeMotionEvent(d,-1,gx.value+w.value-50,gy.value+h.value-23,0)
+ t.XTestFakeButtonEvent(d,1,1,0); t.XTestFakeButtonEvent(d,1,0,0)
+ x.XFlush.argtypes=[ctypes.c_void_p]; x.XFlush(d)
+ print(json.dumps({'title':name.value.decode(),'width':w.value,'height':h.value}))
+ break
+else: raise RuntimeError('Native Save File dialog not found')
+`], { encoding: 'utf8' }));
+  }
   async function prepare(next) {
     mode = next;
     config.video.title = next === 'empty' ? '' : next === 'long' ? '界'.repeat(300) : hostileTitle;
@@ -203,16 +231,51 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
       await prepare(scenario);
       if (scenario === 'pair') {
         await capture('download-hls-ready');
+        // Force actual Save As dialogs with owned collisions, without replacing APIs.
+        const filenames = ['video', 'audio'].map(kind => trackFilename(filenameStem(config.video.title, '91'), kind, 1080));
+        for (const filename of filenames) await writeFile(resolve(directory, filename), 'owned collision');
+        await bootstrap.evaluate(filenames => {
+          globalThis.pendingSaves = [];
+          globalThis.promptSave = (item, suggest) => {
+            const filename = filenames[globalThis.pendingSaves.length];
+            globalThis.pendingSaves.push(item.id);
+            suggest({ filename, conflictAction: 'prompt' });
+          };
+          globalThis.chrome.downloads.onDeterminingFilename.addListener(globalThis.promptSave);
+        }, filenames);
+        await cdp.send('Browser.setDownloadBehavior', { behavior: 'default', eventsEnabled: true });
       }
       before = (await native()).length;
       owner = await start('Download 1080p');
+      if (scenario === 'pair') {
+        report.pendingSave = [];
+        for (const [index, kind] of ['video', 'audio'].entries()) {
+          await bootstrap.waitForFunction(index => globalThis.pendingSaves.length > index, index);
+          const id = await bootstrap.evaluate(index => globalThis.pendingSaves[index], index);
+          const started = Date.now();
+          await delay(32000);
+          const [pending] = await bootstrap.evaluate(id => globalThis.chrome.downloads.search({ id }), id);
+          assert.equal(pending.state, 'in_progress');
+          assert.equal(await owner.locator('#cancel').isEnabled(), true);
+          assert.equal(await owner.locator('#outcomes li[data-state="failed"]').count(), 0);
+          assert.equal(await owner.locator('#outcomes li[data-state="complete"]').count(), index);
+          assert.equal(await owner.locator('#merge-command').count(), 0);
+          execFileSync('ffmpeg', ['-v', 'error', '-f', 'x11grab', '-i', process.env.DISPLAY,
+            '-frames:v', '1', '-y', resolve(artifacts, `native-save-${kind}-pending.png`)]);
+          report.pendingSave.push({ kind, pendingMs: Date.now() - started, pending, dialog: acceptNativeSave() });
+          await owner.locator('#outcomes li[data-state="complete"]').nth(index).waitFor();
+        }
+        await bootstrap.evaluate(() => globalThis.chrome.downloads.onDeterminingFilename.removeListener(globalThis.promptSave));
+        await automatic();
+      }
       if (scenario === 'retry') {
         await owner.getByText(/Retry 1\/3/).waitFor();
         await owner.screenshot({ path: resolve(artifacts, 'download-retry-running.png') });
       }
       assert.match(owner.url(), /download\.html#[a-f0-9-]+$/);
       report[scenario] = await finish(owner, 'Both files completed.', scenario);
-      assert.equal((await native()).length - before, 2);
+      report[scenario + 'NativeCount'] = (await native()).length - before;
+      assert.equal(report[scenario + 'NativeCount'], 2);
       for (const [index, kind] of ['video', 'audio'].entries()) {
         const row = report[scenario][index];
         assert.equal(row.state, 'complete');
@@ -220,6 +283,7 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
         const requestedName = trackFilename(filenameStem(config.video.title, '91'), kind, 1080);
         assert.equal(row.path.split('/').at(-1).replace(/ \(\d+\)(\.[^.]+)$/, '$1'), requestedName);
         assert.deepEqual(await readFile(row.path), media[kind].bytes);
+        if (scenario === 'pair') report.pendingSave[index].completedBytes = media[kind].bytes.length;
         execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-i', row.path, '-f', 'null', '-']);
         if (kind === 'video') {
           const frame = resolve(artifacts, `decoded-${scenario}.png`);
@@ -274,10 +338,24 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
     report.nativeCancel = await finish(owner, 'Partial failure. The completed file is kept; the companion failed.', 'native-cancel');
     assert.deepEqual(report.nativeCancel.map(row => row.state), ['complete', 'failed']);
     assert.deepEqual(await readFile(report.nativeCancel[0].path), media.video.bytes);
+    assert.match(report.nativeCancel[1].text, /Save cancelled/);
     const cancelled = (await native()).filter(item => item.state === 'interrupted');
     assert.equal((await native()).length - before, 2);
     assert.equal(cancelled.length, 1);
     assert.equal(cancelled[0].error, 'USER_CANCELED');
+    await prepare('native-error'); before = (await native()).length;
+    const existingIds = new Set((await native()).map(item => item.id));
+    const blocked = resolve(artifacts, 'blocked-download-directory');
+    await writeFile(blocked, 'A file, not a writable directory');
+    await cdp.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: blocked, eventsEnabled: true });
+    owner = await start('Audio only');
+    report.nativeError = await finish(owner, 'Download failed. No files completed.', 'native-error');
+    const failedItems = (await native()).filter(item => !existingIds.has(item.id));
+    assert.equal(failedItems.length, 1);
+    assert.equal(failedItems[0].state, 'interrupted');
+    assert.notEqual(failedItems[0].error, 'USER_CANCELED');
+    assert.match(report.nativeError[0].text, new RegExp(`Native download ${failedItems[0].error}`));
+    await automatic();
     for (const scenario of ['partial', 'cancel', 'timeout', 'revoke', 'invalidate']) {
       await prepare(scenario); before = (await native()).length;
       owner = await start('Download 1080p');

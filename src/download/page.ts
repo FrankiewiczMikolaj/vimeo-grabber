@@ -21,6 +21,60 @@ async function source(): Promise<{ candidate: FrameCandidate; trackId: string } 
   return chrome.runtime.sendMessage({ type: 'download-source', token });
 }
 
+
+async function save(url: string, filename: string, authority: () => Promise<void>) {
+  // The extension targets ES2022, before Promise.withResolvers.
+  return new Promise<chrome.downloads.DownloadItem>((resolve, reject) => {
+    let failure: unknown;
+    let checking = false;
+    let settled = false;
+    const cleanup = () => {
+      settled = true;
+      clearInterval(validation);
+      controller.signal.removeEventListener('abort', abort);
+      chrome.downloads.onChanged.removeListener(changed);
+      activeDownload = undefined;
+    };
+    const inspect = async () => {
+      if (activeDownload === undefined || settled) return;
+      try {
+        const [item] = await chrome.downloads.search({ id: activeDownload });
+        if (!item || item.state === 'in_progress' || settled) return;
+        cleanup();
+        if (failure) reject(failure);
+        else if (item.state === 'interrupted') reject(new Error(item.error === 'USER_CANCELED' ? 'Save cancelled' : `Native download ${item.error ?? 'interrupted'}`));
+        else resolve(item);
+      } catch (error) { failure = error; abort(); }
+    };
+    const abort = () => {
+      failure ??= controller.signal.reason;
+      if (activeDownload !== undefined && !settled) {
+        void chrome.downloads.cancel(activeDownload).catch(() => {}).then(inspect);
+      }
+    };
+    const changed = (delta: chrome.downloads.DownloadDelta) => {
+      if (delta.id === activeDownload && delta.state) void inspect();
+    };
+    // Subscribe before starting; the initial read also catches completion before the ID arrives.
+    chrome.downloads.onChanged.addListener(changed);
+    controller.signal.addEventListener('abort', abort);
+    const validation = setInterval(() => {
+      if (checking || failure) return;
+      checking = true;
+      void authority().catch(error => {
+        if (!settled) { failure = error; abort(); }
+      }).finally(() => { checking = false; });
+    }, 1000);
+    void chrome.downloads.download({ url, filename, conflictAction: 'uniquify', saveAs: false }).then(id => {
+      activeDownload = id;
+      if (failure || controller.signal.aborted) abort();
+      void inspect();
+    }, error => {
+      cleanup();
+      reject(failure ?? new Error(/USER_CANCELED|cancel(?:ed|led)/i.test(String(error)) ? 'Save cancelled' : 'Native download could not start'));
+    });
+  });
+}
 async function run() {
   const current = await source();
   if (!current) throw new Error('Source document is no longer available');
@@ -61,7 +115,6 @@ async function run() {
         let objectUrl: string | undefined;
         let writer: FileSystemWritableFileStream | undefined;
         let lastProgress = performance.now();
-        let received = -1;
         const deadline = setInterval(() => {
           if (performance.now() - lastProgress >= 30000) controller.abort(new Error('Timed out after 30 seconds without progress'));
         }, 1000);
@@ -76,38 +129,26 @@ async function run() {
             segmentSummary = `${done}/${total} segments, ${(bytes / 1024 ** 2).toFixed(2)} MiB`;
             detail.textContent = `${name}: ${segmentSummary}${retryNotice}`;
           }, directory);
+          clearInterval(deadline);
           await writer.close(); writer = undefined;
           await authority();
           const assembled = await file.getFile();
           objectUrl = URL.createObjectURL(assembled.slice(0, assembled.size, `${track.kind}/mp4`));
-          activeDownload = await chrome.downloads.download({ url: objectUrl, filename: name, conflictAction: 'uniquify', saveAs: false });
-          // Read native state, including actual absolute filename; started is not completed.
-          while (true) {
-            await authority();
-            const [item] = await chrome.downloads.search({ id: activeDownload });
-            if (!item || item.state === 'interrupted') throw new Error(`Native download ${item?.error ?? 'disappeared'}`);
-            detail.textContent = `${name}: ${segmentSummary} — saving ${(item.bytesReceived / 1024 ** 2).toFixed(2)}/${item.totalBytes < 0 ? 'unknown' : (item.totalBytes / 1024 ** 2).toFixed(2)} MiB`;
-            if (item.bytesReceived !== received) { received = item.bytesReceived; lastProgress = performance.now(); }
-            if (item.state === 'complete') {
-              if (!item.filename.startsWith('/')) throw new Error('Absolute completed path unavailable');
-              detail.textContent = `${name}: ${segmentSummary} — complete — ${item.filename}`;
-              row.dataset.path = item.filename;
-              row.dataset.state = 'complete';
-              completed++;
-              paths.set(track.kind, item.filename);
-              activeDownload = undefined;
-              break;
-            }
-            await new Promise(resolve => setTimeout(resolve, 200));
-          }
+          detail.textContent = `${name}: ${segmentSummary} — waiting for native save`;
+          const item = await save(objectUrl, name, authority);
+          await authority();
+          if (!item.filename.startsWith('/')) throw new Error('Absolute completed path unavailable');
+          detail.textContent = `${name}: ${segmentSummary} — complete — ${item.filename}`;
+          row.dataset.path = item.filename;
+          row.dataset.state = 'complete';
+          completed++;
+          paths.set(track.kind, item.filename);
         } catch (error) {
-          if (activeDownload !== undefined) await chrome.downloads.cancel(activeDownload).catch(() => {});
-          activeDownload = undefined;
           await writer?.abort().catch(() => {});
           row.dataset.state = 'failed';
           // Fetch errors can contain signed URLs. Keep the user-facing error bounded and private.
           const reason = error instanceof DOMException && error.name === 'QuotaExceededError' ? 'temporary storage quota exceeded' :
-            error instanceof Error && /^(Cancelled|Timed out|Source|Exact-origin|Protected|Unsupported|No supported|Media request failed|Media size limit|File exceeds|Initialization limit|Native download)/.test(error.message)
+            error instanceof Error && /^(Cancelled|Save cancelled|Timed out|Source|Exact-origin|Protected|Unsupported|No supported|Media request failed|Media size limit|File exceeds|Initialization limit|Native download)/.test(error.message)
               ? error.message : 'assembly or native download failed';
           detail.textContent = `${name}: ${segmentSummary} — failed (${reason})`;
         } finally {

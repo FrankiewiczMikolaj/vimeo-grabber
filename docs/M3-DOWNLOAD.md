@@ -2,10 +2,10 @@
 
 These are the unreleased checkout's contracts, not the published v0.3.0 feature set.
 See README for release installation, usage, permissions, privacy, disclaimer and FAQ.
-Acknowledgement enforcement (#44), the pending-save timeout fix (#67) and further
-filename work (#68) remain queued. Chrome can already show Save As according to
-its download settings; the current notice, native save request and naming rules
-do not imply those fixes have landed.
+Acknowledgement enforcement (#44) and further filename work (#68) remain queued.
+Chrome can show Save As according to its download settings; each native save
+waits without a network timeout (#67). The current notice and naming rules do
+not imply the other queued fixes have landed.
 
 ## Outcome and boundary
 
@@ -90,6 +90,13 @@ Only network/read failures and HTTP 408/429/500/502/503/504 retry, after
 200/400/600 ms. Authority, cancellation, DRM and storage failures do not retry.
 Per-file bars report segments and MiB; retry/failure text and the keep-tab-open
 instruction stay on the owner page. Native completion alone publishes a path.
+The 30-second inactivity watchdog covers assembly network fetching only; it is
+disarmed before closing the assembled file or awaiting native saving. Native
+`downloads.onChanged` terminal events and an initial state read cover fast
+completion. Object URLs remain live until completion or interruption. Native
+`USER_CANCELED` displays “Save cancelled”; other native errors retain their code.
+Source authority and Cancel remain checked while native saving waits, without
+an elapsed-time deadline.
 Retire weaker tests rather than duplicating paths. Live Vimeo never gates CI.
 
 ### Linux merge command
