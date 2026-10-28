@@ -62,6 +62,16 @@ dialog. The second grant resolves all CDN entries on that origin, including a
 separate DASH pair, malformed JSON and protected MPD. HLS remains usable after
 denial and revocation; only the separate DASH pair receives preference. Every
 track must retain its own candidate's manifest.
+
+The popup groups candidates by normalized Vimeo video ID within the active tab.
+It selects one whole downloadable separate DASH candidate before clear HLS, without
+mixing tracks between sources. Alternative candidates remain in worker state and
+their exact-origin permission controls remain in the single card. The action proof
+combines two CDN origins, two player frames and a re-captured config, asserts one
+card, then revokes the DASH origin and asserts one usable HLS card. The matrix
+also asserts exactly two entries after removing all but two distinct video IDs.
+`one-video-two-frames.png`, `dash-revoked.png` and `two-video-ids.png` retain these
+surfaces; protected-only entries expose no download buttons.
 The AVC repair fixture supplies generic `url` and H.264 `avc_url` for each DASH
 CDN. It includes disabled DRM containers and returns inline base64 init only for
 `base64_init=1`. The compiled resolver and action proof check AVC preference,

@@ -270,6 +270,7 @@ try {
   await waitText('Allow https://second.vimeocdn.com');
   await evaluate("document.querySelector('#streams .permission button').closest('article').scrollIntoView(); true");
   await capture('hls-first');
+  assert.equal(await evaluate("document.querySelectorAll('#streams article').length"), 1);
   await activatePermission();
   await new Promise(r => setTimeout(r, 700)); key('Escape');
   await open();
@@ -317,10 +318,42 @@ try {
   diagnostics.hlsReferences = { exactPlaylistsAndGroups: true };
   await evaluate('window.scrollTo(0,0); true');
   await capture('dash-preferred');
+  // Combine both CDN origins and protocols with two live frames and a new capture.
+  const secondFrame = active.waitForEvent('framenavigated', frame => frame.url() === 'https://player.vimeo.com/video/20');
+  await active.evaluate(() => {
+    const frame = globalThis.document.createElement('iframe');
+    frame.src = 'https://player.vimeo.com/video/20';
+    globalThis.document.body.append(frame);
+  });
+  await (await secondFrame).waitForLoadState();
+  await active.frames().filter(frame => frame.url() === 'https://player.vimeo.com/video/20').at(-1)
+    .evaluate(() => {
+      const script = globalThis.document.querySelector('script[type="application/json"]');
+      const config = JSON.parse(script.textContent);
+      config.video.title = 'Recaptured owned video';
+      script.textContent = JSON.stringify(config);
+    });
+  await evaluate(`new Promise((resolve,reject) => {
+    const deadline = Date.now()+8000;
+    const check = async () => {
+      const [tab] = await chrome.tabs.query({active:true,currentWindow:true});
+      const state = await chrome.runtime.sendMessage({type:'popup-state',tabId:tab.id});
+      if (new Set(state.results.map(candidate => candidate.frameId)).size === 2 &&
+        state.results.some(candidate => candidate.title === 'Recaptured owned video') &&
+        !state.frames.some(frame => frame.status === 'pending')) return resolve(true);
+      if (Date.now()>deadline) return reject(new Error('Second frame config was not recaptured'));
+      setTimeout(check,50);
+    }; check();
+  })`);
+  await waitText('Preferred: separate DASH video and audio.');
+  assert.equal(await evaluate("document.querySelectorAll('#streams article').length"), 1);
+  await capture('one-video-two-frames');
   await evaluate("chrome.permissions.remove({origins:['https://second.vimeocdn.com/*']})");
   await waitText('Allow https://second.vimeocdn.com');
   await waitText('1920');
   assert.equal(await evaluate("document.body.innerText.includes('Preferred: separate DASH')"), false);
+  assert.equal(await evaluate("document.querySelectorAll('#streams article').length"), 1);
+  assert.equal(await evaluate("document.querySelector('#streams article').innerText.includes('HLS')"), true);
   assert.equal(await evaluate("chrome.permissions.contains({origins:['https://owned.vimeocdn.com/*']})"), true);
   await evaluate("document.querySelector('#streams .permission button').closest('article').scrollIntoView(); true");
   await capture('dash-revoked');
@@ -370,8 +403,8 @@ try {
       [item.querySelector('h3').textContent, ...[...item.querySelectorAll('dd')].map(field => field.textContent)])
   }))`);
   const byId = id => cards.find(card => card.source.endsWith('Video ' + id) && (id !== 31 || card.tracks.length));
-  assert.deepEqual([...new Set(cards.map(card => card.source))].sort(), [31, 32, 33, 34, 35].map(id => `Source: player.vimeo.com · Video ${id}`));
-  assert.ok(cards.some(card => card.source.endsWith('Video 31') && card.status === 'This metadata format is not supported.'));
+  assert.deepEqual(cards.map(card => card.source).sort(), [31, 32, 33, 34, 35].map(id => `Source: player.vimeo.com · Video ${id}`));
+  assert.equal(byId(31).status, 'Metadata found. This does not confirm playable or downloadable media.');
   assert.deepEqual(byId(31).tracks, [
     ['Video · DASH', 'video-360', 'Unknown', 'avc1.4d401e', 'video/mp4', '650000 bit/s', '640 px', '360 px', '29.97 fps', 'Unknown', 'Unknown'],
     ['Video · DASH', 'video-1080', 'Unknown', 'avc1.640028', 'video/mp4', '4200000 bit/s', '1920 px', '1080 px', '60 fps', 'Unknown', 'Unknown'],
@@ -387,6 +420,8 @@ try {
   assert.equal(byId(34).status, 'This metadata format is not supported.');
   assert.equal(byId(35).status, 'This metadata format is not supported.');
   for (const id of [33, 34, 35]) assert.deepEqual(byId(id).tracks, []);
+  assert.equal(await evaluate(`[...document.querySelectorAll('#streams article')].find(card =>
+    card.querySelector('p').textContent.endsWith('Video 33')).querySelectorAll('button').length`), 0);
   diagnostics.matrix = cards;
   const matrixCandidates = await evaluate(`(async () => {
     const [tab] = await chrome.tabs.query({active:true,currentWindow:true});
@@ -429,8 +464,16 @@ try {
   active = matrixTab;
   await open();
   await waitText('5000000 bit/s');
-  assert.equal(await evaluate("new Set([...document.querySelectorAll('#streams article')].map(card => card.querySelector('p').textContent)).size"), 5);
+  assert.equal(await evaluate("document.querySelectorAll('#streams article').length"), 5);
   await capture('tab-restored');
+  await active.locator('iframe').evaluateAll(frames => {
+    for (const frame of frames) {
+      if (/\/video\/(?:33|34|35)$/.test(frame.src)) frame.remove();
+    }
+  });
+  await waitText('2 videos detected.');
+  assert.equal(await evaluate("document.querySelectorAll('#streams article').length"), 2);
+  await capture('two-video-ids');
   // Hold a real transport response across document replacement. Release it only
   // after the new document has published its own successful result.
   await active.goto('https://player.vimeo.com/video/36');

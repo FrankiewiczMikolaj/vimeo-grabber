@@ -139,20 +139,26 @@ function render() {
   rendered = next;
   const pending = snapshot.frames.some(frame => frame.status === 'pending');
   const failed = snapshot.frames.some(frame => frame.status === 'error');
-  const count = new Set(snapshot.results.map(candidate => candidate.videoId)).size;
+  const groups = new Map<string, FrameCandidate[]>();
+  for (const candidate of snapshot.results) {
+    const group = groups.get(candidate.videoId);
+    if (group) group.push(candidate);
+    else groups.set(candidate.videoId, [candidate]);
+  }
+  const count = groups.size;
   status.textContent = count
     ? `${count} video${count === 1 ? '' : 's'} detected.${pending ? ' Looking for more qualities…' : ''}${failed ? ' Some frames could not be inspected.' : ''}`
     : pending ? 'Looking for Vimeo video metadata…'
       : failed ? 'Some Vimeo frames could not be inspected. Reload the page to try again.'
         : 'No Vimeo videos detected. Open a Vimeo page or a page with a Vimeo player. Reload existing pages after installing the extension.';
-  const preferred = new Map<string, string>();
-  for (const candidate of snapshot.results) {
-    if (candidate.status === 'found' && candidate.manifest?.protocol === 'dash'
-      && candidate.tracks.some(track => track.kind === 'video') && candidate.tracks.some(track => track.kind === 'audio')
-      && !preferred.has(candidate.videoId)) preferred.set(candidate.videoId, candidate.id);
-  }
-  const cards = [...snapshot.results].sort((a, b) =>
-    Number(preferred.get(b.videoId) === b.id) - Number(preferred.get(a.videoId) === a.id)).map(candidate => {
+  const rank = (candidate: FrameCandidate) => {
+    const paired = candidate.tracks.some(track => track.kind === 'video' && selection(candidate, track.id).length === 2);
+    if (paired) return candidate.manifest?.protocol === 'dash' ? 0 : 1;
+    if (audioFor(candidate)) return 2;
+    return candidate.status === 'found' ? 3 : 4;
+  };
+  const cards = [...groups.values()].map(alternatives => {
+    const candidate = alternatives.reduce((best, next) => rank(next) < rank(best) ? next : best);
     const card = document.createElement('article');
     card.append(element('h2', candidate.title?.trim() ? candidate.title : `Vimeo video ${candidate.videoId}`));
     let source = 'Unknown';
@@ -161,12 +167,12 @@ function render() {
     card.append(element('p', candidate.manifest
       ? `${candidate.manifest.protocol.toUpperCase()} · CDN ${candidate.manifest.cdn} · Frame ${candidate.frameId} · ${candidate.source.configUrl ? 'Fetched config' : 'Inline config'}`
       : `Config metadata · Frame ${candidate.frameId}`));
-    if (preferred.get(candidate.videoId) === candidate.id) card.append(element('p', 'Preferred: separate DASH video and audio.'));
+    if (rank(candidate) === 0) card.append(element('p', 'Preferred: separate DASH video and audio.'));
     const audio = audioFor(candidate);
     const choices = candidate.tracks.filter(track => track.kind === 'video' && selection(candidate, track.id).length === 2);
     if (candidate.manifest?.protocol === 'hls' && choices.length) {
-      const protectedDash = snapshot!.results.some(other => other.videoId === candidate.videoId &&
-        other.frameId === candidate.frameId && other.manifest?.protocol === 'dash' && other.status === 'protected');
+      const protectedDash = alternatives.some(other =>
+        other.manifest?.protocol === 'dash' && other.status === 'protected');
       card.append(element('p', `${protectedDash ? 'DASH is protected. ' : ''}Plain HLS video and matching separate audio are available.`));
     }
     for (const track of [...choices, ...(audio ? [audio] : [])]) {
@@ -180,8 +186,8 @@ function render() {
       });
       card.append(button);
     }
-    for (const origin of originsFor(candidate)) {
-      card.append(renderPermission(origin, candidate.permissionOrigins.includes(origin)));
+    for (const origin of new Set(alternatives.flatMap(originsFor))) {
+      card.append(renderPermission(origin, alternatives.some(other => other.permissionOrigins.includes(origin))));
     }
     if (candidate.tracks.length) {
       const tracks = document.createElement('ul');
