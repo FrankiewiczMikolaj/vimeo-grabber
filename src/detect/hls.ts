@@ -100,7 +100,10 @@ export function parseHls(text: string, manifest: ManifestReference, responseUrl 
       }
     }
     if (pending) throw new Error('Missing variant URI');
-    const protection = hlsProtection(text, [manifest.url, responseUrl, ...variants.map(v => v.uri),
+    const mediaVariants = variants.filter(({ attributes: a, uri }) =>
+      !/\.vtt$/i.test(new URL(uri).pathname) &&
+      !a.CODECS?.split(',').every(codec => /^(?:wvtt|stpp)(?:\.|$)/i.test(codec.trim())));
+    const protection = hlsProtection(text, [manifest.url, responseUrl, ...mediaVariants.map(v => v.uri),
       ...audioGroups.flatMap(group => group.uri === null || /\.vtt$/i.test(new URL(group.uri).pathname) ? [] : [group.uri])]);
     const protectedContent = protection === 'protected';
     unsupported ||= protection === 'unsupported';

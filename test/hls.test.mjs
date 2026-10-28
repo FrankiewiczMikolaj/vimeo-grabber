@@ -72,6 +72,12 @@ test('cbcs master and selected audio/video locators protect candidates, not subt
   const audio = '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="main",NAME="Main",URI="audio.m3u8"';
   const master = `${variant(',AUDIO="main"', 'video.m3u8')}\n${subtitle}\n${audio}`;
   assert.equal(parseHls(master, manifest).status, 'found');
+  for (const subtitleVariant of [
+    '#EXT-X-STREAM-INF:BANDWIDTH=1,CODECS="wvtt"\n/drm/subtitles.vtt',
+    '#EXT-X-STREAM-INF:BANDWIDTH=1,CODECS="stpp.ttml.im1t"\n/drm/subtitles.m3u8',
+  ]) {
+    assert.equal(parseHls(master.replace('#EXTM3U', `#EXTM3U\n${subtitleVariant}`), manifest).status, 'found');
+  }
   for (const text of [master.replace('video.m3u8', '/v2/playlist/drm/cbcs/video.m3u8'),
     master.replace('audio.m3u8', '/v2/playlist/drm/cbcs/audio.m3u8')]) {
     const result = parseHls(text, manifest);

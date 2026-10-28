@@ -36,9 +36,10 @@ Unknown tags are ignored. Media playlists, I-frame variants and variable definit
 are unsupported; this parser does not expand variables or fetch children.
 `hlsProtection` is shared by detection and download-time media-playlist assembly.
 Any `/drm/` path segment in the master, response, video variant or audio rendition
-URL marks the candidate protected. Subtitle renditions and `.vtt` audio locators
-do not supply protection evidence. All video/audio locators are inspected, not
-the first `EXT-X-MEDIA` entry. KEY/SESSION-KEY `SAMPLE-AES` and `SAMPLE-AES-CTR`,
+URL marks the candidate protected. Subtitle renditions, `.vtt` locators and variants
+whose declared codecs are only `wvtt`/`stpp` do not supply protection evidence.
+All video/audio locators are inspected, not the first `EXT-X-MEDIA` entry.
+KEY/SESSION-KEY `SAMPLE-AES` and `SAMPLE-AES-CTR`,
 FairPlay, Widevine and PlayReady KEYFORMAT declarations also mark it protected.
 Protected candidates offer no download buttons and use the same wording as DASH.
 AES-128 alone is unsupported encryption, not DRM; NONE alone is clear.
