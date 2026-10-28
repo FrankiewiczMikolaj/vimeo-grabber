@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { execFileSync } from 'node:child_process';
+import { Buffer } from 'node:buffer';
 import { filenameStem, trackFilename } from '../src/download/filename.ts';
 import { mergeCommand } from '../src/shell/linux.ts';
 
