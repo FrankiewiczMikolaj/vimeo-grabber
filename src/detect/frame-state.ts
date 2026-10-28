@@ -121,6 +121,13 @@ export function createFrameState(extensionId: string, resolve: FrameResolver) {
     },
     clearTab(tabId: number) { tabs.delete(tabId); },
     clear() { tabs.clear(); },
+    videoCount(tabId: number): number {
+      const ids = new Set<string>();
+      for (const frame of tabs.get(tabId)?.values() ?? []) {
+        for (const candidate of frame.results) ids.add(candidate.videoId);
+      }
+      return ids.size;
+    },
     frames(tabId: number): readonly FramePublication[] {
       return structuredClone([...(tabs.get(tabId)?.values() ?? [])]);
     },

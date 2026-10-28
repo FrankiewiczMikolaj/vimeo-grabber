@@ -44,6 +44,9 @@ matching child frames under unrelated sites. The extension requires
 needs CDN access, the popup can request that exact encountered HTTPS origin on
 `vimeocdn.com` after you click its permission button. Denying access leaves the
 video visible without those qualities. Revoking access refreshes detection.
+The toolbar badge shows the tab's unique Vimeo video count, without opening the
+popup. Multiple CDNs, frames and captures of the same video count once. Zero
+videos leaves no badge. Navigation clears the previous document's count.
 The `downloads` permission observes native completion and actual saved paths.
 No `activeTab`, `tabs`, scripting, or broad site permission is used.
 The `storage` permission saves only `{ rightsAcknowledged: true }` locally in
