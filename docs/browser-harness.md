@@ -11,8 +11,8 @@ quality-button gesture opens the dedicated owner page and saves native downloads
 Use Node 24+, the pinned pnpm version, Playwright 1.64.1 and its installed
 Chromium revision 1248. Linux execution needs `xvfb-run`, Python 3, libX11 and
 libXtst for native permission-dialog key input; Playwright's Chromium dependencies
-provide the X11 libraries. FFmpeg with libx264 and AAC generates and decodes the tiny
-owned files; `mise.toml` pins the local static build. Provision these tools before
+provide the X11 libraries. FFmpeg with libx264 and AAC generates and decodes the
+owned 1920x1080 video and matching audio; `mise.toml` pins the local static build. Provision these tools before
 the harness; the harness does not install system packages.
 
 ```sh
@@ -97,8 +97,13 @@ the harness restores Chromium's default download behavior so suggested filenames
 are not replaced by CDP GUIDs. Downloads API state and disk bytes must agree.
 
 Clear HLS with protected DASH produces exactly two files. Clear DASH covers inline
-video initialization, URL audio initialization and two ordered media pieces.
-FFmpeg decodes both completed outputs. Audio only produces exactly one audio file.
+video initialization and URL audio initialization. Both use at least six real
+media fragments, with video segments above 2 MiB. Held responses complete out of
+order with exactly five requests in flight; exact native bytes must still match
+initialization-first source order. One segment returns 503 three times before
+succeeding on attempt four; another exhausts all four attempts. Recorded request
+times must show backoff. FFmpeg decodes both completed outputs and extracts a
+1920x1080 frame from the saved video. Audio only produces exactly one audio file.
 A held companion proves progress after video completes, then network failure,
 Cancel, a real 30-second idle timeout, permission revocation and document replacement
 must preserve the completed video and report partial failure. Encrypted playlists,
