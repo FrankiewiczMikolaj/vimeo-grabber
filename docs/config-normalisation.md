@@ -18,8 +18,8 @@ The frame observer and worker resolver use this shared model for detection.
   in object order; DASH precedes HLS. DASH `avc_url` (H.264) precedes generic `url`.
   Identical URLs within one protocol/CDN appear once; other alternatives remain.
 - URLs are returned verbatim, including escapes, repeated queries and empty values.
-  Validation does not authorise an origin or prove a playable response. The future
-  fetch broker must validate provenance, allowed origins, permissions and redirects.
+  Validation does not authorise an origin or prove a playable response. The
+  metadata transport validates provenance, allowed origins, permissions and redirects.
 - `source` is a shallow copy of caller-supplied provenance. No identity or URL is
   derived from it. Signed config URLs must remain in memory, not diagnostics.
 - `status` is `protected` for positive root/video DRM or encryption declarations;

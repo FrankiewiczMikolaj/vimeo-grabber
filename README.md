@@ -16,9 +16,9 @@ pnpm install --frozen-lockfile
 pnpm verify
 ```
 
-`verify` runs ESLint, TypeScript, a production build, Node unit checks of the
-built extension's permission and popup boundaries, then an unpacked Chromium
-smoke. It does not contact Vimeo. Run it before every push.
+`verify` runs ESLint, TypeScript (including unused locals and parameters), Knip,
+a production build, Node unit checks, then an unpacked Chromium smoke.
+It does not contact Vimeo. Run it before every push.
 
 The smoke uses Playwright **1.64.1**, `channel: 'chromium'`, and the installed
 Chromium browser. On a new Linux developer machine, provision the browser with
@@ -28,8 +28,8 @@ profile. See [the harness entry and limits](docs/browser-harness.md).
 
 - `pnpm dev`: Vite development server.
 - `pnpm build`: production extension in `dist/`.
-- `pnpm lint`, `pnpm typecheck`: static checks.
-- `pnpm unit`: manifest contract checks; run `pnpm build` first.
+- `pnpm lint`, `pnpm typecheck`, `pnpm deadcode`: static checks.
+- `pnpm unit`: parser, state, transport, download and shell regression checks.
 - `pnpm smoke`: installed-browser check; run `pnpm build` first.
 
 ## Load the extension

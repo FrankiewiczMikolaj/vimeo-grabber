@@ -120,7 +120,6 @@ export function createFrameState(extensionId: string, resolve: FrameResolver) {
       if (!frames?.size) tabs.delete(tabId);
     },
     clearTab(tabId: number) { tabs.delete(tabId); },
-    clear() { tabs.clear(); },
     frames(tabId: number): readonly FramePublication[] {
       return structuredClone([...(tabs.get(tabId)?.values() ?? [])]);
     },

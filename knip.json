@@ -1,0 +1,13 @@
+{
+  "$schema": "https://unpkg.com/knip@6.43.0/schema.json",
+  "entry": [
+    "src/worker.ts",
+    "src/detect/content.ts",
+    "src/popup.ts",
+    "scripts/smoke.mjs",
+    ".omp/extensions/limen.ts",
+    ".pi/extensions/limen.ts"
+  ],
+  "project": ["src/**/*.ts", "scripts/**/*.mjs", "test/**/*.mjs", "*.{ts,js}", ".{omp,pi}/extensions/*.ts"],
+  "ignoreBinaries": ["ffmpeg"]
+}

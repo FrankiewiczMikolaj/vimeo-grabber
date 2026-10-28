@@ -22,7 +22,7 @@ observers, inspect another frame's document, or change the existing runtime.
   then supplied observed resource URLs in input order, then derived URLs from the
   current frame and iframe `src` attributes in DOM order. Deduplicate identical
   resolved URLs, not video IDs or queries. Fetch scheduling/identity aggregation
-  belongs to the future runtime; an unavailable inline result is not terminal.
+  belongs to the worker runtime; an unavailable inline result is not terminal.
 - Explicit config endpoints must resolve to HTTPS `player.vimeo.com/video/ID/config`.
   Derived endpoints accept HTTPS `player.vimeo.com/video/ID`, `vimeo.com/ID`,
   `www.vimeo.com/ID`, and public `/ID/unlistedHash` paths, with optional trailing

@@ -93,16 +93,15 @@ test('compiled broker validates real Chrome senders and rejects stale document c
       check(state.candidates(1)[0].permissionOrigins[0] === 'https://owned.vimeocdn.com', 'exact permission retained');
       const other = { ...sender, tab: { id: 2 } }; state.activate(2, 0, 'a');
       const isolated = state.publish(message, other); jobs[3].resolve(resolved('77', sender.url)); await isolated;
-      for (const action of ['activate', 'remove', 'clearTab', 'clear']) {
+      for (const action of ['activate', 'remove', 'clearTab']) {
         state.activate(1, 2, 'b'); const held = state.publish(message, second);
         const job = jobs.at(-1);
         if (action === 'activate') state.activate(1, 2, 'new');
         if (action === 'remove') state.remove(1, 2, 'b');
         if (action === 'clearTab') state.clearTab(1);
-        if (action === 'clear') state.clear();
         job.resolve(resolved('88', second.url)); await held;
         check(state.candidates(1).length === 0, action + ' blocks resurrection');
-        if (action !== 'clear') check(state.candidates(2)[0].videoId === '77', 'tab isolation');
+        check(state.candidates(2)[0].videoId === '77', 'tab isolation');
       }
       check(!await state.publish(message, second), 'no implicit reactivation');
       state.activate(1, 2, 'b'); const failed = state.publish(message, second);

@@ -1,10 +1,10 @@
 import type { DetectionStatus, ManifestReference, Track } from './model';
 
 type Attributes = Readonly<Record<string, string>>;
-export interface HlsTrack extends Track {
+interface HlsTrack extends Track {
   readonly attributes: Attributes;
 }
-export interface HlsAudioRendition {
+interface HlsAudioRendition {
   readonly groupId: string;
   readonly name: string;
   readonly uri: string | null;

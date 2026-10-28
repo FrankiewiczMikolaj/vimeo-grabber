@@ -28,7 +28,7 @@ videos only, never tabs, frames or documents.
   the destination is unrelated and cannot run a content script. Basic
   `chrome.tabs.onUpdated` loading status and `onRemoved` do not require the `tabs`
   permission; do not read privileged tab URL fields. Frame connections must close
-  on pagehide/removal, including nested frames. Use `clear()` when retiring the broker.
+  on pagehide/removal, including nested frames.
 - After worker restart, reconnect live matching content scripts, authenticate their
   current connections, activate their documents, and request fresh full snapshots.
   Do not restore old signed URLs. Registration and publication rebuild empty state.
@@ -39,7 +39,7 @@ videos only, never tabs, frames or documents.
 `frames(tab)` returns detached per-document snapshots: activation starts ready and
 empty; publication replaces old results with pending; completion becomes ready;
 rejection becomes error with no retained exception. A newer publication, activation,
-removal or clear invalidates the old completion, including old errors.
+removal or tab clearing invalidates the old completion, including old errors.
 `publish` returns false for invalid/unregistered reports and true for admitted work,
 not a promise that the document remains live or resolution succeeds.
 
@@ -80,9 +80,9 @@ Chrome permission state and says “not granted or was denied” if still ungran
 It never infers that an abandoned or failed request was an explicit refusal.
 Grant/revocation events replay reports and invalidate earlier resolution results.
 
-The popup counts unique video IDs but renders each candidate independently.
-For each video, the first found DASH candidate with both separate video and audio
-is marked preferred and listed first. HLS remains visible. A DASH video-only
-candidate and a separate audio-only candidate cannot form a preferred pair.
+The popup counts unique video IDs and renders one card per video. It chooses one
+whole separate DASH candidate before usable HLS, then Audio only or other results.
+Alternatives remain in worker state. A DASH video-only candidate and a separate
+audio-only candidate cannot form a preferred pair.
 Permission controls depend on each candidate's missing origin, never another
 candidate's success. Denial/revocation notices are shared only for that exact origin.

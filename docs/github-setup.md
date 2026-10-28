@@ -18,7 +18,10 @@ Do not add Project assignment to issue forms or call those APIs for this setup.
 Keep M0 PRs draft and assign milestone `M0 Foundation` to each M0 PR and issue.
 Only Mikołaj merges.
 
-## Pending owner settings
+## Recorded setup limits (2026-10-27)
+
+These are the initial setup observations, not the current protection/check state.
+See `spec/build.md` and [the current CI checks](ci.md) for the later owner record.
 
 - Require pull requests before changes reach `main`.
 - Select required status checks only after CI has run and stable check names are observed.

@@ -1,0 +1,126 @@
+# Dead-code checks and cleanup evidence
+
+Run `pnpm deadcode` for pinned Knip 6.43.0. `pnpm verify` runs it after ESLint
+and TypeScript. TypeScript enables `noUnusedLocals` and `noUnusedParameters`;
+ESLint's recommended JavaScript and TypeScript rules check unused bindings in
+source, scripts and tests. CI uses the same locked command, with no network
+lookup by Knip. No dependency or export category is disabled.
+
+## Entrypoints and exceptions
+
+- `vite.config.ts` is Vite's config entry. Its CRXJS manifest supplies the
+  service worker (`src/worker.ts`), static all-frame content script
+  (`src/detect/content.ts`) and action HTML (`popup.html` → `src/popup.ts`).
+  Knip does not follow the nested CRXJS manifest, so these three TypeScript
+  roots are explicit in `knip.json`.
+- Vite's `build.rollupOptions.input.download` supplies `download.html` →
+  `src/download/page.ts`; Knip's Vite plugin follows this HTML input.
+  The worker opens this page using `chrome.runtime.getURL`, not an import.
+- `scripts/smoke.mjs` is invoked through `xvfb-run -a env SMOKE_HEADED=1 node`
+  in the package smoke script. It imports `download-proof.mjs`, which imports
+  `request-lifetime-proof.mjs` and `segment-requests.mjs`. Only the shell-wrapped
+  root needs an explicit entry; helpers are reached through imports.
+- Node's test script selects `test/*.test.mjs`. Knip's test/Vite plugins follow
+  these tests and their build-library entry strings. Tests use compiled modules
+  in generated workers, data URLs and browser evaluation strings.
+- `.omp/extensions/limen.ts` and `.pi/extensions/limen.ts` are external agent-loader
+  entries. Each exports its host callback and dynamically imports installed
+  Limen hooks from `LIMEN_PACKAGE` or PATH. Neither is extension bundle code.
+- `ffmpeg` is the only `ignoreBinaries` exception: it is a system executable,
+  pinned locally by `mise.toml` and installed with apt in CI. The native download
+  harness calls it to generate, decode and merge owned media. It is not an npm
+  dependency. There are no ignored files, dependencies or exports.
+
+Knip does not prove CSS selector, JSON/HTML/media fixture or prose reachability.
+Those need manual review. TypeScript API types used through exported signatures
+are not necessarily imported by name. Knip also does not detect arbitrary object
+methods reached only by tests; the broker's removed `clear()` was such a finding.
+
+## Removals and reachability
+
+Baseline: main `be179903aba2cbab3c464ce343b69da25007e419`.
+
+- **Source exports:** removed only `export` from `METADATA_LIMIT` and
+  `METADATA_TIMEOUT` in `src/detect/metadata.ts`. Repository references occur
+  only in that module's request timeout and body/header size checks. Values and
+  checks remain. Removed only `export` from `HlsTrack` and `HlsAudioRendition`
+  in `src/detect/hls.ts`; both remain local types for the parser's result/data.
+  No import or browser-evaluation string consumes these four names elsewhere.
+- **Source method:** removed `createFrameState().clear()`. The sole production
+  broker is in `src/worker.ts`; it uses `activate`, `publish`, `remove`, `frames`,
+  `candidates` and `clearTab`, never `clear`. Browser worker teardown drops the
+  broker itself. Repository-wide `clear()` call review found only the test case.
+- **Tests:** removed the `clear` branch from the frame-state invalidation matrix
+  and its conditional tab-isolation exception. Kept activation, document removal
+  and tab clearing, each rejecting a held stale completion and preserving the
+  other tab. No test file or supported-path regression was removed or added.
+- **Docs:** removed instructions to retire a broker with `clear()` and stale
+  independent-card/first-DASH wording in `docs/FRAME-STATE.md`; current popup
+  ranking selects one whole candidate per video and retains other candidates.
+  Removed future-runtime/future-writer descriptions in `docs/metadata.md`,
+  `docs/config-discovery.md`, `docs/config-normalisation.md`, `docs/dash-json.md`.
+  Scoped zero-media smoke wording to the detection phase in `docs/dash-mpd.md`.
+  Marked the initial setup limits as dated in `docs/github-setup.md`, retaining
+  the dated observations. Replaced README's obsolete manifest-unit-test wording.
+- **Scripts, fixtures, dependencies, CSS and other config:** no proven dead
+  material found; no removals. Knip reports no unused or unlisted npm dependency
+  after the entrypoint map. The added development dependency is exactly pinned.
+
+## Manual coverage and retained behavior
+
+- **All source:** read detect parsers/model/protection, discovery/observer/content,
+  transport/resolver/frame state; popup and worker; download selection, init,
+  assembly, filenames/page; Linux shell generation. No acknowledgement repair,
+  permission cutover, UI/UX change or technical-details hiding is included.
+- **CSS and HTML:** every selector has a current static or generated element:
+  popup eyebrow, articles, tracks, detail list, permission controls/footer and
+  download-page rows/buttons. Both HTML scripts are live build entries.
+- **All four scripts:** smoke owns real action/permission/notice lifecycle;
+  download proof owns native saves/ffmpeg; lifetime proof challenges cancellation
+  accounting; segment helper observes request terminal events. Failure-injection
+  flags and evidence-directory options are documented executable proof paths.
+- **All twelve test files:** behavior coverage remains for parser boundaries,
+  provenance, permission admission, stale completion, observation and discovery,
+  candidate-bound selection, assembly limits, filenames and literal shell paths.
+  The composition test protects rejection of unsupported hosts before fallback;
+  it is not a mock echo. The only retired branch exercised the dead broker method.
+- **All eight fixtures:** `player-configs.json` is read by normalisation tests;
+  `dash-json.json` by JSON tests, the AVC helper and smoke; `dash-mpd.mpd` and
+  `hls-master.m3u8` by parser tests and smoke; both discovery HTML files by discovery
+  tests; `dash-avc-config.json` by `dash-avc-response.mjs`, imported by resolver
+  tests and smoke. Unknown/negative fixture fields exercise ignored metadata,
+  progressive rejection, malformed-first fallback or inactive DRM; keep them.
+- **Docs/spec:** read README and all docs, active download tickets, historical
+  scaffold notes and quality report; reviewed historical feature references.
+  Preserve human-owned vision, board, ticket/outcome files, dated M2 plans and
+  prior-run evidence. Historical claims refer to their recorded revisions, not
+  current code. No active worker evidence is removed.
+- **Config:** reviewed package scripts/dependencies/lockfile, TS/Vite/ESLint,
+  both HTML entries, mise/gitignore, CI/CodeQL/Dependabot, issue/PR templates,
+  CODEOWNERS, agent styleguide and both Limen loaders. `saxes` is bundled by the
+  MPD parser; all development dependencies serve build, types, lint, harness or
+  the new guard. CI still invokes `pnpm verify`; no workflow bypass is added.
+
+The optional CDN permission/Allow flow is **live and unchanged**: manifest
+`optional_host_permissions`, popup origin discovery/request/poll/revocation,
+worker permission-attempt/replay, transport permission-needed results, download
+exact-origin checks and native deny/grant/revoke proof must remain together.
+Delete these only in the later atomic required-host-access all-sites cutover
+(issue #54 item 11). Badge PR #60 is not modified. Acknowledgement enforcement
+is a separate repair rebuilt from main after this cleanup merges.
+
+## Tool observations
+
+The default Knip scan reported 12 unused files, 3 unused exports and 4 unused
+exported types. These were not safe deletions: the entrypoint map removed its
+false positives and exposed the real findings. The precise configured baseline
+reported 2 unused exports and 2 unused exported types (the four names above),
+with no unused dependency finding. After cleanup Knip emitted no diagnostics.
+The initial TypeScript invocation with both unused flags emitted no diagnostics;
+ESLint also passed before cleanup. An orphan `src/unused-proof.ts` challenge made
+`pnpm deadcode` exit 1 with `Unused files (1)`; the temporary file was removed.
+
+Raw before/after tool output, scoped frame-state results, full native verification,
+screenshots and hosted-check metadata are retained with the job evidence and
+linked in the PR body. Empty Knip output is a successful scan, not a claim that
+all runtime, CSS or prose dead code can be proved absent automatically.
