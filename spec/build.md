@@ -24,6 +24,7 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 ## Repository setup
 
 - Mikołaj configured main protection; `Verify extension` and CodeQL must run on every PR, including planning and documentation drafts.
+- Ready notifications require the latest-main integration and final-head checks in `docs/ci.md`; fetch again after CI and repeat if main advanced.
 - Milestones M0–M5 and Backlog v1.1+ exist; the public Project auto-adds open issues and PRs, so make no Projects or Administration API calls.
 - Observed successful checks: `Verify extension` (PR #3 run 40480741113) and `CodeQL JavaScript/TypeScript` (PR #7 run 40482301541, including completed results upload).
 - Dependabot PRs #9–#12 belong to Mikołaj; do not edit, update, close, merge, or otherwise manage them.
@@ -38,6 +39,7 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 <!-- Generated from spec/features/active/ by limen land, limen ticket done and limen board --write. Edit the tickets, not these lines. -->
 
+- `F026-one-quality-click-saves-video-and-matching-audio` (🟠 ACTIVE): One quality click saves video and matching audio
 - `F023-users-download-separate-vimeo-video-and-audio-with-a-safe-merge-command` (🟠 ACTIVE): Users download separate Vimeo video and audio with a safe merge command
 
 ## NEXT
@@ -67,7 +69,7 @@ Durable choices. Pass these flags explicitly on every spawn/continue. Full text:
 
 ## PARKED
 
-- Bob/Mikołaj paused M3 starts with about 5% Codex 5h left; save preparation only, no jobs, no saved reset or provider switch, resume only on Bob's instruction after the expected 04:15 reset.
+- (none)
 
 ## DROPPED
 
