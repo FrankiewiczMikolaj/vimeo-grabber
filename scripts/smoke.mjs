@@ -8,6 +8,7 @@ import { setTimeout, clearTimeout } from 'node:timers';
 import { execFileSync } from 'node:child_process';
 import { chromium } from 'playwright';
 import { avcConfig, dashAvcResponse } from '../test/fixtures/dash-avc-response.mjs';
+import { downloadProof } from './download-proof.mjs';
 
 const extension = resolve(process.env.SMOKE_EXTENSION_DIR ?? 'dist');
 const artifacts = resolve(process.env.SMOKE_ARTIFACT_DIR ?? 'artifacts/headed');
@@ -73,7 +74,7 @@ async function waitText(text) {
 }
 async function activatePermission() {
   await evaluate(`(() => {
-    const button = document.querySelector('#streams button');
+    const button = document.querySelector('#streams .permission button');
     button.scrollIntoView();
     button.focus();
     return true;
@@ -91,8 +92,12 @@ async function fixtureResponse(promise) {
 }
 try {
   const manifest = JSON.parse(await readFile(`${extension}/manifest.json`, 'utf8'));
-  assert.ok(!manifest.permissions?.includes('downloads'));
+  assert.deepEqual(manifest.permissions, ['downloads']);
   assert.deepEqual(manifest.host_permissions, ['https://player.vimeo.com/*']);
+  await mkdir(resolve(profile, 'Default'), { recursive: true });
+  await writeFile(resolve(profile, 'Default/Preferences'), JSON.stringify({ download: {
+    default_directory: resolve(artifacts, 'native-downloads'), prompt_for_download: false,
+  } }));
   assert.deepEqual(manifest.optional_host_permissions, ['https://*.vimeocdn.com/*']);
   context = await chromium.launchPersistentContext(profile, { channel: 'chromium', headless: false,
     args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`] });
@@ -214,7 +219,6 @@ try {
   await open();
   await waitText('owned.vimeocdn.com');
   assert.equal(await evaluate("document.querySelectorAll('#streams img').length"), 0);
-  assert.equal(await evaluate("typeof chrome.downloads"), 'undefined');
   await capture('permission-needed');
   await active.frames().find(frame => frame.url().startsWith('https://player.vimeo.com/'))
     .evaluate(() => {
@@ -264,14 +268,14 @@ try {
   await capture('audio-footer');
   // HLS has succeeded. A different exact origin must remain requestable.
   await waitText('Allow https://second.vimeocdn.com');
-  await evaluate("document.querySelector('#streams button').closest('article').scrollIntoView(); true");
+  await evaluate("document.querySelector('#streams .permission button').closest('article').scrollIntoView(); true");
   await capture('hls-first');
   await activatePermission();
   await new Promise(r => setTimeout(r, 700)); key('Escape');
   await open();
   await waitText('Access to https://second.vimeocdn.com was not granted or was denied');
   await waitText('1920');
-  await evaluate("document.querySelector('#streams button').closest('article').scrollIntoView(); true");
+  await evaluate("document.querySelector('#streams .permission button').closest('article').scrollIntoView(); true");
   await capture('dash-denied');
   await activatePermission();
   await new Promise(r => setTimeout(r, 700)); key('Tab'); key('Return');
@@ -318,7 +322,7 @@ try {
   await waitText('1920');
   assert.equal(await evaluate("document.body.innerText.includes('Preferred: separate DASH')"), false);
   assert.equal(await evaluate("chrome.permissions.contains({origins:['https://owned.vimeocdn.com/*']})"), true);
-  await evaluate("document.querySelector('#streams button').closest('article').scrollIntoView(); true");
+  await evaluate("document.querySelector('#streams .permission button').closest('article').scrollIntoView(); true");
   await capture('dash-revoked');
   diagnostics.independentCandidates = candidates.map(candidate => ({
     videoId: candidate.videoId, protocol: candidate.manifest?.protocol, cdn: candidate.manifest?.cdn,
@@ -358,7 +362,7 @@ try {
   });
   await waitText('5 videos detected.');
   await waitText('5000000 bit/s');
-  await waitText('Protected content.');
+  await waitText('Protected (DRM)');
   await waitText('This metadata format is not supported.');
   const cards = await evaluate(`[...document.querySelectorAll('#streams article')].map(card => ({
     source: card.querySelector('p').textContent, status: card.querySelectorAll('p')[1].textContent,
@@ -380,7 +384,6 @@ try {
     ['Audio · DASH', 'english', 'sound', 'mp4a.40.2', 'audio/mp4', '128000 bit/s', 'Unknown', 'Unknown', 'Unknown', 'en', '2'],
     ['Audio · DASH', 'polish', 'sound', 'mp4a.40.2', 'audio/mp4', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'pl', '6'],
   ]);
-  assert.equal(byId(33).status, 'Protected content. No usable tracks are offered.');
   assert.equal(byId(34).status, 'This metadata format is not supported.');
   assert.equal(byId(35).status, 'This metadata format is not supported.');
   for (const id of [33, 34, 35]) assert.deepEqual(byId(id).tracks, []);
@@ -484,6 +487,8 @@ try {
   diagnostics.referenceOnly = { unexpectedRequests: diagnostics.unexpected.length,
     mediaInitKeyLicenseRequests: diagnostics.requests.filter(value => /\.(?:m4s|mp4|ts|key)(?:[?]|$)|license/.test(value)).length };
   assert.equal(diagnostics.referenceOnly.mediaInitKeyLicenseRequests, 0);
+  diagnostics.downloads = await downloadProof({ context, active, bootstrap, open, evaluate, waitText, capture, key, artifacts });
+  assert.deepEqual(diagnostics.unexpected, []);
   await session.detach();
 } catch (error) {
   failure = error; diagnostics.error = error.stack;

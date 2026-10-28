@@ -1,6 +1,7 @@
 import './popup.css';
 import type { FrameCandidate, FramePublication } from './detect/frame-state';
 import type { DetectionStatus, Track } from './detect/model';
+import { audioFor, selection } from './download/select';
 
 type PopupState = { frames: readonly FramePublication[]; results: readonly FrameCandidate[]; attemptedOrigins: readonly string[] };
 type PermissionState = {
@@ -23,7 +24,7 @@ const labels: Record<DetectionStatus, string> = {
   unavailable: 'Qualities are unavailable.',
   'permission-needed': 'Metadata access is needed to inspect qualities.',
   denied: 'Metadata access was denied. Qualities are unavailable.',
-  protected: 'Protected content. No usable tracks are offered.',
+  protected: 'Protected (DRM), cannot download. No usable tracks are offered.',
   unsupported: 'This metadata format is not supported.',
 };
 
@@ -161,6 +162,24 @@ function render() {
       ? `${candidate.manifest.protocol.toUpperCase()} · CDN ${candidate.manifest.cdn} · Frame ${candidate.frameId} · ${candidate.source.configUrl ? 'Fetched config' : 'Inline config'}`
       : `Config metadata · Frame ${candidate.frameId}`));
     if (preferred.get(candidate.videoId) === candidate.id) card.append(element('p', 'Preferred: separate DASH video and audio.'));
+    const audio = audioFor(candidate);
+    const choices = candidate.tracks.filter(track => track.kind === 'video' && selection(candidate, track.id).length === 2);
+    if (candidate.manifest?.protocol === 'hls' && choices.length) {
+      const protectedDash = snapshot!.results.some(other => other.videoId === candidate.videoId &&
+        other.frameId === candidate.frameId && other.manifest?.protocol === 'dash' && other.status === 'protected');
+      card.append(element('p', `${protectedDash ? 'DASH is protected. ' : ''}Plain HLS video and matching separate audio are available.`));
+    }
+    for (const track of [...choices, ...(audio ? [audio] : [])]) {
+      const button = element('button', track.kind === 'audio' ? 'Audio only' :
+        `Download ${track.height ? `${track.height}p` : track.id}`);
+      button.addEventListener('click', () => {
+        button.disabled = true;
+        void chrome.runtime.sendMessage({ type: 'download-start', tabId, candidateId: candidate.id, trackId: track.id })
+          .then(started => { if (!started) status.textContent = 'Download unavailable. Refresh the source and try again.'; })
+          .finally(() => { button.disabled = false; });
+      });
+      card.append(button);
+    }
     for (const origin of originsFor(candidate)) {
       card.append(renderPermission(origin, candidate.permissionOrigins.includes(origin)));
     }

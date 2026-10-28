@@ -11,6 +11,7 @@ export interface ManifestReference {
   readonly protocol: Protocol;
   readonly cdn: string;
   readonly url: string;
+  readonly protected?: true;
 }
 
 export type DownloadResource =

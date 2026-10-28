@@ -52,11 +52,39 @@ test('malformed playlists cannot yield successful partial metadata', () => {
   }
 });
 
-test('advertised protection is metadata, while media playlists and unsupported forms are not success', () => {
+test('DRM methods and key formats are distinct from ordinary AES encryption', () => {
   for (const tag of ['KEY', 'SESSION-KEY']) {
-    assert.equal(parseHls(`${variant()}\n#EXT-X-${tag}:METHOD=AES-128,URI="never-fetch.key"`, manifest).status, 'protected');
+    for (const declaration of ['METHOD=SAMPLE-AES', 'METHOD=SAMPLE-AES-CTR',
+      'METHOD=AES-128,KEYFORMAT="com.apple.streamingkeydelivery"',
+      'METHOD=NONE,KEYFORMAT="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"',
+      'METHOD=NONE,KEYFORMAT="com.microsoft.playready"']) {
+      assert.equal(parseHls(`${variant()}\n#EXT-X-${tag}:${declaration}`, manifest).status, 'protected');
+    }
+    assert.equal(parseHls(`${variant()}\n#EXT-X-${tag}:METHOD=AES-128,URI="never-fetch.key"`, manifest).status, 'unsupported');
   }
   assert.equal(parseHls(`${variant()}\n#EXT-X-KEY:METHOD=NONE`, manifest).status, 'found');
   assert.equal(parseHls('#EXTM3U\n#EXT-X-TARGETDURATION:10\n#EXTINF:10,\nsegment.ts', manifest).status, 'unsupported');
   assert.equal(parseHls(`${variant()}\n#EXT-X-DEFINE:NAME="x",VALUE="y"`, manifest).status, 'unsupported');
+});
+
+test('cbcs master and selected audio/video locators protect candidates, not subtitle URLs', () => {
+  const subtitle = '#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English",URI="/drm/subs.vtt"';
+  const audio = '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="main",NAME="Main",URI="audio.m3u8"';
+  const master = `${variant(',AUDIO="main"', 'video.m3u8')}\n${subtitle}\n${audio}`;
+  assert.equal(parseHls(master, manifest).status, 'found');
+  for (const subtitleVariant of [
+    '#EXT-X-STREAM-INF:BANDWIDTH=1,CODECS="wvtt"\n/drm/subtitles.vtt',
+    '#EXT-X-STREAM-INF:BANDWIDTH=1,CODECS="stpp.ttml.im1t"\n/drm/subtitles.m3u8',
+  ]) {
+    assert.equal(parseHls(master.replace('#EXTM3U', `#EXTM3U\n${subtitleVariant}`), manifest).status, 'found');
+  }
+  for (const text of [master.replace('video.m3u8', '/v2/playlist/drm/cbcs/video.m3u8'),
+    master.replace('audio.m3u8', '/v2/playlist/drm/cbcs/audio.m3u8')]) {
+    const result = parseHls(text, manifest);
+    assert.equal(result.status, 'protected');
+    assert.ok(result.tracks.every(track => track.download.reason === 'protected'));
+  }
+  assert.equal(parseHls(master, { ...manifest, url: 'https://owned.vimeocdn.com/v2/playlist/drm/cbcs,master' }).status, 'protected');
+  assert.equal(parseHls(master, manifest, 'https://owned.vimeocdn.com/drm/master').status, 'protected');
+  assert.equal(parseHls(variant('', 'not-drm/video.m3u8?drm=1'), manifest).status, 'found');
 });

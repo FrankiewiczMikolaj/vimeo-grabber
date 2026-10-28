@@ -27,6 +27,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Install matching Chromium
         run: pnpm exec playwright install --with-deps chromium
+      - name: Install owned-media fixture tools
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y ffmpeg
       - name: Verify extension
         run: pnpm verify
       - name: Upload Chromium evidence

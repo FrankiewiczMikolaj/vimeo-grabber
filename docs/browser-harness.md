@@ -1,17 +1,19 @@
 # Linux Chromium harness
 
-`pnpm verify` builds the unpacked MV3 extension and runs an offline detection
-smoke through the actual Chromium action popup. Owned HTML and metadata stand in
-for Vimeo responses. The popup lists video and audio qualities from matching
-Vimeo frames, including a player under an unrelated top page. There is no
-synthetic save path, Downloads API, or download control.
+`pnpm verify` builds the unpacked MV3 extension and runs an offline detection and
+download smoke through the actual Chromium action popup. Owned HTML, metadata and
+generated fragmented MP4 stand in for Vimeo responses. The popup lists qualities
+from matching Vimeo frames, including a player under an unrelated top page. A real
+quality-button gesture opens the dedicated owner page and saves native downloads.
 
 ## Run
 
 Use Node 24+, the pinned pnpm version, Playwright 1.64.1 and its installed
 Chromium revision 1248. Linux execution needs `xvfb-run`, Python 3, libX11 and
 libXtst for native permission-dialog key input; Playwright's Chromium dependencies
-provide the X11 libraries. Do not install system packages as part of the harness.
+provide the X11 libraries. FFmpeg with libx264 and AAC generates and decodes the
+owned 1920x1080 video and matching audio; `mise.toml` pins the local static build. Provision these tools before
+the harness; the harness does not install system packages.
 
 ```sh
 pnpm install --frozen-lockfile
@@ -39,9 +41,10 @@ Vimeo frames only. Unrelated top pages do not gain a content script or host gran
 The worker authenticates live documents and returns only the active tab's state.
 
 All allowed external responses must come from owned offline fixtures. Abort and
-reject unexpected requests. Only config and manifest metadata may be fetched;
-never media, segments, initialization data, keys, or licenses. Optional CDN
-permission requests must use the real Chrome API after a real popup gesture and
+reject unexpected requests. Detection must fetch only config and manifest metadata.
+The download matrix fetches only its generated initialization/media fixtures, never
+keys or licenses. It does not replace fetch, downloads, permissions or worker APIs.
+Optional CDN permission requests must use the real Chrome API after a real popup gesture and
 contain only an encountered exact HTTPS origin. Never grant the declared CDN
 wildcard or add a production permission bypass for a test.
 
@@ -85,6 +88,33 @@ This must exit nonzero because the MPD qualities never appear. It retains
 `failure.png`, `diagnostics.json` (missing expected text, actual popup text and
 request audit) and `trace.zip`. It does not replace runtime messages or Chrome
 APIs. Keep this evidence separate from a passing run.
+
+## Offline download matrix
+
+`scripts/download-proof.mjs` continues in the same owned Chromium profile.
+The browser profile sets its real download directory under the evidence directory;
+the harness restores Chromium's default download behavior so suggested filenames
+are not replaced by CDP GUIDs. Downloads API state and disk bytes must agree.
+
+Clear HLS with protected DASH produces exactly two files. Clear DASH covers inline
+video initialization and URL audio initialization. Both use at least six real
+media fragments, with video segments above 2 MiB. Held responses complete out of
+order with exactly five requests in flight; exact native bytes must still match
+initialization-first source order. One segment returns 503 three times before
+succeeding on attempt four; another exhausts all four attempts. Recorded request
+times must show backoff. FFmpeg decodes both completed outputs and extracts a
+1920x1080 frame from the saved video. Audio only produces exactly one audio file.
+A held companion proves progress after video completes, then network failure,
+Cancel, a real 30-second idle timeout, permission revocation and document replacement
+must preserve the completed video and report partial failure. Encrypted playlists,
+redirects and ungranted resource origins produce no native download. Missing-URI
+audio cannot expose a quality-pair button. Every finished owner must remove its
+owned temporary directory. No unrelated audio, keys or licenses may be requested.
+
+`download-proof.json` records outcomes and actual completed paths.
+`download-*.png` records completion, progress and failure surfaces; generated
+`owned-*.mp4` and `native-downloads/` permit exact-byte and media inspection.
+The download page URL carries only a random token, never signed source locators.
 
 ## Evidence and limits
 
