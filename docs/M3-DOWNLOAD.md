@@ -2,10 +2,10 @@
 
 These are the unreleased checkout's contracts, not the published v0.3.0 feature set.
 See README for release installation, usage, permissions, privacy, disclaimer and FAQ.
-Acknowledgement enforcement (#44) and further filename work (#68) remain queued.
+Acknowledgement enforcement (#44) remains queued.
 Chrome can show Save As according to its download settings; each native save
-waits without a network timeout (#67). The current notice and naming rules do
-not imply the other queued fixes have landed.
+waits without a network timeout (#67). Title-based names (#68) do not imply
+acknowledgement enforcement has landed.
 
 ## Outcome and boundary
 
@@ -107,12 +107,16 @@ Check `ffmpeg -version` in bash/zsh; Debian/Ubuntu users can install it with
 Inputs are the actual absolute native paths, including uniqueness suffixes.
 POSIX single quoting preserves apostrophes and shell-shaped titles literally.
 `-map 0:v:0 -map 1:a:0 -c copy` merges without transcoding; `-n` refuses an
-existing output. The `.merged.mp4` output sits beside the saved video; both
-source files remain. Audio only and unsuccessful pairs have no ready command.
+existing output. The `<Title>.mp4` output sits beside the saved video and uses the
+original safe title, not a name derived from either saved input. Both source files
+remain. If the output exists, change only the final output path in the command
+to an unused name, or rename the existing file. Keep both input paths unchanged.
+Audio only and unsuccessful pairs have no ready command.
 Clipboard errors show a manual-copy instruction. Use at your own risk and only
 for content you have rights to download.
 
-Requested pair names are `<title> [720p].video.mp4` and `<title>.audio.m4a`;
+Requested pair names are `<Title> - video <quality>.mp4` (for example, `1080p`)
+and `<Title> - audio.m4a`;
 Audio only uses the same audio rule. Path separators, control/format characters
 and reserved filename punctuation become spaces. Leading/trailing dots and
 spaces are removed. The title stem is limited to 96 UTF-8 bytes, leaving room
@@ -122,11 +126,13 @@ Reproduce offline with `pnpm build` then
 `SMOKE_ARTIFACT_DIR=artifacts/merge-proof pnpm smoke` (use a fresh evidence directory).
 The real Chromium proof copies the displayed command through the clipboard,
 executes it with owned H.264/AAC tracks, checks copy mappings and decodes output,
-compares unchanged source bytes, and checks that shell-shaped titles execute
-no extra command. It replaces the old ID-name assertion with native title-name
-checks, including collision, empty and long Unicode titles. Inspect
+compares unchanged source bytes, refuses an existing output without changing it,
+and checks that shell-shaped titles execute no extra command. Native title-name
+checks cover collisions, empty and long Unicode titles, and titles containing
+`video 1080p (1)` without stripping that text from the merge output.
+Inspect the proof artifacts:
 `merge-*-copied.png`, `merge-*-copy-failed.png`, `merge-*.sh`, `merge-*.json`,
-`download-*-running.png`, `download-audio.png` and `download-proof.json`.
+`download-*-running.png`, `download-audio-*.png` and `download-proof.json`.
 The clipboard error screenshot uses an injected write failure, not an OS failure.
 
 Offline fixture proof is not a claim that every live Vimeo video is supported.

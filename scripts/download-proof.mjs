@@ -130,7 +130,8 @@ else: raise RuntimeError('Native Save File dialog not found')
   }
   async function prepare(next) {
     mode = next;
-    config.video.title = next === 'empty' ? '' : next === 'long' ? '界'.repeat(300) : hostileTitle;
+    config.video.title = next === 'empty' ? '' : next === 'long' ? '界'.repeat(300) :
+      next === 'dash' ? `${hostileTitle} - video 1080p (1)` : next === 'retry' ? `${hostileTitle} retry` : hostileTitle;
     segments.reset(); attempts = new Map(); completionOrder = [];
     heldStarted = new Promise(resolve => { requested = resolve; });
     held = new Promise(resolve => { release = resolve; });
@@ -197,8 +198,14 @@ else: raise RuntimeError('Native Save File dialog not found')
       assert.match(log, /Stream #1:0 -> #0:1 \(copy\)/);
       for (const [index, path] of paths.entries()) assert.deepEqual(await readFile(path), before[index], 'merge preserves source');
       await assert.rejects(access(resolve(artifacts, 'PWNED')), { code: 'ENOENT' });
-      const output = paths[0].replace(/\.mp4$/, '.merged.mp4');
+      const output = resolve(directory, `${filenameStem(config.video.title, '91')}.mp4`);
+      assert.ok(command.endsWith(`'${output.replace(/'/g, "'\\''")}'`), 'output uses original title, not native collision paths');
       execFileSync('ffmpeg', ['-v', 'error', '-i', output, '-f', 'null', '-']);
+      const outputBytes = await readFile(output);
+      const repeated = spawnSync('bash', ['-c', command], { cwd: artifacts, encoding: 'utf8' });
+      assert.notEqual(repeated.status, 0, 'existing output is refused');
+      assert.match(repeated.stderr, /already exists|Not overwriting/);
+      assert.deepEqual(await readFile(output), outputBytes);
       await writeFile(resolve(artifacts, `merge-${name}.json`), JSON.stringify({ command, clipboard: command, paths, output, sourcesUnchanged: true, noInjectedCommand: true, log }, null, 2));
       await owner.screenshot({ path: resolve(artifacts, `merge-${name}-copied.png`) });
       await owner.evaluate(() => { globalThis.navigator.clipboard.writeText = async () => { throw new Error('owned clipboard failure'); }; });
@@ -280,8 +287,11 @@ else: raise RuntimeError('Native Save File dialog not found')
         const row = report[scenario][index];
         assert.equal(row.state, 'complete');
         assert.ok(row.path.startsWith(directory + '/'));
-        const requestedName = trackFilename(filenameStem(config.video.title, '91'), kind, 1080);
-        assert.equal(row.path.split('/').at(-1).replace(/ \(\d+\)(\.[^.]+)$/, '$1'), requestedName);
+        const stem = filenameStem(config.video.title, '91');
+        const requestedName = kind === 'video' ? `${stem} - video 1080p.mp4` : `${stem} - audio.m4a`;
+        const savedName = row.path.split('/').at(-1);
+        assert.equal(savedName.replace(/ \(\d+\)(\.[^.]+)$/, '$1'), requestedName);
+        if (scenario === 'pair') assert.notEqual(savedName, requestedName, 'native collision suffix retained');
         assert.deepEqual(await readFile(row.path), media[kind].bytes);
         if (scenario === 'pair') report.pendingSave[index].completedBytes = media[kind].bytes.length;
         execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-i', row.path, '-f', 'null', '-']);
@@ -321,11 +331,16 @@ else: raise RuntimeError('Native Save File dialog not found')
     report.drmChild = await finish(owner, 'Download failed. No files completed.', 'drm-child');
     assert.ok(report.drmChild.every(row => row.text.includes('Protected (DRM), cannot download')));
     assert.equal((await native()).length, before);
-    await prepare('audio'); before = (await native()).length;
-    owner = await start('Audio only');
-    report.audio = await finish(owner, 'Audio file completed.', 'audio');
-    assert.equal((await native()).length - before, 1);
-    assert.deepEqual(await readFile(report.audio[0].path), media.audio.bytes);
+    for (const scenario of ['audio', 'empty', 'long']) {
+      await prepare(scenario); before = (await native()).length;
+      owner = await start('Audio only');
+      const rows = await finish(owner, 'Audio file completed.', `audio-${scenario}`);
+      report[`audio-${scenario}`] = rows;
+      assert.equal((await native()).length - before, 1);
+      assert.deepEqual(await readFile(rows[0].path), media.audio.bytes);
+      const expected = `${filenameStem(config.video.title, '91')} - audio.m4a`;
+      assert.equal(rows[0].path.split('/').at(-1).replace(/ \(\d+\)(\.[^.]+)$/, '$1'), expected);
+    }
     await prepare('native-cancel'); before = (await native()).length;
     await bootstrap.evaluate(() => {
       let count = 0;

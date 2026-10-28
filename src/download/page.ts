@@ -165,7 +165,7 @@ async function run() {
         command.id = 'merge-command';
         command.style.whiteSpace = 'pre-wrap';
         command.textContent = mergeCommand(paths.get('video')!, paths.get('audio')!,
-          paths.get('video')!.split('/').at(-1)!.replace(/\.mp4$/, '.merged.mp4'));
+          `${stem}.mp4`);
         const copy = document.createElement('button');
         copy.textContent = 'Copy command';
         const feedback = document.createElement('p');
@@ -179,7 +179,7 @@ async function run() {
           }
         };
         const guidance = document.createElement('p');
-        guidance.textContent = 'Linux bash/zsh: check ffmpeg -version. If missing, install with sudo apt install ffmpeg. Run this command in your terminal. Existing output is not overwritten; source files are kept. Use at your own risk and only for content you have rights to download.';
+        guidance.textContent = 'Linux bash/zsh: check ffmpeg -version. If missing, install with sudo apt install ffmpeg. Run this command in your terminal. Existing output is not overwritten; source files are kept. If the output exists, change only the final output path in the command to an unused name, or rename the existing file. Keep both input paths unchanged. Use at your own risk and only for content you have rights to download.';
         section.append(command, copy, feedback, guidance);
         outcomes.after(section);
       }
