@@ -209,17 +209,37 @@ try {
   const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
   const id = new URL(worker.url()).host;
   let bootstrap = await context.newPage();
-  await bootstrap.goto(`chrome-extension://${id}/${manifest.action.default_popup}`);
+  await bootstrap.goto(`chrome-extension://${id}/manifest.json`);
   let active = context.pages()[0];
   await active.goto('https://example.com/fixture');
   let session = await context.newCDPSession(bootstrap);
+  async function tabId(page) {
+    await page.bringToFront();
+    return bootstrap.evaluate(async () => (await globalThis.chrome.tabs.query({ active: true, currentWindow: true }))[0].id);
+  }
+  async function badge(tabId, text, name) {
+    const observed = await bootstrap.evaluate(async ({ tabId, text }) => {
+      const deadline = Date.now() + 8000;
+      while (Date.now() < deadline) {
+        const actual = await globalThis.chrome.action.getBadgeText({ tabId });
+        if (actual === text) return { tabId, text: actual, color: await globalThis.chrome.action.getBadgeBackgroundColor({ tabId }) };
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      throw new Error(`Badge ${tabId}: expected ${text}, got ${await globalThis.chrome.action.getBadgeText({ tabId })}`);
+    }, { tabId, text });
+    assert.deepEqual(observed.color, [23, 78, 111, 255]);
+    (diagnostics.badges ??= {})[name] = observed;
+  }
+  const primaryTabId = await tabId(active);
+  await bootstrap.bringToFront();
+  await badge(primaryTabId, '1', 'background-before-popup');
   async function open() {
     await active.bringToFront();
     const result = await session.send('Runtime.evaluate', { expression: 'chrome.action.openPopup()', awaitPromise: true });
     assert.equal(result.exceptionDetails, undefined);
     const { targetInfos } = await session.send('Target.getTargets');
     const target = targetInfos.find(t => t.url === `chrome-extension://${id}/${manifest.action.default_popup}` && t.targetId !== session.targetId);
-    // Bootstrap has the same URL, so select the actual popup view by attaching candidates.
+    // Attach only the actual popup view; bootstrap runs no popup script.
     for (const candidate of targetInfos.filter(t => t.url === target.url)) {
       const { sessionId } = await session.send('Target.attachToTarget', { targetId: candidate.targetId, flatten: false });
       command = (method, params) => childCommand(session, sessionId, method, params);
@@ -400,6 +420,7 @@ try {
   await waitCandidate('dash');
   assert.equal(await evaluate("document.querySelectorAll('#streams article').length"), 1);
   await capture('one-video-two-frames');
+  await badge(primaryTabId, '1', 'duplicate-cdns-frames-recaptures');
   await evaluate("chrome.permissions.remove({origins:['https://second.vimeocdn.com/*']})");
   await waitText('Allow https://second.vimeocdn.com');
   await waitText('Download 1080p');
@@ -425,8 +446,20 @@ try {
   await internals.close();
   await bootstrap.close();
   bootstrap = await context.newPage();
-  await bootstrap.goto(`chrome-extension://${id}/${manifest.action.default_popup}`);
+  await bootstrap.goto(`chrome-extension://${id}/manifest.json`);
   session = await context.newCDPSession(bootstrap);
+  // Restart through Chromium, without opening or polling the popup.
+  await session.send('ServiceWorker.enable');
+  await session.send('ServiceWorker.startWorker', { scopeURL: `chrome-extension://${id}/` });
+  await badge(primaryTabId, '1', 'worker-reconstructed-before-popup');
+  await active.locator('iframe').evaluateAll(frames => frames.forEach(frame => frame.remove()));
+  await badge(primaryTabId, '', 'worker-reconstructed-frame-removal');
+  await active.evaluate(() => {
+    const frame = globalThis.document.createElement('iframe');
+    frame.src = 'https://player.vimeo.com/video/20';
+    globalThis.document.body.append(frame);
+  });
+  await badge(primaryTabId, '1', 'worker-reconstructed-discovery');
   await open();
   await waitText('Download 1080p');
   await capture('worker-rebuilt');
@@ -503,6 +536,10 @@ try {
   const matrixTab = active;
   active = await context.newPage();
   await active.goto('https://example.com/empty');
+  const emptyTab = active;
+  const emptyTabId = await tabId(emptyTab);
+  await badge(emptyTabId, '', 'independent-empty-tab');
+  await badge(primaryTabId, '5', 'background-matrix-tab');
   await open();
   await waitText('No Vimeo');
   assert.equal(await evaluate("document.querySelectorAll('#streams article').length"), 0);
@@ -512,6 +549,11 @@ try {
   await waitText('Download 1080p');
   assert.equal(await evaluate("document.querySelectorAll('#streams article').length"), 5);
   await capture('tab-restored');
+  await badge(primaryTabId, '5', 'switched-back');
+  await emptyTab.goto('https://example.com/fixture');
+  await badge(emptyTabId, '1', 'background-discovery-second-tab');
+  await emptyTab.close();
+  await badge(primaryTabId, '5', 'other-tab-closed');
   await active.locator('iframe').evaluateAll(frames => {
     for (const frame of frames) {
       if (/\/video\/(?:33|34|35)$/.test(frame.src)) frame.remove();
@@ -520,10 +562,12 @@ try {
   await waitText('2 videos detected.');
   assert.equal(await evaluate("document.querySelectorAll('#streams article').length"), 2);
   await capture('two-video-ids');
+  await badge(primaryTabId, '2', 'distinct-ids');
   // Hold a real transport response across document replacement. Release it only
   // after the new document has published its own successful result.
   await active.goto('https://player.vimeo.com/video/36');
   await fixtureResponse(heldStarted);
+  await badge(primaryTabId, '', 'navigation-held-response');
   await active.goto('https://player.vimeo.com/video/32');
   await open();
   await waitText('Download 1080p');
@@ -540,6 +584,7 @@ try {
   })`);
   await capture('stale-response');
   diagnostics.heldResponseReleasedAfterNavigation = true;
+  await badge(primaryTabId, '1', 'old-response-rejected');
   await active.goto('https://example.com/fixture');
   await open();
   await waitText('Download 1080p');
@@ -561,6 +606,7 @@ try {
   await capture('revoked');
   await active.locator('iframe').evaluate(frame => frame.remove());
   await waitText('No Vimeo');
+  await badge(primaryTabId, '', 'last-frame-removed');
   await capture('removed');
   await active.evaluate(() => {
     const frame = globalThis.document.createElement('iframe');
@@ -585,7 +631,7 @@ try {
     context = await chromium.launchPersistentContext(directory, { channel: 'chromium', headless: false,
       args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`, '--enable-unsafe-extension-debugging'] });
     bootstrap = await context.newPage();
-    await bootstrap.goto(`chrome-extension://${id}/${manifest.action.default_popup}`);
+    await bootstrap.goto(`chrome-extension://${id}/manifest.json`);
     active = context.pages()[0];
     await active.goto('about:blank');
     session = await context.newCDPSession(bootstrap);
@@ -606,7 +652,7 @@ try {
   await browserSession.detach();
   await bootstrap.close().catch(() => {});
   bootstrap = await context.newPage();
-  await bootstrap.goto(`chrome-extension://${id}/${manifest.action.default_popup}`);
+  await bootstrap.goto(`chrome-extension://${id}/manifest.json`);
   session = await context.newCDPSession(bootstrap);
   await open();
   await waitHidden();
@@ -644,4 +690,4 @@ try {
   await writeFile(resolve(artifacts, 'diagnostics.json'), JSON.stringify(diagnostics, null, 2));
 }
 if (failure) { console.error(failure); process.exitCode = 1; }
-else console.log(`PASS: real action popup, first-use acknowledgement, quota failure, reopen/restart/update, separate fresh profile, HLS/DASH JSON/MPD, nested IDs, tab isolation, stale response, exact-origin grant/deny/revoke, worker rebuild, native downloads and merge command; ${artifacts}`);
+else console.log(`PASS: real action popup and per-tab badge text/color, first-use acknowledgement, quota failure, reopen/restart/update, separate fresh profile, HLS/DASH JSON/MPD, nested IDs, tab isolation, stale response, exact-origin grant/deny/revoke, worker rebuild, native downloads and merge command; ${artifacts}`);

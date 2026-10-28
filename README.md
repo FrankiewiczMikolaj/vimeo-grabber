@@ -8,6 +8,9 @@ Linux is the supported download/merge/test platform. No browser-store publicatio
 
 - Finds videos in HTTPS Vimeo pages and player frames, including embedded players
   under unrelated sites. The popup shows one card per video, not technical track lists.
+- Shows the tab's unique Vimeo video count in the toolbar badge without opening
+  the popup. Multiple sources for one video count once; zero leaves no badge.
+  Navigation clears the previous document's count.
 - Offers supported quality buttons for separate video and matching audio, plus
   **Audio only**. Separate DASH is preferred; usable HLS remains a fallback.
 - Saves native files from supported clear fragmented MP4 resources or finite HLS.

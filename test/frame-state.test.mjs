@@ -86,7 +86,7 @@ test('compiled broker validates real Chrome senders and rejects stale document c
       state.activate(1, 2, 'b');
       const duplicate = state.publish(message, second);
       jobs[2].resolve([...resolved('20', second.url), ...resolved('21', second.url)]); await duplicate;
-      check(state.candidates(1).length === 3 && new Set(state.candidates(1).map(candidate => candidate.id)).size === 3,
+      check(state.videoCount(1) === 2 && state.candidates(1).length === 3 && new Set(state.candidates(1).map(candidate => candidate.id)).size === 3,
         'same-video candidates from different documents survive');
       state.remove(1, 0, 'a');
       check(state.candidates(1)[0].source.frameUrl === second.url, 'surviving frame provenance');
@@ -100,8 +100,8 @@ test('compiled broker validates real Chrome senders and rejects stale document c
         if (action === 'remove') state.remove(1, 2, 'b');
         if (action === 'clearTab') state.clearTab(1);
         job.resolve(resolved('88', second.url)); await held;
-        check(state.candidates(1).length === 0, action + ' blocks resurrection');
-        check(state.candidates(2)[0].videoId === '77', 'tab isolation');
+        check(state.videoCount(1) === 0 && state.candidates(1).length === 0, action + ' blocks resurrection');
+        check(state.videoCount(2) === 1 && state.candidates(2)[0].videoId === '77', 'tab isolation');
       }
       check(!await state.publish(message, second), 'no implicit reactivation');
       state.activate(1, 2, 'b'); const failed = state.publish(message, second);
@@ -117,7 +117,7 @@ test('compiled broker validates real Chrome senders and rejects stale document c
       const sameUrl = state.publish(message, otherFrame);
       jobs.at(-1).resolve(resolved('21', second.url)); await sameUrl;
       const kept = state.candidates(1);
-      check(kept.length === 2 && kept[0].id !== kept[1].id
+      check(state.videoCount(1) === 1 && kept.length === 2 && kept[0].id !== kept[1].id
         && kept[0].frameId === 2 && kept[1].frameId === 3
         && kept[1].documentId === 'same-url', 'identical source URLs retain document identity');
       state.remove(1, 3, 'same-url');
