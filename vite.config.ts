@@ -10,7 +10,7 @@ export default defineConfig({
     description: 'Download separate Vimeo video and audio files.',
     action: { default_popup: 'popup.html' },
     background: { service_worker: 'src/worker.ts', type: 'module' },
-    permissions: ['downloads'],
+    permissions: ['downloads', 'storage'],
     host_permissions: ['https://player.vimeo.com/*'],
     optional_host_permissions: ['https://*.vimeocdn.com/*'],
     content_scripts: [{

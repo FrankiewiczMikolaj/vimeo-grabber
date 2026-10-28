@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { Buffer } from 'node:buffer';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import process from 'node:process';
 import { URL } from 'node:url';
@@ -10,7 +10,7 @@ import { chromium } from 'playwright';
 import { avcConfig, dashAvcResponse } from '../test/fixtures/dash-avc-response.mjs';
 import { downloadProof } from './download-proof.mjs';
 
-const extension = resolve(process.env.SMOKE_EXTENSION_DIR ?? 'dist');
+const sourceExtension = resolve(process.env.SMOKE_EXTENSION_DIR ?? 'dist');
 const artifacts = resolve(process.env.SMOKE_ARTIFACT_DIR ?? 'artifacts/headed');
 await mkdir(artifacts, { recursive: true });
 for (const name of ['permission-needed', 'denied', 'qualities', 'audio-footer', 'worker-rebuilt', 'revoked', 'removed', 'navigated',
@@ -19,6 +19,9 @@ for (const name of ['permission-needed', 'denied', 'qualities', 'audio-footer', 
 }
 const diagnostics = { requests: [], unexpected: [], cleanup: false, entry: 'chrome.action.openPopup' };
 const profile = await mkdtemp(resolve(artifacts, 'profile-'));
+const extension = await mkdtemp(resolve(artifacts, 'extension-'));
+const freshProfile = await mkdtemp(resolve(artifacts, 'fresh-profile-'));
+await cp(sourceExtension, extension, { recursive: true });
 let context;
 let failure;
 let command;
@@ -92,7 +95,7 @@ async function fixtureResponse(promise) {
 }
 try {
   const manifest = JSON.parse(await readFile(`${extension}/manifest.json`, 'utf8'));
-  assert.deepEqual(manifest.permissions, ['downloads']);
+  assert.deepEqual(manifest.permissions, ['downloads', 'storage']);
   assert.deepEqual(manifest.host_permissions, ['https://player.vimeo.com/*']);
   await mkdir(resolve(profile, 'Default'), { recursive: true });
   await writeFile(resolve(profile, 'Default/Preferences'), JSON.stringify({ download: {
@@ -100,7 +103,7 @@ try {
   } }));
   assert.deepEqual(manifest.optional_host_permissions, ['https://*.vimeocdn.com/*']);
   context = await chromium.launchPersistentContext(profile, { channel: 'chromium', headless: false,
-    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`] });
+    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`, '--enable-unsafe-extension-debugging'] });
   await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
   const master = await readFile('test/fixtures/hls-master.m3u8', 'utf8');
   const config = { video: { id: 20, title: '<img src=x onerror=alert(1)> Owned video' }, request: { files: { hls: {
@@ -216,6 +219,51 @@ try {
     await writeFile(resolve(artifacts, `${name}.png`), Buffer.from(image.data, 'base64'));
     diagnostics[name] = await evaluate('document.body.innerText');
   }
+  async function noticeVisible() {
+    return evaluate("!document.querySelector('#rights-notice').hidden");
+  }
+  async function acknowledge() {
+    await evaluate("document.querySelector('#acknowledge').focus(); true");
+    key('Return');
+  }
+  async function waitHidden() {
+    await evaluate(`new Promise((resolve,reject) => {
+      const deadline=Date.now()+5000;
+      const check=()=>document.querySelector('#rights-notice').hidden ? resolve(true) :
+        Date.now()>deadline ? reject(new Error('Notice still visible')) : setTimeout(check,50);
+      check();
+    })`);
+  }
+  // Use a blank active tab so the notice and independent footer fit in one frame.
+  await active.goto('about:blank');
+  await open();
+  await waitText('I understand and acknowledge');
+  assert.equal(await noticeVisible(), true);
+  await capture('notice-fresh');
+  assert.match(diagnostics['notice-fresh'], /You alone are responsible/);
+  assert.match(diagnostics['notice-fresh'], /Only download content you have rights to/);
+  // Exhaust the real local quota; do not replace storage APIs or popup handlers.
+  await evaluate(`chrome.storage.local.set({quotaFixture:'x'.repeat(chrome.storage.local.QUOTA_BYTES-16)})`);
+  await acknowledge();
+  await waitText('Could not save your acknowledgement');
+  assert.equal(await noticeVisible(), true);
+  assert.deepEqual(await evaluate("chrome.storage.local.get('rightsAcknowledged')"), {});
+  await capture('notice-storage-failure');
+  await active.bringToFront();
+  await open();
+  await waitText('I understand and acknowledge');
+  assert.equal(await noticeVisible(), true, 'failed persistence must show again');
+  await evaluate("chrome.storage.local.remove('quotaFixture')");
+  await acknowledge();
+  await waitHidden();
+  assert.deepEqual(await evaluate('chrome.storage.local.get(null)'), { rightsAcknowledged: true });
+  await capture('notice-acknowledged');
+  assert.match(diagnostics['notice-acknowledged'], /Only download content you have rights to/);
+  await active.bringToFront();
+  await open();
+  await waitHidden();
+  await capture('notice-reopened');
+  await active.goto('https://example.com/fixture');
   await open();
   await waitText('owned.vimeocdn.com');
   assert.equal(await evaluate("document.querySelectorAll('#streams img').length"), 0);
@@ -533,6 +581,50 @@ try {
   diagnostics.downloads = await downloadProof({ context, active, bootstrap, open, evaluate, waitText, capture, key, artifacts });
   assert.deepEqual(diagnostics.unexpected, []);
   await session.detach();
+  await context.tracing.stop({ path: resolve(artifacts, 'trace.zip') });
+  await context.close();
+  context = null;
+  async function reconnect(directory) {
+    context = await chromium.launchPersistentContext(directory, { channel: 'chromium', headless: false,
+      args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`, '--enable-unsafe-extension-debugging'] });
+    bootstrap = await context.newPage();
+    await bootstrap.goto(`chrome-extension://${id}/${manifest.action.default_popup}`);
+    active = context.pages()[0];
+    await active.goto('about:blank');
+    session = await context.newCDPSession(bootstrap);
+    await open();
+  }
+  await reconnect(profile);
+  await waitHidden();
+  await capture('notice-restarted');
+  assert.deepEqual(await evaluate('chrome.storage.local.get(null)'), { rightsAcknowledged: true });
+  const previousVersion = manifest.version;
+  manifest.version = '0.3.1';
+  assert.notEqual(manifest.version, previousVersion);
+  await writeFile(resolve(extension, 'manifest.json'), JSON.stringify(manifest));
+  // Install the changed unpacked package in the running profile, not a page reload.
+  const browserSession = await context.browser().newBrowserCDPSession();
+  const updated = await browserSession.send('Extensions.loadUnpacked', { path: extension });
+  assert.equal(updated.id, id);
+  await browserSession.detach();
+  await bootstrap.close().catch(() => {});
+  bootstrap = await context.newPage();
+  await bootstrap.goto(`chrome-extension://${id}/${manifest.action.default_popup}`);
+  session = await context.newCDPSession(bootstrap);
+  await open();
+  await waitHidden();
+  assert.equal(await evaluate('chrome.runtime.getManifest().version'), manifest.version);
+  assert.deepEqual(await evaluate('chrome.storage.local.get(null)'), { rightsAcknowledged: true });
+  await capture('notice-updated');
+  diagnostics.noticeUpdate = { from: previousVersion, to: manifest.version, id };
+  await context.close();
+  context = null;
+  await reconnect(freshProfile);
+  await waitText('I understand and acknowledge');
+  assert.equal(await noticeVisible(), true);
+  assert.deepEqual(await evaluate('chrome.storage.local.get(null)'), {});
+  await capture('notice-separate-profile');
+  await session.detach();
 } catch (error) {
   failure = error; diagnostics.error = error.stack;
   if (command) {
@@ -548,9 +640,11 @@ try {
     await context.close();
   }
   await rm(profile, { recursive: true, force: true });
+  await rm(freshProfile, { recursive: true, force: true });
+  await rm(extension, { recursive: true, force: true });
   diagnostics.cleanup = true;
   diagnostics.requests = diagnostics.requests.map(value => value.split('?')[0]);
   await writeFile(resolve(artifacts, 'diagnostics.json'), JSON.stringify(diagnostics, null, 2));
 }
 if (failure) { console.error(failure); process.exitCode = 1; }
-else console.log(`PASS: real action popup, HLS/DASH JSON/MPD, nested IDs, tab isolation, stale response, exact-origin grant/deny/revoke, worker rebuild, removal; ${artifacts}`);
+else console.log(`PASS: real action popup, first-use acknowledgement, quota failure, reopen/restart/update, separate fresh profile, HLS/DASH JSON/MPD, nested IDs, tab isolation, stale response, exact-origin grant/deny/revoke, worker rebuild, native downloads and merge command; ${artifacts}`);
