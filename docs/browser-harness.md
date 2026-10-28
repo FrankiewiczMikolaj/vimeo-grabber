@@ -48,6 +48,27 @@ Optional CDN permission requests must use the real Chrome API after a real popup
 contain only an encountered exact HTTPS origin. Never grant the declared CDN
 wildcard or add a production permission bypass for a test.
 
+## First-use notice
+
+The action popup shows the English rights/own-risk/liability notice with a native
+acknowledgement button. The proof fills the real `chrome.storage.local` quota,
+activates that button and checks that failure keeps the notice visible, including
+after reopening. It removes only its quota fixture and acknowledges through the
+production handler. Local storage must then contain only `rightsAcknowledged: true`.
+Screenshots retain fresh, failed-save, acknowledged and reopened surfaces.
+
+After the detection/download matrix, Chromium closes and restarts with the same
+profile. The harness then changes the copied unpacked manifest from 0.3.0 to 0.3.1
+and installs that package through browser-level CDP `Extensions.loadUnpacked`.
+It checks the loaded version, unchanged extension ID and acknowledgement. This is
+a real unpacked-package update, not a simulated version read or a popup reload;
+it does not claim coverage of signed release-package delivery. A separate fresh
+profile must still show the notice and have empty local storage.
+`notice-restarted.png`, `notice-updated.png`, `notice-separate-profile.png` and
+`diagnostics.json` retain the evidence. All temporary profiles and the copied
+extension are removed. No production storage API or acknowledgement is bypassed.
+
+
 ## Offline detection matrix
 
 The original HLS action, native deny/grant/revoke, same-document update, frame

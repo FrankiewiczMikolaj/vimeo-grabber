@@ -243,6 +243,31 @@ function permissionChanged() {
 chrome.permissions.onAdded.addListener(permissionChanged);
 chrome.permissions.onRemoved.addListener(permissionChanged);
 
+async function showRightsNotice() {
+  const notice = document.querySelector<HTMLElement>('#rights-notice')!;
+  const button = document.querySelector<HTMLButtonElement>('#acknowledge')!;
+  const message = document.querySelector<HTMLParagraphElement>('#rights-status')!;
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    try {
+      await chrome.storage.local.set({ rightsAcknowledged: true });
+      notice.hidden = true;
+    } catch {
+      message.textContent = 'Could not save your acknowledgement. Please try again. The notice will remain until it is saved.';
+    } finally {
+      button.disabled = false;
+    }
+  });
+  try {
+    const stored = await chrome.storage.local.get('rightsAcknowledged');
+    notice.hidden = stored.rightsAcknowledged === true;
+  } catch {
+    message.textContent = 'Could not read your acknowledgement. Please acknowledge to try saving it again.';
+  }
+}
+
+void showRightsNotice();
+
 async function start() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });

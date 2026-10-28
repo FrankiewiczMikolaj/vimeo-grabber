@@ -46,6 +46,12 @@ needs CDN access, the popup can request that exact encountered HTTPS origin on
 video visible without those qualities. Revoking access refreshes detection.
 The `downloads` permission observes native completion and actual saved paths.
 No `activeTab`, `tabs`, scripting, or broad site permission is used.
+The `storage` permission saves only `{ rightsAcknowledged: true }` locally in
+the browser profile. It does not save video URLs, browsing history or media.
+On first use, read the rights notice and select **I understand and acknowledge**.
+The notice stays visible if saving fails; retry the button. A saved acknowledgement
+survives popup closure, browser restart and extension updates. A new profile or
+cleared extension storage shows the notice again. The footer remains independent.
 Signed config and manifest URLs stay in memory and are not displayed or stored.
 See [the download boundary and limits](docs/M3-DOWNLOAD.md).
 
@@ -81,13 +87,13 @@ One download page owns assembly at a time; the next owner removes orphan data.
 
 The released v0.3.0 can hide DASH after HLS succeeds; this checkout fixes that
 with [independent candidates](https://github.com/FrankiewiczMikolaj/vimeo-grabber/issues/41).
-The one-time install notice is missing ([M3 issue](https://github.com/FrankiewiczMikolaj/vimeo-grabber/issues/44));
-the popup rights/own-risk footer remains visible.
+The released v0.3.0 has no one-time notice; this checkout adds the
+[first-use acknowledgement](https://github.com/FrankiewiczMikolaj/vimeo-grabber/issues/44).
 
 ## Legal
 
-Only download content you have rights to. You install and use this project at
-your own risk. The author and contributors are not liable. Distribution is planned
-through GitHub Releases, not browser stores.
+You alone are responsible for having rights to any content you download.
+You install and use this project at your own risk. The author and contributors
+are not liable. Distribution is planned through GitHub Releases, not browser stores.
 
 Licensed under the [MIT License](LICENSE).
