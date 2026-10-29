@@ -98,11 +98,11 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
       mode === 'drm-session' ? `${master}#EXT-X-SESSION-KEY:METHOD=SAMPLE-AES,URI="skd://drm",KEYFORMAT="com.apple.streamingkeydelivery"\n` : master,
       contentType: 'application/vnd.apple.mpegurl' });
     const kind = name.startsWith('audio') ? 'audio' : 'video';
-    if (mode === 'redirect' && name.endsWith('-init.mp4')) return route.fulfill({ status: 302, headers: { location: 'https://unseen.vimeocdn.com/forbidden' } });
+    if (mode === 'redirect' && name.endsWith('-init.mp4')) return route.fulfill({ status: 302, headers: { location: 'https://unrelated.invalid/forbidden' } });
     if (name === 'video.m3u8' || name === 'audio.m3u8') {
       const encryption = mode === 'encrypted' ? '#EXT-X-KEY:METHOD=AES-128,URI="forbidden.key"\n' :
         mode === 'drm-child' ? '#EXT-X-KEY:METHOD=SAMPLE-AES,URI="skd://drm",KEYFORMAT="com.apple.streamingkeydelivery"\n' : '';
-      const playlist = `#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:2\n${encryption}#EXT-X-MAP:URI="${mode === 'origin' ? 'https://unseen.vimeocdn.com/forbidden' : `${kind}-init.mp4`}"\n${media[kind].segments.map((_, index) => `#EXTINF:1,\n${kind}-${index}.m4s\n`).join('')}#EXT-X-ENDLIST\n`;
+      const playlist = `#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:2\n${encryption}#EXT-X-MAP:URI="${mode === 'origin' ? 'https://unrelated.invalid/forbidden' : `${kind}-init.mp4`}"\n${media[kind].segments.map((_, index) => `#EXTINF:1,\n${kind}-${index}.m4s\n`).join('')}#EXT-X-ENDLIST\n`;
       return route.fulfill({ body: playlist, contentType: 'application/vnd.apple.mpegurl' });
     }
     if (/^(video|audio)-init\.mp4$/.test(name)) return route.fulfill({ body: media[kind].init, contentType: `${kind}/mp4` });
