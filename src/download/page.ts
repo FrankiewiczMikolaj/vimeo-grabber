@@ -190,7 +190,7 @@ async function run() {
               error instanceof NativeSaveError && error.category === 'cancelled' ? 'cancelled' : 'failed';
             // Never show arbitrary exception text: it can contain signed source URLs.
             const reason = error instanceof DOMException && error.name === 'QuotaExceededError' ? 'temporary storage quota exceeded' :
-              error instanceof Error && /^(Cancelled|Save cancelled|Timed out after 30 seconds without progress|Source rights acknowledgement required|Exact-origin permission required|Protected \(DRM\), cannot download|Unsupported HLS encryption|Media network lost|Media HTTP \d{3}|Media request failed|Media size limit exceeded|File exceeds 4 GiB limit|Initialization limit exceeded|Native disk full|Native download [A-Z_]+|Native download interrupted|Native download could not start)$/.test(error.message)
+              error instanceof Error && /^(Cancelled|Save cancelled|Timed out after 30 seconds without progress|Source rights acknowledgement required|Unapproved media source|Protected \(DRM\), cannot download|Unsupported HLS encryption|Media network lost|Media HTTP \d{3}|Media request failed|Media size limit exceeded|File exceeds 4 GiB limit|Initialization limit exceeded|Native disk full|Native download [A-Z_]+|Native download interrupted|Native download could not start)$/.test(error.message)
                 ? error.message : 'temporary storage or assembly failed';
             detail.textContent = `${name}: ${segmentSummary} — ${row.dataset.state} (${reason}). Incomplete native output, if retained by Chromium, is partial (.crdownload), not a completed file.`;
           } finally {
