@@ -100,6 +100,9 @@ async function run() {
   const candidate = current.candidate;
   const tracks = selection(candidate, current.trackId);
   if (!tracks.length) throw new Error('No supported tracks');
+  if (tracks[0].kind === 'combined') {
+    document.querySelector<HTMLElement>('#guidance')!.textContent = 'This MP4 contains video and audio. No merge is needed.';
+  }
   // Initial admission fixes the source and tracks. Later source-tab changes do not revoke it.
   const stem = filenameStem(candidate.title, candidate.videoId);
   const paths = new Map<string, string>();
