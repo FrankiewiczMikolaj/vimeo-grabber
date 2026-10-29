@@ -135,11 +135,18 @@ test('compiled broker validates real Chrome senders and rejects stale document c
       const bothSources = { ...reference, discovery: { ...reference.discovery, configUrls: [configUrl] } };
       const fetched = { ...whole, id: 'fetched', source: { ...whole.source, configUrl } };
       next = [whole, fetched]; await retained.publish(bothSources, sender);
+      next = [{ ...resolved('20', sender.url)[0], title: 'New inline title' },
+        { ...resolved('20', sender.url)[0], id: 'partial-fetched', source: fetched.source, title: 'Fetched title' }];
+      await retained.publish(bothSources, sender);
+      check(retained.candidates(1).filter(c => c.status === 'found').every(c =>
+        c.title === (c.source.configUrl ? 'Fetched title' : 'New inline title')),
+      'fallback metadata cannot overwrite the independent inline title');
       const inlineProtected = { ...bothSources, discovery: { ...bothSources.discovery,
         videos: [{ ...video('20', sender.url), manifests: [{ ...whole.manifest, protected: true }] }] } };
       next = [];
       const protecting = retained.publish(inlineProtected, sender);
-      check(retained.candidates(1).length === 1 && retained.candidates(1)[0].source.configUrl === configUrl,
+      check(retained.candidates(1).every(c => c.source.configUrl === configUrl) &&
+        retained.candidates(1).some(c => c.status === 'found'),
         'inline candidate protection cannot revoke an independent fetched source at the same URL');
       await protecting;
       const sourceRemoved = retained.publish(reference, sender);

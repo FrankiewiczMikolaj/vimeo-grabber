@@ -126,7 +126,7 @@ function retain(previous: readonly PlaybackCandidate[], fresh: readonly Playback
   const sourceBlocks = new Set(fresh.filter(c => c.invalidation === 'source').map(sourceKey));
   const replacements = new Set(fresh.filter(c => c.status === 'found' || c.status === 'protected' ||
     c.invalidation === 'candidate').map(c => slot(c)));
-  const titles = new Map(fresh.filter(c => c.title !== null).map(c => [c.videoId, c.title]));
+  const titles = new Map(fresh.filter(c => c.title !== null).map(c => [sourceKey(c), c.title]));
   const allowed = (c: PlaybackCandidate) => !videoBlocks.has(c.videoId) || c.status === 'protected';
   const kept = previous.filter(c => allowed(c) && !sourceBlocks.has(sourceKey(c)) && !replacements.has(slot(c)));
   const byId = new Map(kept.map(c => [c.id, c]));
@@ -141,7 +141,7 @@ function retain(previous: readonly PlaybackCandidate[], fresh: readonly Playback
   let bytes = 0;
   const bounded: PlaybackCandidate[] = [];
   for (const candidate of [...byId.values()].reverse()) {
-    const value = { ...candidate, title: titles.get(candidate.videoId) ?? candidate.title };
+    const value = { ...candidate, title: titles.get(sourceKey(candidate)) ?? candidate.title };
     const size = JSON.stringify(value).length;
     if (bounded.length === 256 || bytes + size > 2_097_152) continue;
     bytes += size;

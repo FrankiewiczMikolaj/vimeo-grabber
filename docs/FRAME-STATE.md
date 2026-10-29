@@ -52,7 +52,7 @@ only its candidates. No tracks, sources or statuses are merged.
 Resolver outputs preserve their authoritative document source.
 
 Partial outcomes preserve usable prior DASH/HLS/progressive alternatives; newer
-non-null titles update the video's candidates. Found/protected alternatives replace
+non-null source titles update that source's candidates. Found/protected alternatives replace
 older whole results for the same source, protocol, CDN and URL origin/path, including
 signed-query history. Distinct alternatives in one new capture stay distinct.
 No video/audio tracks are spliced. Retention is capped per frame at 256 whole
