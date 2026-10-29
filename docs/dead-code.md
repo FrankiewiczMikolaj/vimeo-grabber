@@ -95,7 +95,8 @@ Baseline: main `be179903aba2cbab3c464ce343b69da25007e419`.
   `hls-master.m3u8` by parser tests and smoke; both discovery HTML files by discovery
   tests; `dash-avc-config.json` by `dash-avc-response.mjs`, imported by resolver
   tests and smoke. Unknown/negative fixture fields exercise ignored metadata,
-  progressive rejection, malformed-first fallback or inactive DRM; keep them.
+  malformed-first fallback or inactive DRM; keep them. Progressive-only data now
+  exercises combined-file support rather than the retired unavailable expectation.
 - **Docs/spec:** read README and all docs, active download tickets, historical
   scaffold notes and quality report; reviewed historical feature references.
   Preserve human-owned vision, board, ticket/outcome files, dated M2 plans and
@@ -167,3 +168,19 @@ all runtime, CSS or prose dead code can be proved absent automatically.
   and signed-locator redaction; it does not claim real disk exhaustion.
 - Knip follows the new native-error module through the page import. No permission,
   dependency, worker admission or shell-command path changes in this cutover.
+
+## Progressive direct-file cutover (#54 item 2)
+
+- Replaced the progressive-only unavailable normalization expectation with
+  direct combined-track and malformed/protected-sibling behavior checks.
+- Whole files use `DownloadReference.kind: 'file'`, not invented initialization,
+  resource or playlist adapters. Only the new combined selection joins the owner;
+  the existing paired/Audio only, native recovery and command paths stay active.
+- `progressiveUrl` is shared by normalization, receipts, frame admission and owner
+  authority. Direct CDN admission does not widen manifest authorization.
+- Scoped obsolete-assumption search leaves the separate-track initialization
+  rejection in place: combined initialization is still invalid for a separate
+  track. Historical M2 plans do not claim the new direct-file behavior.
+- `pnpm deadcode` reports no findings after this cutover. A scoped search of
+  `src`, `test`, README and docs finds no active ignored-progressive contract;
+  the new native proof uses the existing FFmpeg binary, with no added dependency.

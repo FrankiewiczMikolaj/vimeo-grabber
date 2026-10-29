@@ -74,20 +74,32 @@ function render() {
     return candidate.status === 'found' ? 3 : 4;
   };
   const cards = [...groups.values()].map(alternatives => {
+    const direct = new Map<string, { candidate: FrameCandidate; track: FrameCandidate['tracks'][number] }>();
+    for (const candidate of alternatives) {
+      for (const track of candidate.tracks) {
+        if (track.kind === 'combined' && selection(candidate, track.id).length === 1 && !direct.has(track.manifest.url)) {
+          direct.set(track.manifest.url, { candidate, track });
+        }
+      }
+    }
+    const progressive = [...direct.values()];
     const candidate = alternatives.reduce((best, next) => rank(next) < rank(best) ? next : best);
     const card = document.createElement('article');
     card.append(element('h2', candidate.title?.trim() ? candidate.title : `Vimeo video ${candidate.videoId}`));
     const audio = audioFor(candidate);
     const choices = candidate.tracks.filter(track => track.kind === 'video' && selection(candidate, track.id).length === 2);
-    card.append(element('p', choices.length
+    card.append(element('p', progressive.length ? 'Choose an MP4 with video and audio, or a separate download below.' : choices.length
       ? 'Choose a quality to download video and matching audio as separate files.'
       : audio ? 'Audio is available to download.' : labels[candidate.status]));
-    for (const track of [...choices, ...(audio ? [audio] : [])]) {
+    for (const { candidate: owner, track } of [...progressive,
+      ...[...choices, ...(audio ? [audio] : [])].map(track => ({ candidate, track }))]) {
       const button = element('button', track.kind === 'audio' ? 'Audio only' :
-        `Download ${track.height ? `${track.height}p` : track.id}`);
+        `Download ${track.height ? `${track.height}p` : track.id}${track.kind === 'combined' ?
+          ` — MP4 · video + audio — ${track.download.kind === 'file' && track.download.size !== null ?
+            `${track.download.size.toLocaleString('en-US')} bytes` : 'size unknown'}` : ''}`);
       button.addEventListener('click', () => {
         button.disabled = true;
-        void chrome.runtime.sendMessage({ type: 'download-start', tabId, candidateId: candidate.id, trackId: track.id })
+        void chrome.runtime.sendMessage({ type: 'download-start', tabId, candidateId: owner.id, trackId: track.id })
           .then(started => { if (!started) status.textContent = 'Download unavailable. Refresh the source and try again.'; })
           .finally(() => { button.disabled = false; });
       });

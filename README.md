@@ -11,9 +11,11 @@ Linux is the supported download/merge/test platform. No browser-store publicatio
 - Shows the tab's unique Vimeo video count in the toolbar badge without opening
   the popup. Multiple sources for one video count once; zero leaves no badge.
   Navigation clears the previous document's count.
-- Offers supported quality buttons for separate video and matching audio, plus
-  **Audio only**. Separate DASH is preferred; usable HLS remains a fallback.
-- Saves native files from supported clear fragmented MP4 resources or finite HLS.
+- Offers progressive MP4 qualities first, labelled **MP4 · video + audio**, with
+  declared byte sizes (unknown when absent). Saves each as one native combined file.
+- Keeps separate video and matching audio qualities plus **Audio only** alternatives.
+  Separate DASH is preferred over HLS for paired downloads.
+- Saves native files from clear direct MP4, fragmented MP4 resources or finite HLS.
   The download tab shows progress, completed paths and honest partial failure.
 - Provides **Copy command** after both files complete, for a Linux ffmpeg merge
   without transcoding. The extension does not mux or execute shell commands.
@@ -50,16 +52,16 @@ unpacked installation requires rebuilding/replacing its files and reloading it i
 1. Read the rights notice and select **I understand and acknowledge**. If saving
    fails, the notice stays visible and the button can retry. The footer stays visible.
 2. Open a Vimeo page or a page containing a Vimeo player or link. Open the action popup.
-3. Choose a supported quality to save separate video and matching audio, or
-   **Audio only** for one audio file. Metadata alone is not a successful download;
-   an unavailable/protected/unsupported result must not be treated as a usable file.
+3. Choose **MP4 · video + audio** for one combined file, a separate quality for
+   video and matching audio, or **Audio only** for one audio file. Combined files
+   do not offer audio extraction or a merge command. Metadata alone is not a successful download.
 4. Keep the dedicated download tab open. Admitted downloads continue when the
    popup closes, tabs switch or the source tab closes. Reopen the popup to see
    current segment progress and **Open download** to return to the owner tab.
    Closing the download tab cancels its active work. **Cancel** stops queued/current
    files; **Cancel file** stops only its row. Completed files stay intact.
 5. Wait for native completion and the actual saved paths. Use a failed/cancelled
-   row's **Retry** to restart that file from initialization with empty temporary
+   row's **Retry** to restart that file from its beginning with empty temporary
    storage. It never downloads the completed companion again. Incomplete native
    `.crdownload` files are partial, not playable successes or merge inputs.
 
@@ -138,9 +140,10 @@ limits. Broad host access is capability, not permission to fetch arbitrary URLs.
 
 - Vimeo only; English UI; Linux merge/test support. Live Vimeo config shapes can
   change. Offline fixtures prove supported shapes, not every live Vimeo video.
-- No DRM decryption, key/license retrieval, authentication bypass, progressive
-  downloads, in-extension mux or live-stream recording. Encrypted, combined,
-  byte-range and unknown addressing forms are rejected.
+- No DRM decryption, key/license retrieval, authentication bypass, in-extension mux,
+  audio extraction or live-stream recording. Encrypted, byte-range and unknown
+  addressing forms are rejected. Direct MP4 URLs must be HTTPS Vimeo CDN `.mp4`
+  paths; redirects are refused, not followed.
 - One download page owns assembly at a time. Temporary storage quota can fail.
   Limits: 4 GiB per file, 10,000 ordered resources, 1 MiB initialization/playlist,
   64 MiB per media segment, no per-read cap. Five disk-backed segment slots bound
@@ -166,8 +169,9 @@ not create a pair. Audio only can remain available when no supported pair exists
 **Can I close the popup?** Yes. Keep the download tab open until it finishes. A
 partial failure keeps completed files; check each outcome before using a merge command.
 
-**Why is no size shown before download?** The current metadata model has no reliable
-file-byte total. Bitrate is not a file size. Progress starts from actual received bytes.
+**Why is a size unknown before download?** Progressive MP4 shows only a positive
+declared byte size. Missing or invalid sizes stay unknown. Separate tracks have no
+reliable file-byte total; bitrate is not a file size. Progress uses actual received bytes.
 
 **Where are my files and why was the name changed?** Chromium's download settings
 choose the destination and may add collision suffixes. The download tab shows actual

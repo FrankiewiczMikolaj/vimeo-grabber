@@ -1,5 +1,5 @@
 import type { PageDiscovery } from './discover';
-import type { ManifestReference, NormalisedVideo, PlaybackCandidate } from './model';
+import type { ManifestReference, NormalisedVideo, PlaybackCandidate, ProgressiveReference } from './model';
 import { MetadataTransport } from './metadata';
 import type { InlineMetadata, MetadataResult } from './metadata';
 import { normalisePlayerConfig } from './normalise';
@@ -13,7 +13,7 @@ export async function resolveDiscovery(
 ): Promise<readonly PlaybackCandidate[]> {
   const transport = new MetadataTransport();
   const results = new Map<string, PlaybackCandidate>();
-  const candidate = (video: NormalisedVideo, manifest: ManifestReference | null): PlaybackCandidate => ({
+  const candidate = (video: NormalisedVideo, manifest: ManifestReference | ProgressiveReference | null): PlaybackCandidate => ({
     id: JSON.stringify([video.id, video.source.frameUrl, video.source.configUrl, manifest]),
     videoId: video.id, title: video.title, source: video.source, manifest,
     status: video.status === 'protected' || manifest?.protected ||
@@ -25,7 +25,12 @@ export async function resolveDiscovery(
     results.set(result.id, result);
   };
   const resolve = async (video: NormalisedVideo, receipt: InlineMetadata | MetadataResult) => {
-    if (!video.manifests.length) saveConfig(video);
+    const direct = transport.progressive(receipt, video);
+    if (!video.manifests.length && !direct.length) saveConfig(video);
+    for (const track of direct) {
+      const result = candidate(video, track.manifest);
+      results.set(result.id, { ...result, status: result.status === 'protected' ? 'protected' : 'found', tracks: [track] });
+    }
     for (const reference of video.manifests) {
       const result = candidate(video, reference);
       if (results.has(result.id)) continue;

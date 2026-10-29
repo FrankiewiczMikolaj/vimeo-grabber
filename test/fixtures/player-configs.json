@@ -26,6 +26,6 @@
   },
   {
     "video": { "id": 900003, "title": "Owned progressive-only study" },
-    "request": { "files": { "progressive": [{ "quality": "1080p", "url": "https://primary.vimeocdn.com/owned/movie.mp4" }] } }
+    "request": { "files": { "progressive": [{ "quality": "1080p", "height": 1080, "mime": "video/mp4", "url": "https://primary.vimeocdn.com/owned/movie.mp4" }] } }
   }
 ]

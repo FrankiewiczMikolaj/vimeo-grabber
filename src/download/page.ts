@@ -6,6 +6,7 @@ import { filenameStem, trackFilename } from './filename';
 import { mergeCommand } from '../shell/linux';
 import { rightsAcknowledged } from '../rights';
 import { NativeSaveError } from './native-error';
+import { progressiveUrl } from '../detect/progressive';
 
 const token = location.hash.slice(1);
 const status = document.querySelector<HTMLElement>('#status')!;
@@ -98,7 +99,10 @@ async function run() {
   if (!current) throw new Error('Source document is no longer available');
   const candidate = current.candidate;
   const tracks = selection(candidate, current.trackId);
-  if (!tracks.length) throw new Error('No supported separate tracks');
+  if (!tracks.length) throw new Error('No supported tracks');
+  if (tracks[0].kind === 'combined') {
+    document.querySelector<HTMLElement>('#guidance')!.textContent = 'This MP4 contains video and audio. No merge is needed.';
+  }
   // Initial admission fixes the source and tracks. Later source-tab changes do not revoke it.
   const stem = filenameStem(candidate.title, candidate.videoId);
   const paths = new Map<string, string>();
@@ -106,6 +110,12 @@ async function run() {
     lifetime.signal.throwIfAborted();
     if (!await rightsAcknowledged()) throw new Error('Source rights acknowledgement required');
     const url = new URL(value ?? candidate.manifest!.url);
+    if (candidate.manifest?.protocol === 'progressive') {
+      if (url.href !== new URL(candidate.manifest.url).href || !progressiveUrl(value ?? candidate.manifest.url)) {
+        throw new Error('Unapproved media source');
+      }
+      return;
+    }
     if (url.protocol !== 'https:' || url.username || url.password || url.port || url.hash ||
       !(url.hostname === 'vimeocdn.com' || url.hostname.endsWith('.vimeocdn.com'))) throw new Error('Unapproved media source');
   }
@@ -114,7 +124,7 @@ async function run() {
     const row = document.createElement('li');
     const detail = document.createElement('span');
     const bar = document.createElement('progress');
-    bar.setAttribute('aria-label', `${track.kind} segments`);
+    bar.setAttribute('aria-label', `${track.kind} ${track.kind === 'combined' ? 'bytes' : 'segments'}`);
     const stop = document.createElement('button');
     stop.textContent = 'Cancel file';
     stop.setAttribute('aria-label', `Cancel ${track.kind}`);
@@ -146,7 +156,8 @@ async function run() {
           const { track, row, detail, bar, stop, retry, controller } = job;
           const signal = AbortSignal.any([lifetime.signal, controller.signal]);
           const check = async (url?: string) => { signal.throwIfAborted(); await authority(url); signal.throwIfAborted(); };
-          const name = trackFilename(stem, track.kind, track.height);
+          const name = track.kind === 'combined' ? `${stem} [${track.height ? `${track.height}p` : 'original'}].mp4` :
+            trackFilename(stem, track.kind, track.height);
           let segmentSummary = '';
           let retryNotice = '';
           let objectUrl: string | undefined;
@@ -165,15 +176,18 @@ async function run() {
             await assemble(track, writer, check, signal, (bytes, done, total, message) => {
               lastProgress = performance.now();
               retryNotice = message ? ` — ${message}` : '';
-              bar.max = total; bar.value = done;
-              segmentSummary = `${done}/${total} segments, ${(bytes / 1024 ** 2).toFixed(2)} MiB`;
+              bar.max = total || 1;
+              if (total) bar.value = done;
+              else bar.removeAttribute('value');
+              segmentSummary = track.kind === 'combined' ? `${(bytes / 1024 ** 2).toFixed(2)} MiB` :
+                `${done}/${total} segments, ${(bytes / 1024 ** 2).toFixed(2)} MiB`;
               detail.textContent = `${name}: ${segmentSummary}${retryNotice}`;
             }, directory);
             clearInterval(deadline);
             await writer.close(); writer = undefined;
             await check();
             const assembled = await file.getFile();
-            objectUrl = URL.createObjectURL(assembled.slice(0, assembled.size, `${track.kind}/mp4`));
+            objectUrl = URL.createObjectURL(assembled.slice(0, assembled.size, `${track.kind === 'combined' ? 'video' : track.kind}/mp4`));
             detail.textContent = `${name}: ${segmentSummary} — waiting for native save`;
             row.dataset.state = 'saving';
             const item = await save(objectUrl, name, check, signal);
@@ -207,7 +221,8 @@ async function run() {
         }
       });
       const completed = paths.size;
-      status.textContent = completed === tracks.length ? (tracks.length === 2 ? 'Both files completed.' : 'Audio file completed.') :
+      status.textContent = completed === tracks.length ? (tracks.length === 2 ? 'Both files completed.' :
+        tracks[0].kind === 'combined' ? 'MP4 file completed.' : 'Audio file completed.') :
         completed ? 'Partial failure. The completed file is kept; the companion failed.' : 'Download failed. No files completed.';
       if (tracks.length === 2 && completed === 2) {
         if (!await rightsAcknowledged()) return;

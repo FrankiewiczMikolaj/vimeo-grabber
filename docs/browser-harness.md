@@ -116,6 +116,9 @@ erasing usable HLS; every track retains its own candidate's manifest.
 The popup groups candidates by normalized Vimeo video ID within the active tab.
 It selects one whole downloadable separate DASH candidate before clear HLS, without
 mixing tracks between sources. Alternative candidates remain in worker state.
+Usable progressive MP4 actions appear first on that card, with combined-media
+labels and declared byte size or an explicit unknown size. Each action retains
+its own candidate identity; separate pair and Audio only alternatives remain.
 The action proof combines two CDN origins, two player frames and a re-captured
 config and asserts one card. The matrix also asserts exactly two entries after
 removing all but two distinct video IDs. `one-video-two-frames.png` and
@@ -170,6 +173,15 @@ initialization-first source order. One segment returns 503 three times before
 succeeding on attempt four; another exhausts all four attempts. Recorded request
 times must show backoff. FFmpeg decodes both completed outputs and extracts a
 1920x1080 frame from the saved video. Audio only produces exactly one audio file.
+Progressive-only, mixed and unknown-size configs each save one owned combined MP4
+larger than 64 MiB, proving whole files do not inherit the segment cap.
+The proof compares native output byte-for-byte and decodes mandatory video/audio
+maps. It asserts one direct request and native item without initialization,
+segment, merge or Copy actions. Choice frames retain progressive order, unknown
+size and mixed alternatives. Unsafe/protected siblings remain non-actionable;
+direct redirects save nothing, and declared size above 4 GiB fails before fetching.
+Repeated inline/fetched copies of the same direct URL expose one action, retaining
+one whole admitted candidate rather than combining authority or metadata.
 A held companion proves progress after video completes. Network failure, Cancel
 and a real 30-second idle timeout must preserve the completed video and report
 partial failure. Encrypted playlists, redirects and non-CDN resource origins

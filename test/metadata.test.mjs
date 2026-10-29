@@ -126,6 +126,19 @@ test('compiled metadata transport enforces Vimeo authorization and bounded prove
       inline.video.manifests[0].url = original.manifests[0].url;
       return transport.manifest(inline, inline.video, inline.video.manifests[0]);
     }), { status: 'failed', reason: 'source' });
+    assert.deepEqual(await worker.evaluate(() => {
+      const track = { id: 'progressive-0', kind: 'combined', mimeType: 'video/mp4',
+        manifest: { protocol: 'progressive', url: 'https://owned.vimeocdn.com/movie.mp4?sig=%2f+&x=&x=2' },
+        download: { kind: 'file', url: 'https://owned.vimeocdn.com/movie.mp4?sig=%2f+&x=&x=2', size: 123 } };
+      const inline = transport.inline({ ...video, tracks: [track], source: { ...source, configUrl: null } });
+      const accepted = transport.progressive(inline, inline.video);
+      const forged = transport.progressive({ ...inline }, inline.video);
+      const changedSource = transport.progressive(inline, { ...inline.video, source: { ...inline.video.source, frameUrl: 'https://vimeo.com/other' } });
+      inline.video.tracks[0].download.size = 999;
+      const changedTrack = transport.progressive(inline, inline.video);
+      return { accepted: accepted.map(track => track.download), forged, changedSource, changedTrack };
+    }), { accepted: [{ kind: 'file', url: 'https://owned.vimeocdn.com/movie.mp4?sig=%2f+&x=&x=2', size: 123 }],
+      forged: [], changedSource: [], changedTrack: [] });
     for (const reason of ['redirect', 'http', 'content-type', 'size', 'timeout', 'network']) {
       mode = reason === 'content-type' ? 'type' : reason;
       assert.deepEqual(await load(), { status: 'failed', reason });
