@@ -127,6 +127,9 @@ manifest declaration, popup origin discovery/request/poll/revocation, worker att
 state and replay hooks, transport permission results, download grant checks and
 native deny/grant/revoke fixtures. Required `<all_urls>` replaces browser grant
 negotiation, not Vimeo-only endpoint, receipt, consent or media-source admission.
+The grant-era popup refresh message and its worker replay helper are also removed:
+no production caller remains after the permission UI cutover. Live document
+connections still publish their initial report and later observed changes.
 `pnpm deadcode` checks orphan files/exports; source searches check obsolete APIs,
 states and UI wording. Historical feature tickets remain records, not current contracts.
 

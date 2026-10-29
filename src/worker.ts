@@ -50,13 +50,6 @@ chrome.runtime.onConnect.addListener(port => {
   });
   port.postMessage({ type: 'report', frameUrl: sender.url });
 });
-function replay(tabId?: number) {
-  for (const port of connections.values()) {
-    if (tabId === undefined || port.sender?.tab?.id === tabId) {
-      port.postMessage({ type: 'report', frameUrl: port.sender?.url });
-    }
-  }
-}
 function clearTab(tabId: number) {
   state.clearTab(tabId);
   updateBadge(tabId);
@@ -81,7 +74,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   return true;
 });
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
-  // Only our actual popup may read tab state or request a fresh report.
+  // Only our actual popup may read tab state or start a download.
   if (sender.id !== chrome.runtime.id || sender.tab || sender.url !== chrome.runtime.getURL('popup.html')
     || !message || !Number.isSafeInteger(message.tabId) || message.tabId < 0) return;
   if (message.type === 'popup-state') {
@@ -99,8 +92,5 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
       }, () => { downloads.delete(token); respond(false); });
     });
     return true;
-  } else if (message.type === 'refresh') {
-    replay(message.tabId);
-    respond(true);
   }
 });
