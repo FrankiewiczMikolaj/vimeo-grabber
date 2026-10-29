@@ -159,10 +159,10 @@ initialization-first source order. One segment returns 503 three times before
 succeeding on attempt four; another exhausts all four attempts. Recorded request
 times must show backoff. FFmpeg decodes both completed outputs and extracts a
 1920x1080 frame from the saved video. Audio only produces exactly one audio file.
-A held companion proves progress after video completes, then network failure,
-Cancel, a real 30-second idle timeout and permission revocation must preserve the
-completed video and report partial failure. Encrypted playlists,
-redirects and ungranted resource origins produce no native download. Missing-URI
+A held companion proves progress after video completes. Network failure, Cancel
+and a real 30-second idle timeout must preserve the completed video and report
+partial failure. Encrypted playlists, redirects and non-CDN resource origins
+produce no native download. Missing-URI
 audio cannot expose a quality-pair button. Every finished owner must remove its
 owned temporary directory. No unrelated audio, keys or licenses may be requested.
 

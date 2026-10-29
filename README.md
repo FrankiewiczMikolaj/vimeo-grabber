@@ -155,7 +155,7 @@ See [download contracts and proof](docs/M3-DOWNLOAD.md) and
 ## FAQ
 
 **Why are there no quality buttons?** The source may be protected, unsupported,
-unavailable, still resolving or missing a needed origin grant. A separate video
+unavailable or still resolving. A separate video
 and compatible audio must belong to the same source; in-band/combined audio does
 not create a pair. Audio only can remain available when no supported pair exists.
 

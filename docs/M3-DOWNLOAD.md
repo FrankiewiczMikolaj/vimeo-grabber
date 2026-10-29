@@ -100,7 +100,7 @@ completion. Object URLs remain live until completion or interruption. Native
 other native filesystem failures retain their bounded Chromium code.
 Initial admission authenticates the popup, live source candidate and selected tracks.
 The owner keeps that admitted snapshot in memory, independent of later source-tab
-closure or navigation and worker sleep. Consent, exact-origin permission and Cancel
+closure or navigation and worker sleep. Consent, approved CDN sources and Cancel
 remain checked while fetching and saving, without a native-save elapsed-time deadline.
 The popup discovers extension owner contexts without new permissions and reads only
 status and segment counts from authenticated owner responses. It never restarts a job.
