@@ -98,8 +98,14 @@ disarmed before closing the assembled file or awaiting native saving. Native
 `downloads.onChanged` terminal events and an initial state read cover fast
 completion. Object URLs remain live until completion or interruption. Native
 `USER_CANCELED` displays “Save cancelled”; other native errors retain their code.
-Source authority and Cancel remain checked while native saving waits, without
-an elapsed-time deadline.
+Initial admission authenticates the popup, live source candidate and selected tracks.
+The owner keeps that admitted snapshot in memory, independent of later source-tab
+closure or navigation and worker sleep. Consent, exact-origin permission and Cancel
+remain checked while fetching and saving, without a native-save elapsed-time deadline.
+The popup discovers extension owner contexts without new permissions and reads only
+status and segment counts from authenticated owner responses. It never restarts a job.
+No browsing/media URL is persisted. Closing an owner removes its broker intent;
+the in-memory broker admits at most 16 outstanding owner intents.
 Retire weaker tests rather than duplicating paths. Live Vimeo never gates CI.
 
 ### Linux merge command

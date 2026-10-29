@@ -77,7 +77,7 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
         retryTimes.push(Date.now());
         if (attempt <= 3) return await route.fulfill({ status: 503, body: 'temporary' });
       }
-      if (name === 'audio-0.m4s' && ['partial', 'cancel', 'timeout', 'revoke', 'invalidate'].includes(mode)) {
+      if (name === 'audio-0.m4s' && (mode === 'lifetime' || ['partial', 'cancel', 'timeout', 'revoke'].includes(mode))) {
         requested(); await held;
         if (mode === 'partial') return await route.fulfill({ status: 503, body: 'temporary' });
       }
@@ -137,7 +137,7 @@ else: raise RuntimeError('Native Save File dialog not found')
     heldStarted = new Promise(resolve => { requested = resolve; });
     held = new Promise(resolve => { release = resolve; });
     await active.goto('https://player.vimeo.com/video/91');
-    await open();
+    await open(active);
     await waitText(next === 'empty' ? 'Vimeo video 91' : next === 'long' ? '界' : "Owned '");
     if (!await evaluate("chrome.permissions.contains({origins:['https://owned.vimeocdn.com/*']})")) {
       await evaluate("document.querySelector('.permission button').focus(); true"); key('Return');
@@ -145,7 +145,7 @@ else: raise RuntimeError('Native Save File dialog not found')
       if (!await bootstrap.evaluate(() => globalThis.chrome.permissions.contains({ origins: ['https://owned.vimeocdn.com/*'] }))) {
         key('Tab'); key('Return');
       }
-      await open();
+      await open(active);
     }
     if (next === 'missing') await evaluate(`(async () => {
       const [tab] = await chrome.tabs.query({active:true,currentWindow:true});
@@ -233,7 +233,7 @@ else: raise RuntimeError('Native Save File dialog not found')
         await owner.evaluate(() => { globalThis.chrome.storage.local.get = globalThis.originalRightsGet; });
         await owner.screenshot({ path: resolve(artifacts, 'rights-open-page-copy-blocked.png') });
         report.rightsCopy = { missingInvalidFalseUnreadableRefused: true, clipboardUnchanged: true };
-        await open();
+        await open(active);
         await bootstrap.evaluate(() => globalThis.chrome.storage.local.remove('rightsAcknowledged'));
         await acknowledge();
         await owner.bringToFront();
@@ -278,7 +278,7 @@ else: raise RuntimeError('Native Save File dialog not found')
         if (value === null) await globalThis.chrome.storage.local.remove('rightsAcknowledged');
         else await globalThis.chrome.storage.local.set({ rightsAcknowledged: value });
       }, value);
-      await open();
+      await open(active);
       await waitText('1 video detected.');
       const result = await evaluate(`(async () => {
         const list = document.querySelector('#streams');
@@ -364,10 +364,55 @@ else: raise RuntimeError('Native Save File dialog not found')
     report.rightsRefusal = { outcomes, pendingAndUnreadablePopup: true, unreadableWorkerRefused: true,
       genuineTokenRevokedBeforeEntry: true, workerRefusedPageAssertion: true, directUnownedTokenRefused: true,
       requests: requests.slice(requestBefore), nativeSaves: (await native()).length - nativeBefore };
-    await open();
+    await open(active);
     await acknowledge();
   }
   try {
+    {
+      const lifetime = [];
+      for (const action of ['Download 1080p', 'Audio only']) {
+        await prepare('lifetime');
+        const before = (await native()).length;
+        const owner = await start(action);
+        await heldStarted;
+        const entry = { action, popupClosed: true, nativeBefore: before };
+        const other = await context.newPage();
+        await other.goto('https://example.com/empty');
+        await other.bringToFront();
+        entry.afterSwitch = await owner.locator('body').innerText();
+        await open(active);
+        await waitText('audio segments: 0/6');
+        entry.reopened = await evaluate('document.body.innerText');
+        await capture(`lifetime-${action === 'Audio only' ? 'audio' : 'pair'}-reopen`);
+        await active.close();
+        await delay(1500);
+        await open(other);
+        await waitText('audio segments: 0/6');
+        entry.afterSourceClosedPopup = await evaluate('document.body.innerText');
+        await capture(`lifetime-${action === 'Audio only' ? 'audio' : 'pair'}-source-closed`);
+        release();
+        await owner.waitForFunction(() => globalThis.document.querySelector('#cancel').disabled);
+        entry.result = await owner.locator('body').innerText();
+        await open(other);
+        await waitText('audio segments: 6/6 — complete');
+        entry.completedPopup = await evaluate('document.body.innerText');
+        await capture(`lifetime-${action === 'Audio only' ? 'audio' : 'pair'}-completed-popup`);
+        entry.rows = await owner.locator('#outcomes li').evaluateAll(rows => rows.map(row => ({ state: row.dataset.state, path: row.dataset.path })));
+        entry.nativeAdded = (await native()).length - before;
+        entry.exactBytes = await Promise.all(entry.rows.map(async (row, index) => row.path
+          ? (await readFile(row.path)).equals(media[action === 'Audio only' || index === 1 ? 'audio' : 'video'].bytes) : false));
+        assert.equal(entry.nativeAdded, action === 'Audio only' ? 1 : 2);
+        assert.ok(entry.rows.every(row => row.state === 'complete'));
+        assert.ok(entry.exactBytes.every(Boolean));
+        await owner.screenshot({ path: resolve(artifacts, `lifetime-${action === 'Audio only' ? 'audio' : 'pair'}-result.png`) });
+        lifetime.push(entry);
+        await writeFile(resolve(artifacts, 'lifetime-proof.json'), JSON.stringify(lifetime, null, 2));
+        await owner.close();
+        active = other;
+      }
+      report.lifetime = lifetime;
+      if (process.env.SMOKE_LIFETIME_ONLY) return report;
+    }
     await bootstrap.evaluate(async () => {
       const root = await globalThis.navigator.storage.getDirectory();
       const directory = await root.getDirectoryHandle('vimeo-download', { create: true });
@@ -519,7 +564,7 @@ else: raise RuntimeError('Native Save File dialog not found')
     assert.notEqual(failedItems[0].error, 'USER_CANCELED');
     assert.match(report.nativeError[0].text, new RegExp(`Native download ${failedItems[0].error}`));
     await automatic();
-    for (const scenario of ['partial', 'cancel', 'timeout', 'revoke', 'invalidate']) {
+    for (const scenario of ['partial', 'cancel', 'timeout', 'revoke']) {
       await prepare(scenario); before = (await native()).length;
       owner = await start('Download 1080p');
       await heldStarted;
@@ -530,7 +575,6 @@ else: raise RuntimeError('Native Save File dialog not found')
       await owner.screenshot({ path: resolve(artifacts, `download-${scenario}-running.png`) });
       if (scenario === 'cancel') await owner.getByRole('button', { name: 'Cancel', exact: true }).click();
       if (scenario === 'revoke') await bootstrap.evaluate(() => globalThis.chrome.permissions.remove({ origins: ['https://owned.vimeocdn.com/*'] }));
-      if (scenario === 'invalidate') await active.goto('https://example.com/empty');
       if (scenario !== 'timeout') release();
       report[scenario] = await finish(owner, 'Partial failure. The completed file is kept; the companion failed.', scenario);
       if (scenario === 'partial') {

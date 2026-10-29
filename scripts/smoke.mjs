@@ -233,8 +233,8 @@ try {
   const primaryTabId = await tabId(active);
   await bootstrap.bringToFront();
   await badge(primaryTabId, '1', 'background-before-popup');
-  async function open() {
-    await active.bringToFront();
+  async function open(page = active) {
+    await page.bringToFront();
     const result = await session.send('Runtime.evaluate', { expression: 'chrome.action.openPopup()', awaitPromise: true });
     assert.equal(result.exceptionDetails, undefined);
     const { targetInfos } = await session.send('Target.getTargets');
@@ -708,4 +708,5 @@ try {
   await writeFile(resolve(artifacts, 'diagnostics.json'), JSON.stringify(diagnostics, null, 2));
 }
 if (failure) { console.error(failure); process.exitCode = 1; }
+else if (process.env.SMOKE_LIFETIME_ONLY) console.log(`PASS: offline detection/notice setup and native paired/Audio only lifetime, exact bytes and reopened progress; ${artifacts}`);
 else console.log(`PASS: real action popup and per-tab badge text/color, first-use acknowledgement, quota failure, reopen/restart/update, separate fresh profile, HLS/DASH JSON/MPD, nested IDs, tab isolation, stale response, exact-origin grant/deny/revoke, worker rebuild, native downloads and merge command; ${artifacts}`);

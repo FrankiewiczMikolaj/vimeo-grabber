@@ -1,4 +1,5 @@
 import { createFrameState, validateFrameDiscovery } from './detect/frame-state';
+import type { FrameCandidate } from './detect/frame-state';
 import { resolveDiscovery } from './detect/resolve';
 import { selection } from './download/select';
 import { rightsAcknowledged } from './rights';
@@ -6,7 +7,7 @@ import { rightsAcknowledged } from './rights';
 const state = createFrameState(chrome.runtime.id, resolveDiscovery);
 const connections = new Map<string, chrome.runtime.Port>();
 const permissionAttempts = new Map<number, Set<string>>();
-const downloads = new Map<string, { tabId: number; candidateId: string; trackId: string; owner?: number }>();
+const downloads = new Map<string, { candidate: FrameCandidate; trackId: string; owner?: number }>();
 function updateBadge(tabId: number) {
   const count = state.videoCount(tabId);
   // A tab can close while a publication is resolving. Its badge no longer exists.
@@ -18,7 +19,7 @@ void chrome.tabs.query({}).then(tabs => {
   for (const tab of tabs) if (tab.id !== undefined) updateBadge(tab.id);
 });
 chrome.tabs.onRemoved.addListener(tabId => {
-  for (const [token, intent] of downloads) if (intent.owner === tabId || intent.tabId === tabId) downloads.delete(token);
+  for (const [token, intent] of downloads) if (intent.owner === tabId) downloads.delete(token);
 });
 const empty = { type: 'frame-discovery', discovery: { videos: [], configUrls: [] } };
 chrome.runtime.onConnect.addListener(port => {
@@ -78,8 +79,8 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     || message?.type !== 'download-source') return;
   void rightsAcknowledged().then(acknowledged => {
     const intent = downloads.get(message.token);
-    const candidate = intent && state.candidates(intent.tabId).find(candidate => candidate.id === intent.candidateId);
-    respond(acknowledged && intent && candidate && intent.owner === sender.tab?.id ? { candidate, trackId: intent.trackId } : null);
+    respond(acknowledged && intent && intent.owner === sender.tab?.id
+      ? { candidate: intent.candidate, trackId: intent.trackId } : null);
   });
   return true;
 });
@@ -96,7 +97,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
       const candidate = state.candidates(message.tabId).find(candidate => candidate.id === message.candidateId);
       if (!candidate || !selection(candidate, message.trackId).length || downloads.size >= 16) { respond(false); return; }
       const token = crypto.randomUUID();
-      const intent = { tabId: message.tabId, candidateId: candidate.id, trackId: message.trackId, owner: undefined as number | undefined };
+      const intent = { candidate, trackId: message.trackId, owner: undefined as number | undefined };
       downloads.set(token, intent);
       void chrome.tabs.create({ url: `${chrome.runtime.getURL('download.html')}#${token}` }).then(tab => {
         intent.owner = tab.id; respond(true);

@@ -17,6 +17,19 @@ addEventListener('pagehide', () => {
   controller.abort();
   if (activeDownload !== undefined) void chrome.downloads.cancel(activeDownload);
 });
+// The owner answers only the real popup, never a page or a content script.
+chrome.runtime.onMessage.addListener((message, sender, respond) => {
+  if (sender.id !== chrome.runtime.id || sender.tab || sender.url !== chrome.runtime.getURL('popup.html')
+    || message?.type !== 'download-progress' || message.token !== token) return;
+  void rightsAcknowledged().then(acknowledged => respond(acknowledged ? {
+    status: status.textContent,
+    tracks: Array.from(outcomes.querySelectorAll('li'), row => {
+      const bar = row.querySelector('progress')!;
+      return `${bar.getAttribute('aria-label')}: ${bar.value}/${bar.max}${row.dataset.state ? ` — ${row.dataset.state}` : ''}`;
+    }),
+  } : null));
+  return true;
+});
 
 async function source(): Promise<{ candidate: FrameCandidate; trackId: string } | null> {
   if (!await rightsAcknowledged()) return null;
@@ -84,16 +97,20 @@ async function run() {
   const candidate = current.candidate;
   const tracks = selection(candidate, current.trackId);
   if (!tracks.length) throw new Error('No supported separate tracks');
-  const identity = JSON.stringify(current);
+  // Initial admission fixes the source and tracks. Later source-tab changes do not revoke it.
   const stem = filenameStem(candidate.title, candidate.videoId);
   const paths = new Map<string, string>();
+  const origins = new Set<string>();
   async function authority(value?: string) {
     controller.signal.throwIfAborted();
-    if (JSON.stringify(await source()) !== identity) throw new Error('Source changed or permission revoked');
+    if (!await rightsAcknowledged()) throw new Error('Source rights acknowledgement required');
     const url = new URL(value ?? candidate.manifest!.url);
     if (url.protocol !== 'https:' || url.username || url.password || url.port || url.hash ||
-      !(url.hostname === 'vimeocdn.com' || url.hostname.endsWith('.vimeocdn.com')) ||
-      !await chrome.permissions.contains({ origins: [`${url.origin}/*`] })) throw new Error('Exact-origin permission required');
+      !(url.hostname === 'vimeocdn.com' || url.hostname.endsWith('.vimeocdn.com'))) throw new Error('Exact-origin permission required');
+    origins.add(`${url.origin}/*`);
+    for (const origin of origins) {
+      if (!await chrome.permissions.contains({ origins: [origin] })) throw new Error('Exact-origin permission required');
+    }
   }
   await authority();
   // One owner at a time: a new page cleans only orphan data, never another live job.
