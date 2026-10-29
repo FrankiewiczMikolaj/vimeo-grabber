@@ -26,21 +26,24 @@ export function observePage(window: Window & typeof globalThis): PageObservation
   let snapshot = discoverPage(document, window.location.href, [...resources]);
   // Alternative order is discovery priority, so it is part of snapshot identity.
   let previous = JSON.stringify(snapshot);
+  const scan = () => {
+    if (stopped) return;
+    const next = discoverPage(document, window.location.href, [...resources]);
+    const nextKey = JSON.stringify(next);
+    if (nextKey === previous) return;
+    snapshot = next;
+    previous = nextKey;
+    for (const listener of [...listeners]) {
+      if (stopped) break;
+      if (listeners.has(listener)) listener(snapshot);
+    }
+  };
   const schedule = () => {
     if (stopped || queued) return;
     queued = true;
     window.queueMicrotask(() => {
       queued = false;
-      if (stopped) return;
-      const next = discoverPage(document, window.location.href, [...resources]);
-      const nextKey = JSON.stringify(next);
-      if (nextKey === previous) return;
-      snapshot = next;
-      previous = nextKey;
-      for (const listener of [...listeners]) {
-        if (stopped) break;
-        if (listeners.has(listener)) listener(snapshot);
-      }
+      scan();
     });
   };
   const mutations = new window.MutationObserver(records => {
@@ -65,8 +68,8 @@ export function observePage(window: Window & typeof globalThis): PageObservation
     subscribe(listener) {
       if (stopped) return () => {};
       remember(window.performance.getEntriesByType('resource'));
-      snapshot = discoverPage(document, window.location.href, [...resources]);
-      previous = JSON.stringify(snapshot);
+      scan();
+      if (stopped) return () => {};
       // A subscription owns its registration, even when callbacks are shared.
       const report = (value: PageDiscovery) => listener(value);
       listeners.add(report);

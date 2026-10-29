@@ -211,3 +211,9 @@ all runtime, CSS or prose dead code can be proved absent automatically.
 - Expanded the existing retention browser proof instead of adding a duplicate lane.
   No wording-only unit tests existed to repin or delete (`grep` over `test` found
   no popup/wording/Reload assertions). Scoped ESLint and `pnpm deadcode` pass.
+- Subscription repair shares one private `scan` within each observer between
+  queued changes and explicit subscriptions. Removed the separate subscribe-only
+  snapshot assignment that could suppress existing listeners. No generic abstraction.
+- Real-DOM interleaving regressions for both observers replace the weaker
+  fresh-subscriber-only assertion; both fail on the prior head and pass after repair.
+  Scoped typecheck, ESLint and Knip report no findings. No user-facing string changes.

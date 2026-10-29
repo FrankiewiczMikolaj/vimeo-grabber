@@ -11,6 +11,10 @@ There is no caller-supplied URL that can authorise an unrelated document.
 - `subscribe(listener)` synchronously rescans the live document and reports its
   current `PageDiscovery`, even when unchanged. It returns an unsubscribe function.
   Each registration has its own lifetime, even with a shared callback. Treat snapshots as read-only.
+  A changed rescan first notifies existing active registrations, then registers
+  and delivers once to the new subscriber. A queued automatic scan cannot swallow
+  that change or duplicate the new subscriber's initial snapshot. The reference-only
+  observer follows the same subscription and lifetime rules.
 - Script/iframe insertion, removal, text edits, and `src`/`type` changes schedule
   discovery. Mutation batches share a queued microtask; unrelated DOM edits do not
   trigger rescans. No polling or page-world hooks are installed.
@@ -44,4 +48,9 @@ queued-stop cancellation, observer disconnection, and hostile-origin refusal bef
 DOM queries. Every browser request is intercepted; no live Vimeo or media is used.
 All `waitForFunction` predicates are synchronous. Chromium closes in `finally`.
 `results.json` and `trace.zip` are retained under the selected proof directory.
+`observe-interleaving.json` and `references-interleaving.json` record real-DOM
+subscription-before-mutation-delivery and subscription-before-queued-scan cases.
+They also prove coalesced automatic delivery, independent registrations of one
+callback, unsubscribe and pending-scan cancellation on stop. These replace the
+weaker fresh-subscriber-only assertion.
 These owned examples prove observer behavior, not compatibility with live Vimeo.

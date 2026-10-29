@@ -111,13 +111,6 @@ test('offline Chromium observes real Vimeo windows, deduplicates and stops', asy
       globalThis.unsubscribe();
       globalThis.insert('Unsubscribed');
     });
-    // A fresh subscriber sees the new snapshot, not stale cached state.
-    await page.evaluate(() => new Promise(resolve => globalThis.setTimeout(resolve, 0)));
-    assert.equal(await page.evaluate(() => {
-      let title;
-      globalThis.observation.subscribe(value => { title = value.videos.at(-1)?.title; })();
-      return title;
-    }), 'Unsubscribed');
     await page.evaluate(async () => {
       globalThis.stoppedReports = [];
       globalThis.observation.subscribe(value => globalThis.stoppedReports.push(value));
@@ -156,3 +149,82 @@ test('offline Chromium observes real Vimeo windows, deduplicates and stops', asy
     }
   } finally { await browser.close(); }
 });
+
+for (const [file, factory, origin] of [
+  ['observe', 'observePage', 'https://player.vimeo.com/video/91'],
+  ['references', 'observeReferences', 'https://example.com/'],
+]) {
+  test(`${factory} preserves subscribers across synchronous and queued rescan interleavings`, async () => {
+    const bundle = await build({ configFile: false, logLevel: 'silent', build: {
+      lib: { entry: `src/detect/${file}.ts`, formats: ['es'] }, write: false,
+    } });
+    const output = Array.isArray(bundle) ? bundle[0].output : bundle.output;
+    const moduleUrl = `data:text/javascript;base64,${Buffer.from(output[0].code).toString('base64')}`;
+    const browser = await chromium.launch({ channel: 'chromium' });
+    try {
+      const page = await browser.newPage();
+      await page.route('**/*', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Owned interleaving</title>' }));
+      await page.goto(origin);
+      const result = await page.evaluate(async ({ moduleUrl, factory }) => {
+        const observation = (await import(moduleUrl))[factory](globalThis);
+        const first = [], second = [], third = [], shared = [];
+        const project = value => value.configUrls.filter(url => /\/video\/2\d\/config$/.test(url));
+        const insert = id => {
+          const node = globalThis.document.createElement(factory === 'observePage' ? 'script' : 'a');
+          node.id = `reference-${id}`;
+          if (factory === 'observePage') {
+            node.type = 'application/json';
+            node.textContent = JSON.stringify({ player: { config_url: `https://player.vimeo.com/video/${id}/config` } });
+          } else node.href = `https://vimeo.com/${id}`;
+          globalThis.document.body.append(node);
+        };
+        const flush = () => new Promise(resolve => globalThis.setTimeout(resolve, 0));
+        observation.subscribe(value => first.push(project(value)));
+        const callback = value => shared.push(project(value));
+        const unshared = observation.subscribe(callback);
+        const unsharedTwin = observation.subscribe(callback);
+        insert(20);
+        observation.subscribe(value => second.push(project(value)));
+        await flush();
+        const synchronous = { first: [...first], second: [...second], shared: [...shared] };
+        insert(21); insert(22);
+        await flush();
+        const coalesced = { first: [...first], second: [...second] };
+        globalThis.document.getElementById('reference-20').remove();
+        insert(23);
+        await Promise.resolve(); // MutationObserver has queued its scan, which has not run yet.
+        const unthird = observation.subscribe(value => third.push(project(value)));
+        await flush();
+        const queued = { first: [...first], second: [...second], third: [...third] };
+        unshared(); unthird();
+        const sharedBefore = shared.length;
+        globalThis.document.getElementById('reference-21').remove();
+        await flush();
+        const independent = { shared: shared.slice(sharedBefore), third: [...third] };
+        unsharedTwin();
+        const beforeStop = { first: [...first], second: [...second], shared: [...shared] };
+        insert(24);
+        await Promise.resolve();
+        observation.stop();
+        observation.subscribe(() => { throw new Error('Stopped observer delivered'); });
+        insert(25);
+        await flush();
+        return { synchronous, coalesced, queued, independent, beforeStop,
+          afterStop: { first, second, shared } };
+      }, { moduleUrl, factory });
+      if (process.env.OBSERVER_PROOF_DIR) {
+        await mkdir(process.env.OBSERVER_PROOF_DIR, { recursive: true });
+        await writeFile(resolve(process.env.OBSERVER_PROOF_DIR, `${file}-interleaving.json`), JSON.stringify(result, null, 2));
+      }
+      const urls = (...ids) => ids.map(id => `https://player.vimeo.com/video/${id}/config`);
+      assert.deepEqual(result.synchronous, { first: [[], urls(20)], second: [urls(20)],
+        shared: [[], [], urls(20), urls(20)] });
+      assert.deepEqual(result.coalesced, { first: [[], urls(20), urls(20, 21, 22)],
+        second: [urls(20), urls(20, 21, 22)] });
+      assert.deepEqual(result.queued, { first: [[], urls(20), urls(20, 21, 22), urls(21, 22, 23)],
+        second: [urls(20), urls(20, 21, 22), urls(21, 22, 23)], third: [urls(21, 22, 23)] });
+      assert.deepEqual(result.independent, { shared: [urls(22, 23)], third: [urls(21, 22, 23)] });
+      assert.deepEqual(result.afterStop, result.beforeStop);
+    } finally { await browser.close(); }
+  });
+}
