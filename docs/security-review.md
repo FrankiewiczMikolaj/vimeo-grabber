@@ -12,8 +12,9 @@ Retained evidence root (outside the disposable worktree):
 `shipped-inventory.txt` records every asset's SHA-256/size and a TypeScript AST
 inventory of imports, fetches, eval/Function and worker constructors; `inspected-dist/`
 preserves those exact build bytes.
-`native-probe/` retains the initial boundary run; `verify-final/` retains
-the committed-candidate full run. Read their JSON and logs for observed results;
+`native-probe/` retains the initial boundary run; `verify-final/` and
+`verify-final-2/` retain committed-candidate full runs. Read their JSON and logs
+for observed results;
 a directory name alone is not evidence of a pass. The PR records final commit/CI
 identities separately because a commit cannot contain its own hash.
 
@@ -30,10 +31,15 @@ identities separately because a commit cannot contain its own hash.
   `storage` stores only the rights acknowledgement. Basic tabs query/create/update
   operations and per-tab badge updates do not require the `tabs` permission.
   Copy uses a user gesture; no clipboardRead/clipboardWrite permission is requested.
-- No explicit CSP override: Chromium's MV3 extension-page default is
-  `script-src 'self'; object-src 'self'`. The native proof inserts inline and
-  remote script elements in an extension document and records actual CSP violations.
-  This is not a claim that privileged CDP Runtime.evaluate obeys page CSP.
+- No explicit CSP override. MV3's documented extension-page default is
+  `script-src 'self'; object-src 'self'`. In Chromium 1248's unpacked manifest
+  document, the native proof observed two enforced policies: `script-src 'self';`
+  and `script-src 'self' 'wasm-unsafe-eval' 'inline-speculation-rules'
+  http://localhost:* http://127.0.0.1:*; object-src 'self';`. Both rejected the
+  inserted inline and unrelated remote script elements before requests.
+  These observations describe that unpacked document, not every renderer or a
+  signed release installation. No shipped loader uses localhost or Wasm.
+  Privileged CDP Runtime.evaluate does not establish page-CSP bypass.
 - Both HTML entrypoints use packaged module scripts, CSS and modulepreloads.
   The service-worker loader imports the packaged worker. The content loader's
   sole dynamic import uses `chrome.runtime.getURL` with a build-time literal.
