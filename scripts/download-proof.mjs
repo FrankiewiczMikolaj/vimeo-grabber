@@ -452,8 +452,15 @@ else: ${cancel ? "print('null')" : "raise RuntimeError('Native Save File dialog 
             await row.locator('[aria-label="Cancel ' + kind + '"]').waitFor();
             await owner.waitForFunction(kind => [...globalThis.document.querySelectorAll('#outcomes li')]
               .some(row => row.dataset.state === 'saving' && row.querySelector('progress').getAttribute('aria-label') === `${kind} segments`), kind);
-            await bootstrap.waitForFunction(async () => (await globalThis.chrome.downloads.search({}))
-              .some(item => item.id === globalThis.recoveryPending && item.state === 'in_progress'));
+            await bootstrap.evaluate(async () => {
+              const deadline = Date.now() + 10000;
+              while (Date.now() < deadline) {
+                const items = await globalThis.chrome.downloads.search({});
+                if (items.some(item => item.id === globalThis.recoveryPending && item.state === 'in_progress')) return;
+                await new Promise(resolve => globalThis.setTimeout(resolve, 50));
+              }
+              throw new Error('Native recovery save did not become pending');
+            });
             execFileSync('ffmpeg', ['-v', 'error', '-f', 'x11grab', '-i', process.env.DISPLAY,
               '-frames:v', '1', '-y', resolve(artifacts, `recovery-native-${target}-pending.png`)]);
           } else await heldStarted;

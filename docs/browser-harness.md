@@ -193,6 +193,8 @@ The default full run includes both matrices.
 `recovery-proof.json` records video/audio/Audio only cancellation during fetch
 and actual native saving, followed by Retry on the same owner row. Native
 filename collisions and the real determining-filename listener force GTK Save As.
+The pending-state check awaits actual Downloads API results in page execution;
+it does not pass an async predicate to Playwright's `waitForFunction`.
 The native case activates the production Cancel button through its DOM because
 GTK is modal; it does not mock Chrome downloads APIs or claim a physical click.
 Desktop frames retain the pending native dialog. Each retry must produce exactly
