@@ -6,6 +6,11 @@ ESLint's recommended JavaScript and TypeScript rules check unused bindings in
 source, scripts and tests. CI uses the same locked command, with no network
 lookup by Knip. No dependency or export category is disabled.
 
+Current release preparation is documented in [CHANGELOG](../CHANGELOG.md) and
+[TESTING](../TESTING.md). The audits below are historical, scoped to their named
+changes; their observations about queued work or missing size metadata are not
+current contracts. Progressive tracks now retain declared file sizes.
+
 ## Entrypoints and exceptions
 
 - `vite.config.ts` is Vite's config entry. Its CRXJS manifest supplies the

@@ -45,11 +45,11 @@ jobs:
           zip -r ../vimeo-grabber.zip .
           unzip -t ../vimeo-grabber.zip
           unzip -p ../vimeo-grabber.zip manifest.json > /dev/null
-      - name: Upload PR extension zip
-        if: github.event_name == 'pull_request'
+          node --input-type=module -e "import fs from 'node:fs'; import assert from 'node:assert/strict'; const m = JSON.parse(fs.readFileSync('manifest.json')); const p = JSON.parse(fs.readFileSync('../package.json')); assert.equal(m.version, p.version); for (const f of [m.action.default_popup, m.background.service_worker, ...m.content_scripts.flatMap(s => s.js)]) assert.ok(fs.statSync(f).isFile(), f);"
+      - name: Upload identified extension zip
         uses: actions/upload-artifact@v7
         with:
-          name: vimeo-grabber-pr-${{ github.event.number }}
+          name: vimeo-grabber-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.number) || 'main' }}-${{ github.sha }}
           path: vimeo-grabber.zip
           if-no-files-found: error
           retention-days: 14

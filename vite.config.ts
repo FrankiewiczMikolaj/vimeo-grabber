@@ -6,8 +6,8 @@ export default defineConfig({
   plugins: [crx({ manifest: defineManifest({
     manifest_version: 3,
     name: 'Vimeo Grabber',
-    version: '0.3.0',
-    description: 'Download separate Vimeo video and audio files with a Linux merge command.',
+    version: '0.4.0',
+    description: 'Save Vimeo video/audio pairs, audio only or combined MP4, with a Linux merge command.',
     action: { default_popup: 'popup.html' },
     background: { service_worker: 'src/worker.ts', type: 'module' },
     permissions: ['downloads', 'storage'],

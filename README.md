@@ -1,7 +1,7 @@
 # Vimeo Grabber
 
 A Vimeo-only Chromium Manifest V3 extension. This README describes the **unreleased
-M3 checkout**, unless a section explicitly names a published release. English UI;
+0.4.0 source**, unless a section explicitly names a published release. English UI;
 Linux is the supported download/merge/test platform. No browser-store publication.
 
 ## What this checkout does
@@ -26,7 +26,7 @@ Linux is the supported download/merge/test platform. No browser-store publicatio
 The latest published release is [v0.3.0, M2 Detection](https://github.com/FrankiewiczMikolaj/vimeo-grabber/releases/tag/v0.3.0).
 It lists detection/quality metadata only: **no media downloads or one-time notice**.
 Its HLS-first result can hide DASH alternatives. The download features above are
-not in that release, even though this checkout still has manifest version 0.3.0.
+not in that release. Version 0.4.0 is prepared source, not a published release.
 
 The v0.3.0 release currently has **no prebuilt extension zip asset**. GitHub's
 **Source code (zip)** is source, not a ready-to-load extension:
@@ -42,10 +42,11 @@ The v0.3.0 release currently has **no prebuilt extension zip asset**. GitHub's
 4. Pin Vimeo Grabber to the toolbar. Reload existing Vimeo pages, then open its popup.
 
 For the unreleased checkout, build this checkout using the same commands and load
-its `dist/`. For a reviewed PR build, use the extension artifact instructions in
-[CI and PR zips](docs/ci.md). A PR artifact is not a published release. Updating an
+its `dist/`. For an identified PR or main build, use the artifact instructions in
+[CI packages](docs/ci.md). An Actions artifact is not a published release. Updating an
 unpacked installation requires rebuilding/replacing its files and reloading it in
-`chrome://extensions`; it is not an automatic signed update.
+`chrome://extensions`; it is not an automatic signed update. Use [TESTING.md](TESTING.md)
+for own-machine acceptance of the exact post-merge main build.
 
 ## Use the unreleased checkout
 
@@ -76,7 +77,8 @@ own native save. Leave the download tab open while either dialog waits; the
 30-second network inactivity limit does not apply to native saving.
 Video saves use `<Title> - video <quality>.mp4`; audio, including Audio only,
 uses `<Title> - audio.m4a`. The safe title stem is limited to 96 UTF-8 bytes,
-with `vimeo-ID` fallback for an empty or missing title. Before acknowledgement,
+with `vimeo-ID` fallback for an empty or missing title. Progressive combined files
+use `<Title> [<height>p].mp4` (`original` if height is absent). Before acknowledgement,
 the popup count and toolbar badge keep updating, but video cards and their actions
 stay hidden. Saving acknowledgement reveals the list in the same popup. The
 background worker and download page also require the stored boolean before
@@ -152,15 +154,17 @@ limits. Broad host access is capability, not permission to fetch arbitrary URLs.
   paths; redirects are refused, not followed.
 - One download page owns assembly at a time. Temporary storage quota can fail.
   Limits: 4 GiB per file, 10,000 ordered resources, 1 MiB initialization/playlist,
-  64 MiB per media segment, no per-read cap. Five disk-backed segment slots bound
-  lookahead to 320 MiB; initialization and segments are written in source order.
+  64 MiB per adaptive media segment, no per-read cap. Direct progressive MP4 uses
+  the 4 GiB file cap, not the adaptive-segment cap. Five disk-backed segment slots
+  bound lookahead to 320 MiB; initialization and segments are written in source order.
 - Transient network/read errors and HTTP 408/429/500/502/503/504 retry three times
   after the first attempt, with 200/400/600 ms backoff. Thirty seconds without
   progress fails a track. Quota, protection and cancellation do not retry
   automatically. Manual Retry still requires current consent and approved sources.
-- There is no pre-download file-size metadata in the track model. No size estimate
-  is invented. Progress uses observed bytes in MiB; unknown native totals say
-  `unknown`. Native completion, not metadata detection, confirms saved files.
+- Progressive MP4 displays a positive declared byte size when supplied; otherwise
+  size is unknown. Separate tracks have no reliable pre-download file-byte total.
+  Progress uses observed bytes in MiB; unknown native totals say `unknown`.
+  Native completion, not metadata detection, confirms saved files.
 
 See [download contracts and proof](docs/M3-DOWNLOAD.md) and
 [the offline Chromium harness](docs/browser-harness.md) for exact supported shapes.
@@ -184,7 +188,7 @@ choose the destination and may add collision suffixes. The download tab shows ac
 absolute paths after completion. Chrome's **Ask where to save each file before
 downloading** setting can show a Save As dialog for each file. Native saving has
 no elapsed-time limit. Cancelling a native save shows **Save cancelled** and keeps
-any completed companion. Further naming changes (#68) remain queued.
+any completed companion.
 
 **Why are download or Copy actions blocked?** A saved rights acknowledgement is
 required. Open the popup and acknowledge the notice. Missing, invalid or unreadable
