@@ -36,10 +36,12 @@ videos only, never tabs, frames or documents.
 
 ## Consumer contract
 
-`frames(tab)` returns detached per-document snapshots: activation starts ready and
-empty; publication replaces old results with pending; completion becomes ready;
-rejection becomes error with no retained exception. A newer publication, activation,
-removal or tab clearing invalidates the old completion, including old errors.
+`frames(tab)` returns detached per-document snapshots. Activation starts ready and
+empty. Publication prunes sources absent from the authoritative reference snapshot
+before becoming pending. It retains previous whole candidates only for referenced
+inline video IDs or exact fetched config URLs in that same document lifetime.
+Completion becomes ready; rejection becomes error without retaining exceptions.
+A newer publication, activation, removal or tab clearing invalidates old completions.
 `publish` returns false for invalid/unregistered reports and true for admitted work,
 not a promise that the document remains live or resolution succeeds.
 
@@ -48,6 +50,22 @@ video IDs and URLs in separate frames. It adds `frameId` and `documentId`, and
 scopes candidate `id` to that frame/document lifetime. Removing a frame removes
 only its candidates. No tracks, sources or statuses are merged.
 Resolver outputs preserve their authoritative document source.
+
+Partial outcomes preserve usable prior DASH/HLS/progressive alternatives; newer
+non-null titles update the video's candidates. Found/protected alternatives replace
+older whole results for the same source, protocol, CDN and URL origin/path, including
+signed-query history. Distinct alternatives in one new capture stay distinct.
+No video/audio tracks are spliced. Retention is capped per frame at 256 whole
+candidates and 2,097,152 serialized characters, preferring newer results. It is
+in-memory only and does not change already admitted download snapshots.
+
+Worker-only `invalidation` outcomes distinguish candidate/source access refusal and
+video-wide protection from missing metadata. Candidate protection removes its former
+clear alternative, source refusal clears only that source, and video-wide protection
+clears old clear results for that video in the document, even with omitted manifests.
+Independent documents remain separate. Explicit inline protection prunes actions
+before asynchronous resolution. Native browser host-access revocation is not
+simulated: connection removal and runtime navigation invalidation still clear state.
 
 Admission limits: 32 videos, 64 config URLs, 32 manifests/video, 256 tracks/video,
 8192 characters/string, 262144 serialized characters and traversal budget,

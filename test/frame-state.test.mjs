@@ -87,6 +87,64 @@ test('compiled broker validates real Chrome senders and rejects stale document c
       inline.status = 'found'; inline.tracks[0].manifest.url = 'https://evil.test/master.m3u8';
       check(!validateFrameDiscovery(valid, sender, globalThis.chrome.runtime.id), 'no arbitrary metadata host');
       check(!validateFrameDiscovery({ ...message, discovery: { videos: [video('20', 'https://evil.test')], configUrls: [] } }, sender, globalThis.chrome.runtime.id), 'reject forged video provenance');
+      inline.manifests[0].url = 'https://owned.vimeocdn.com/master.m3u8?sig=dummy';
+      // Exercise retention separately from the stale-completion scheduling matrix below.
+      let next = [];
+      const retained = createFrameState(globalThis.chrome.runtime.id, async () => next);
+      retained.activate(1, 0, 'a');
+      const reference = { ...message, discovery: { videos: [video('20', sender.url)], configUrls: [] } };
+      const whole = { ...resolved('20', sender.url)[0], status: 'found', manifest: inline.manifests[0],
+        tracks: [globalThis.structuredClone(inline.tracks[0])] };
+      const alternative = { ...whole, id: 'other', manifest: { ...whole.manifest, cdn: 'independent',
+        url: 'https://independent.vimeocdn.com/master.m3u8' }, tracks: [{ ...whole.tracks[0], id: 'independent-audio' }] };
+      next = [whole, alternative]; await retained.publish(reference, sender);
+      next = [{ ...resolved('20', sender.url)[0], title: 'New title' }]; await retained.publish(reference, sender);
+      check(retained.candidates(1).filter(c => c.status === 'found').length === 2 &&
+        retained.candidates(1).every(c => c.title === 'New title'), 'partial preserves independent sources and updates title');
+      check(JSON.stringify(retained.candidates(1)[0].tracks) === JSON.stringify(whole.tracks), 'whole track lineage retained');
+      next = [{ ...whole, status: 'protected', tracks: [] }]; await retained.publish(reference, sender);
+      check(retained.candidates(1).filter(c => c.status === 'found').every(c => c.manifest.cdn === 'independent'),
+        'candidate protection removes only its former clear action');
+      next = [{ ...resolved('20', sender.url)[0], status: 'protected', invalidation: 'video' }];
+      await retained.publish(reference, sender);
+      check(!retained.candidates(1).some(c => c.status === 'found'), 'manifest-free video protection removes all old clear actions');
+      next = [whole]; await retained.publish(reference, sender);
+      next = [{ ...whole, status: 'unavailable', tracks: [], invalidation: 'source' }]; await retained.publish(reference, sender);
+      check(!retained.candidates(1).some(c => c.status === 'found'), 'authoritative source refusal is not partial');
+      next = [whole]; await retained.publish(reference, sender);
+      next = [];
+      const removed = retained.publish(message, sender);
+      check(retained.candidates(1).length === 0, 'empty authoritative references prune synchronously');
+      await removed;
+      retained.activate(1, 0, 'a');
+      check(retained.candidates(1).length === 0, 'same-ID activation starts a fresh lifetime');
+      next = Array.from({ length: 300 }, (_, index) => ({ ...whole, id: String(index),
+        manifest: { ...whole.manifest, url: `https://owned.vimeocdn.com/${index}.m3u8` } }));
+      await retained.publish(reference, sender);
+      check(retained.candidates(1).length === 256, 'whole candidates have a hard frame bound');
+      next = [whole]; await retained.publish(reference, sender);
+      for (let index = 0; index < 10; index++) {
+        next = [{ ...whole, id: `signed-${index}`, manifest: { ...whole.manifest,
+          url: `https://owned.vimeocdn.com/master.m3u8?sig=${index}` } }];
+        await retained.publish(reference, sender);
+      }
+      check(retained.candidates(1).filter(c => c.manifest?.url.includes('/master.m3u8')).length === 1,
+        'new links replace signed history without splicing tracks');
+      retained.activate(1, 0, 'a');
+      const configUrl = 'https://player.vimeo.com/video/20/config';
+      const bothSources = { ...reference, discovery: { ...reference.discovery, configUrls: [configUrl] } };
+      const fetched = { ...whole, id: 'fetched', source: { ...whole.source, configUrl } };
+      next = [whole, fetched]; await retained.publish(bothSources, sender);
+      const inlineProtected = { ...bothSources, discovery: { ...bothSources.discovery,
+        videos: [{ ...video('20', sender.url), manifests: [{ ...whole.manifest, protected: true }] }] } };
+      next = [];
+      const protecting = retained.publish(inlineProtected, sender);
+      check(retained.candidates(1).length === 1 && retained.candidates(1)[0].source.configUrl === configUrl,
+        'inline candidate protection cannot revoke an independent fetched source at the same URL');
+      await protecting;
+      const sourceRemoved = retained.publish(reference, sender);
+      check(retained.candidates(1).length === 0, 'removing one config reference prunes only that source');
+      await sourceRemoved;
       const old = state.publish(message, sender);
       check(state.frames(1)[0].status === 'pending', 'pending transition');
       const fresh = state.publish(message, sender);

@@ -65,5 +65,7 @@ export interface PlaybackCandidate {
   readonly source: DetectionSource;
   readonly manifest: ManifestReference | ProgressiveReference | null;
   readonly status: DetectionStatus;
+  /** Authoritative invalidation, distinct from missing/failed partial metadata. Worker-local only. */
+  readonly invalidation?: 'candidate' | 'source' | 'video';
   readonly tracks: readonly Track[];
 }

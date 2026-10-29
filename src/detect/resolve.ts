@@ -20,13 +20,14 @@ export async function resolveDiscovery(
       (manifest?.protocol === 'hls' && hlsProtection('', [manifest.url]) === 'protected')
       ? 'protected' : 'unavailable', tracks: [],
   });
-  const saveConfig = (video: NormalisedVideo) => {
+  const saveConfig = (video: NormalisedVideo, invalidation?: PlaybackCandidate['invalidation']) => {
     const result = candidate(video, null);
-    results.set(result.id, result);
+    results.set(result.id, { ...result, ...(invalidation ? { invalidation } : {}) });
   };
   const resolve = async (video: NormalisedVideo, receipt: InlineMetadata | MetadataResult) => {
     const direct = transport.progressive(receipt, video);
-    if (!video.manifests.length && !direct.length) saveConfig(video);
+    if (video.status === 'protected') saveConfig(video, 'video');
+    else if (!video.manifests.length && !direct.length) saveConfig(video);
     for (const track of direct) {
       const result = candidate(video, track.manifest);
       results.set(result.id, { ...result, status: result.status === 'protected' ? 'protected' : 'found', tracks: [track] });
@@ -40,7 +41,8 @@ export async function resolveDiscovery(
       }
       const response = await transport.manifest(receipt, video, reference);
       if (response.status !== 'fetched') {
-        results.set(result.id, result);
+        results.set(result.id, { ...result,
+          ...(['source', 'access'].includes(response.reason) ? { invalidation: 'candidate' as const } : {}) });
         continue;
       }
       let parsed: Pick<PlaybackCandidate, 'status' | 'tracks'>;
@@ -73,7 +75,7 @@ export async function resolveDiscovery(
       try { video = normalisePlayerConfig(JSON.parse(response.text), source); } catch { /* Other configs remain independent. */ }
       if (video?.id === id) await resolve(video, response);
       else saveConfig(empty);
-    } else saveConfig(empty);
+    } else saveConfig(empty, ['source', 'access'].includes(response.reason) ? 'source' : undefined);
   }
   return [...results.values()];
 }

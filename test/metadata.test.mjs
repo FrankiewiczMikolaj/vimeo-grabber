@@ -69,7 +69,7 @@ test('compiled metadata transport enforces Vimeo authorization and bounded prove
       const body = mode === 'size' ? 'x'.repeat(1_048_577)
         : mode === 'malformed' ? '{' : isConfig ? JSON.stringify(config)
           : new URL(request.url).pathname.endsWith('.json') ? '{"video":[{"id":"v"}]}' : '<MPD/>';
-      void command('Fetch.fulfillRequest', { requestId, responseCode: mode === 'http' ? 403 : mode === 'redirect' ? 302 : 200,
+      void command('Fetch.fulfillRequest', { requestId, responseCode: mode === 'http' ? 500 : mode === 'access' ? 403 : mode === 'redirect' ? 302 : 200,
         responseHeaders: [{ name: 'Content-Type', value: mode === 'type' ? 'video/mp4' : isConfig || new URL(request.url).pathname.endsWith('.json') ? 'application/json' : 'application/dash+xml' },
           ...(mode === 'redirect' ? [{ name: 'Location', value: 'https://unrelated.invalid/secret' }] : [])],
         body: Buffer.from(body).toString('base64'),
@@ -139,7 +139,7 @@ test('compiled metadata transport enforces Vimeo authorization and bounded prove
       return { accepted: accepted.map(track => track.download), forged, changedSource, changedTrack };
     }), { accepted: [{ kind: 'file', url: 'https://owned.vimeocdn.com/movie.mp4?sig=%2f+&x=&x=2', size: 123 }],
       forged: [], changedSource: [], changedTrack: [] });
-    for (const reason of ['redirect', 'http', 'content-type', 'size', 'timeout', 'network']) {
+    for (const reason of ['redirect', 'http', 'access', 'content-type', 'size', 'timeout', 'network']) {
       mode = reason === 'content-type' ? 'type' : reason;
       assert.deepEqual(await load(), { status: 'failed', reason });
       evidence.push(reason);
