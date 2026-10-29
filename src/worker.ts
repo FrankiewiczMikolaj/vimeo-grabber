@@ -74,11 +74,16 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   return true;
 });
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
-  // Only our actual popup may read tab state or start a download.
+  // Only our actual popup may read/refresh tab state or start a download.
   if (sender.id !== chrome.runtime.id || sender.tab || sender.url !== chrome.runtime.getURL('popup.html')
     || !message || !Number.isSafeInteger(message.tabId) || message.tabId < 0) return;
   if (message.type === 'popup-state') {
     respond({ frames: state.frames(message.tabId), results: state.candidates(message.tabId) });
+  } else if (message.type === 'popup-refresh') {
+    for (const port of connections.values()) {
+      if (port.sender?.tab?.id === message.tabId) port.postMessage({ type: 'report', frameUrl: port.sender?.url });
+    }
+    respond(true);
   } else if (message.type === 'download-start') {
     void rightsAcknowledged().then(acknowledged => {
       if (!acknowledged) { respond(false); return; }

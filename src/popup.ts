@@ -6,6 +6,7 @@ import { rightsAcknowledged } from './rights';
 
 type PopupState = { frames: readonly FramePublication[]; results: readonly FrameCandidate[] };
 const status = document.querySelector<HTMLParagraphElement>('#status')!;
+const refresh = document.querySelector<HTMLButtonElement>('#refresh')!;
 const videos = document.querySelector<HTMLElement>('#streams')!;
 const jobs = document.createElement('section');
 jobs.setAttribute('aria-label', 'Downloads');
@@ -50,8 +51,8 @@ function render() {
   status.textContent = count
     ? `${count} video${count === 1 ? '' : 's'} detected.${pending ? ' Looking for more download options…' : ''}${failed ? ' Some videos could not be checked.' : ''}`
     : pending ? 'Looking for Vimeo videos…'
-      : failed ? 'This page could not be checked. Reload it to try again.'
-        : 'No Vimeo videos detected. Open a Vimeo page or a page with a Vimeo player. Reload existing pages after installing the extension.';
+      : failed ? 'This page could not be checked. Press Refresh to try again.'
+        : 'No Vimeo videos detected. Start the Vimeo player, then press Refresh. Reload existing pages after installing the extension.';
   videos.hidden = !acknowledged;
   jobs.hidden = !acknowledged;
   jobs.replaceChildren(...(acknowledged ? downloads.map(job => {
@@ -71,7 +72,7 @@ function render() {
     const paired = candidate.tracks.some(track => track.kind === 'video' && selection(candidate, track.id).length === 2);
     if (paired) return candidate.manifest?.protocol === 'dash' ? 0 : 1;
     if (audioFor(candidate)) return 2;
-    return candidate.status === 'found' ? 3 : 4;
+    return candidate.status === 'found' ? 3 : candidate.status === 'protected' || candidate.accessRefused ? 4 : 5;
   };
   const cards = [...groups.values()].map(alternatives => {
     const direct = new Map<string, { candidate: FrameCandidate; track: FrameCandidate['tracks'][number] }>();
@@ -90,7 +91,9 @@ function render() {
     const choices = candidate.tracks.filter(track => track.kind === 'video' && selection(candidate, track.id).length === 2);
     card.append(element('p', progressive.length ? 'Choose an MP4 with video and audio, or a separate download below.' : choices.length
       ? 'Choose a quality to download video and matching audio as separate files.'
-      : audio ? 'Audio is available to download.' : labels[candidate.status]));
+      : audio ? 'Audio is available to download.' : candidate.accessRefused
+        ? 'Access is restricted or private. Check that you can play this video on the page, then press Refresh.'
+        : labels[candidate.status]));
     for (const { candidate: owner, track } of [...progressive,
       ...[...choices, ...(audio ? [audio] : [])].map(track => ({ candidate, track }))]) {
       const button = element('button', track.kind === 'audio' ? 'Audio only' :
@@ -129,10 +132,20 @@ async function poll() {
     snapshot = null;
     rendered = '';
     videos.replaceChildren();
-    status.textContent = 'Cannot inspect this page. Reload it and reopen the popup to try again.';
+    status.textContent = 'Cannot inspect this page. Press Refresh to try again, or reopen the popup.';
   } finally { polling = false; }
 }
 
+refresh.addEventListener('click', async () => {
+  if (tabId === undefined) return;
+  refresh.disabled = true;
+  try {
+    await chrome.runtime.sendMessage({ type: 'popup-refresh', tabId });
+    await poll();
+  } catch {
+    status.textContent = 'Cannot refresh this page. Reopen the popup to try again.';
+  } finally { refresh.disabled = false; }
+});
 
 async function showRightsNotice() {
   const notice = document.querySelector<HTMLElement>('#rights-notice')!;

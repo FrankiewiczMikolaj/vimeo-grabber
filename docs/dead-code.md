@@ -199,3 +199,21 @@ all runtime, CSS or prose dead code can be proved absent automatically.
 - The package smoke lane invokes `retention-proof.mjs` sequentially after the native
   download proof. Both shell-wrapped roots are explicit Knip entries; no exclusions
   or dependency changes were added. Scoped ESLint and Knip pass with no findings.
+
+## Empty/access-refused refresh cutover (#54 item 9)
+
+- Replaced reload-only empty/error guidance with a native Refresh button and
+  start-player guidance. Cached `popup-state` polling remains for passive updates,
+  not as the refresh implementation. No second cache, reconnect or retention reset.
+- HTTP access refusal no longer collapses into source admission for presentation.
+  The resolver creates `accessRefused`; retention clears recovered markers and
+  the popup consumes it. Page messages cannot supply this authority.
+- Expanded the existing retention browser proof instead of adding a duplicate lane.
+  No wording-only unit tests existed to repin or delete (`grep` over `test` found
+  no popup/wording/Reload assertions). Scoped ESLint and `pnpm deadcode` pass.
+- Subscription repair shares one private `scan` within each observer between
+  queued changes and explicit subscriptions. Removed the separate subscribe-only
+  snapshot assignment that could suppress existing listeners. No generic abstraction.
+- Real-DOM interleaving regressions for both observers replace the weaker
+  fresh-subscriber-only assertion; both fail on the prior head and pass after repair.
+  Scoped typecheck, ESLint and Knip report no findings. No user-facing string changes.

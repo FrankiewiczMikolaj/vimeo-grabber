@@ -52,6 +52,10 @@ unpacked installation requires rebuilding/replacing its files and reloading it i
 1. Read the rights notice and select **I understand and acknowledge**. If saving
    fails, the notice stays visible and the button can retry. The footer stays visible.
 2. Open a Vimeo page or a page containing a Vimeo player or link. Open the action popup.
+   If the list is empty, start the Vimeo player and press **Refresh**. Refresh
+   rechecks current-tab metadata without reloading the page or discarding retained sources.
+   Restricted/private access means the metadata request returned HTTP 401/403,
+   not DRM. Check that the video plays on the page, then press **Refresh** to retry.
 3. Choose **MP4 · video + audio** for one combined file, a separate quality for
    video and matching audio, or **Audio only** for one audio file. Combined files
    do not offer audio extraction or a merge command. Metadata alone is not a successful download.
@@ -123,6 +127,8 @@ manifest metadata; a selected download requests its media resources. Extension
 fetches omit credentials/referrers and reject redirects. Detection reads Vimeo
 config data and minimal Vimeo iframe/link references on other sites. It does not
 collect unrelated browsing content or persist browsing history.
+**Refresh** repeats only current-tab config/manifest checks through the same
+admission rules. It adds no permissions, login flow, media request or saved history.
 
 Signed config/manifest URLs and detection candidates stay in memory, not extension
 storage or popup diagnostics. Acknowledgement is local to the browser profile;

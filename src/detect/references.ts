@@ -1,4 +1,4 @@
-import { discoverReferences } from './discover';
+import { discoverReferences, type PageDiscovery } from './discover';
 import type { PageObservation } from './observe';
 
 /** Inspect only iframe/link URLs. Do not inspect third-party scripts or text. */
@@ -8,18 +8,24 @@ export function observeReferences(window: Window & typeof globalThis): PageObser
   let previous = JSON.stringify(snapshot);
   let queued = false;
   let stopped = false;
+  const scan = () => {
+    if (stopped) return;
+    const next = discoverReferences(window.document, window.location.href);
+    const key = JSON.stringify(next);
+    if (key === previous) return;
+    snapshot = next;
+    previous = key;
+    for (const listener of [...listeners]) {
+      if (stopped) break;
+      if (listeners.has(listener)) listener(snapshot);
+    }
+  };
   const mutations = new window.MutationObserver(() => {
     if (queued || stopped) return;
     queued = true;
     window.queueMicrotask(() => {
       queued = false;
-      if (stopped) return;
-      const next = discoverReferences(window.document, window.location.href);
-      const key = JSON.stringify(next);
-      if (key === previous) return;
-      snapshot = next;
-      previous = key;
-      for (const listener of listeners) listener(snapshot);
+      scan();
     });
   });
   mutations.observe(window.document, { subtree: true, childList: true,
@@ -27,9 +33,12 @@ export function observeReferences(window: Window & typeof globalThis): PageObser
   return {
     subscribe(listener) {
       if (stopped) return () => {};
-      listeners.add(listener);
-      listener(snapshot);
-      return () => { listeners.delete(listener); };
+      scan();
+      if (stopped) return () => {};
+      const report = (value: PageDiscovery) => listener(value);
+      listeners.add(report);
+      report(snapshot);
+      return () => { listeners.delete(report); };
     },
     stop() { stopped = true; mutations.disconnect(); listeners.clear(); },
   };

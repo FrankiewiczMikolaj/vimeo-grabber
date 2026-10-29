@@ -255,6 +255,16 @@ interleaving cannot be reconstructed. Production five-slot assembly is unchanged
 `owned-*.mp4` and `native-downloads/` permit exact-byte and media inspection.
 The download page URL carries only a random token, never signed source locators.
 
+The sequential `retention-proof.mjs` lane also drives the real popup's **Refresh**
+with Enter. It checks empty → HTTP 403 → available in the same popup; the recovery
+changes only the fixture response, not the DOM. Exact metadata request lists and
+unchanged document IDs prove current-tab rescanning without lifetime reset.
+HTTP 401, 500, network abort, malformed JSON, readable partial config and positive
+DRM remain distinct. A foreign extension tab cannot refresh; a held refused
+response cannot replace a newer successful refresh. The original independent
+inline/fetched DASH/HLS/progressive retention and positive-protection matrix follows.
+`retention/observations.json`, `requests.json` and state PNGs retain evidence.
+
 ## Evidence and limits
 
 The default evidence directory is `artifacts/headed/`; CI uploads it as

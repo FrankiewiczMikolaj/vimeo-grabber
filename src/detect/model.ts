@@ -67,5 +67,7 @@ export interface PlaybackCandidate {
   readonly status: DetectionStatus;
   /** Authoritative invalidation, distinct from missing/failed partial metadata. Worker-local only. */
   readonly invalidation?: 'candidate' | 'source' | 'video';
+  /** HTTP access decision: true for 401/403, false for a successfully parsed config. */
+  readonly accessRefused?: boolean;
   readonly tracks: readonly Track[];
 }
