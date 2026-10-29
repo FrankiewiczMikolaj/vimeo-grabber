@@ -41,8 +41,9 @@ Bob performs the requested live checks in his browser.
    and merge instructions. Keep original files; no hidden transcoding or OS tabs.
 5. **One-time notice (#44).** Show the English rights/own-risk/liability notice on
    first use after install. Retain only acknowledgement state across updates;
-   preserve the footer and show the notice for a fresh install/profile. Disable
-   popup actions without handlers until storage confirms consent. Independently
+   preserve the footer and show the notice for a fresh install/profile. Keep popup
+   and toolbar counts visible and updating; hide video cards/actions until storage
+   confirms consent, then reveal the list immediately in the same popup. Independently
    check stored consent in worker dispatch/source, page authority before resource
    retrieval/native save, and every Copy attempt, including already open pages.
 

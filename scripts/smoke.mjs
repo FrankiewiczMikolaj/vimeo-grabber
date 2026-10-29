@@ -287,8 +287,26 @@ try {
   await waitText('I understand and acknowledge');
   assert.equal(await noticeVisible(), true, 'failed persistence must show again');
   await evaluate("chrome.storage.local.remove('quotaFixture')");
+  await active.goto('https://example.com/fixture');
+  await open();
+  await waitText('1 video detected.');
+  await badge(primaryTabId, '1', 'unacknowledged-one-video');
+  await active.evaluate(() => {
+    const frame = globalThis.document.createElement('iframe');
+    frame.id = 'before-consent';
+    frame.src = 'https://player.vimeo.com/video/31';
+    globalThis.document.body.append(frame);
+  });
+  await waitText('2 videos detected.');
+  await badge(primaryTabId, '2', 'unacknowledged-updated-count');
+  assert.deepEqual(await evaluate("({hidden: document.querySelector('#streams').hidden, cards: document.querySelectorAll('#streams article').length})"), {hidden: true, cards: 0});
+  await capture('rights-counts-before-acceptance');
   await acknowledge();
   await waitHidden();
+  assert.deepEqual(await evaluate("({hidden: document.querySelector('#streams').hidden, cards: document.querySelectorAll('#streams article').length})"), {hidden: false, cards: 2});
+  await badge(primaryTabId, '2', 'acknowledged-same-popup');
+  await capture('rights-counts-after-acceptance');
+  await active.locator('#before-consent').evaluate(frame => frame.remove());
   assert.deepEqual(await evaluate('chrome.storage.local.get(null)'), { rightsAcknowledged: true });
   await capture('notice-acknowledged');
   assert.match(diagnostics['notice-acknowledged'], /Only download content you have rights to/);

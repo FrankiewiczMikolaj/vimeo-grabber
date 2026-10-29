@@ -81,8 +81,10 @@ profile must still show the notice and have empty local storage.
 extension are removed. The positive paths use the production acknowledgement handler.
 The download proof separately challenges missing/false/invalid storage, pending and
 injected unreadable reads, caller assertions, direct pages and genuine tokens revoked
-before entry. Disabled popup activation and direct dispatch must produce zero child
-playlist/init/media requests and zero native saves. Copy on an existing completed
+before entry. The popup list must be hidden with no cards or actions, while its
+count and toolbar badge keep updating. A real acknowledgement must reveal cards
+in the same popup. Direct dispatch must produce zero child playlist/init/media
+requests and zero native saves. Copy on an existing completed
 page must leave the clipboard unchanged when consent is absent or unreadable.
 `rights-*.png` and `download-proof.json` retain these boundary checks. Injected
 storage failures are local proof faults, not claims of an OS storage failure.

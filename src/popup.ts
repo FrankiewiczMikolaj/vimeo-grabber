@@ -132,6 +132,11 @@ function render() {
     : pending ? 'Looking for Vimeo videos…'
       : failed ? 'This page could not be checked. Reload it to try again.'
         : 'No Vimeo videos detected. Open a Vimeo page or a page with a Vimeo player. Reload existing pages after installing the extension.';
+  videos.hidden = !acknowledged;
+  if (!acknowledged) {
+    videos.replaceChildren();
+    return;
+  }
   const rank = (candidate: FrameCandidate) => {
     const paired = candidate.tracks.some(track => track.kind === 'video' && selection(candidate, track.id).length === 2);
     if (paired) return candidate.manifest?.protocol === 'dash' ? 0 : 1;
@@ -150,16 +155,12 @@ function render() {
     for (const track of [...choices, ...(audio ? [audio] : [])]) {
       const button = element('button', track.kind === 'audio' ? 'Audio only' :
         `Download ${track.height ? `${track.height}p` : track.id}`);
-      button.disabled = !acknowledged;
-      button.setAttribute('aria-disabled', String(!acknowledged));
-      if (acknowledged) {
-        button.addEventListener('click', () => {
-          button.disabled = true;
-          void chrome.runtime.sendMessage({ type: 'download-start', tabId, candidateId: candidate.id, trackId: track.id })
-            .then(started => { if (!started) status.textContent = 'Download unavailable. Refresh the source and try again.'; })
-            .finally(() => { button.disabled = !acknowledged; });
-        });
-      }
+      button.addEventListener('click', () => {
+        button.disabled = true;
+        void chrome.runtime.sendMessage({ type: 'download-start', tabId, candidateId: candidate.id, trackId: track.id })
+          .then(started => { if (!started) status.textContent = 'Download unavailable. Refresh the source and try again.'; })
+          .finally(() => { button.disabled = false; });
+      });
       card.append(button);
     }
     for (const origin of new Set(alternatives.flatMap(originsFor))) {

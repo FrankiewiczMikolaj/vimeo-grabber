@@ -279,10 +279,10 @@ else: raise RuntimeError('Native Save File dialog not found')
         else await globalThis.chrome.storage.local.set({ rightsAcknowledged: value });
       }, value);
       await open();
-      await waitText('Download 1080p');
+      await waitText('1 video detected.');
       const result = await evaluate(`(async () => {
-        const buttons = [...document.querySelectorAll('button')].filter(b => /^(Download |Audio only)/.test(b.textContent));
-        for (const button of buttons) { button.click(); button.dispatchEvent(new MouseEvent('click')); }
+        const list = document.querySelector('#streams');
+        const buttons = [...list.querySelectorAll('button')];
         const [tab] = await chrome.tabs.query({active:true,currentWindow:true});
         const state = await chrome.runtime.sendMessage({type:'popup-state',tabId:tab.id});
         const candidate = state.results.find(c => c.videoId === '91' && c.tracks.some(t => t.kind === 'video'));
@@ -290,9 +290,13 @@ else: raise RuntimeError('Native Save File dialog not found')
         for (const track of candidate.tracks) replies.push(await chrome.runtime.sendMessage({
           type:'download-start',tabId:tab.id,candidateId:candidate.id,trackId:track.id,rightsAcknowledged:true
         }));
-        return {disabled: buttons.map(b => b.disabled && b.getAttribute('aria-disabled') === 'true'), replies};
+        return {hidden: list.hidden, cards: list.querySelectorAll('article').length, actions: buttons.length,
+          count: document.querySelector('#status').textContent, replies};
       })()`);
-      assert.deepEqual(result.disabled, [true, true]);
+      assert.equal(result.hidden, true);
+      assert.equal(result.cards, 0);
+      assert.equal(result.actions, 0);
+      assert.match(result.count, /^1 video detected\./);
       assert.ok(result.replies.length > 0 && result.replies.every(value => value === false));
       assert.equal(context.pages().filter(page => page.url().includes('/download.html')).length, 0);
       outcomes.push({ value, ...result });
@@ -309,7 +313,7 @@ else: raise RuntimeError('Native Save File dialog not found')
       return chrome.storage.local.set({rightsAcknowledged:true});
     })()`);
     await evaluate(`new Promise(resolve => setTimeout(resolve,100))`);
-    assert.equal(await evaluate("[...document.querySelectorAll('button')].filter(b=>/^(Download |Audio only)/.test(b.textContent)).every(b=>b.disabled)"), true);
+    assert.deepEqual(await evaluate("({hidden: document.querySelector('#streams').hidden, cards: document.querySelectorAll('#streams article').length})"), {hidden: true, cards: 0});
     const unreadableReply = await evaluate(`(async () => {
       const [tab] = await chrome.tabs.query({active:true,currentWindow:true});
       const state = await chrome.runtime.sendMessage({type:'popup-state',tabId:tab.id});
@@ -320,10 +324,11 @@ else: raise RuntimeError('Native Save File dialog not found')
     assert.equal(unreadableReply, false);
     await evaluate("chrome.storage.local.get = async () => { throw new Error('owned unreadable storage'); }; chrome.storage.local.set({rightsAcknowledged:false})");
     await evaluate(`new Promise(resolve => setTimeout(resolve,100))`);
-    assert.equal(await evaluate("[...document.querySelectorAll('button')].filter(b=>/^(Download |Audio only)/.test(b.textContent)).every(b=>b.disabled)"), true);
+    assert.deepEqual(await evaluate("({hidden: document.querySelector('#streams').hidden, cards: document.querySelectorAll('#streams article').length})"), {hidden: true, cards: 0});
     await evaluate("chrome.storage.local.get = globalThis.originalRightsGet; true");
     await worker.evaluate(() => { globalThis.chrome.storage.local.get = globalThis.originalRightsGet; });
     await acknowledge();
+    await capture('rights-actions-revealed');
     // Pause the first page storage read, then revoke the genuinely minted token's consent.
     const entry = await bootstrap.evaluate(() => globalThis.chrome.runtime.getURL('download.html'));
     await bootstrap.evaluate(() => globalThis.localStorage.setItem('rights-proof-pause', 'yes'));

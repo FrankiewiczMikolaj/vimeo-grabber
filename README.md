@@ -68,9 +68,11 @@ own native save. Leave the download tab open while either dialog waits; the
 30-second network inactivity limit does not apply to native saving.
 Video saves use `<Title> - video <quality>.mp4`; audio, including Audio only,
 uses `<Title> - audio.m4a`. The safe title stem is limited to 96 UTF-8 bytes,
-with `vimeo-ID` fallback for an empty or missing title. Download and Audio only
-remain disabled until the rights acknowledgement is saved. The background worker
-and download page also require the stored boolean before fetching or saving media.
+with `vimeo-ID` fallback for an empty or missing title. Before acknowledgement,
+the popup count and toolbar badge keep updating, but video cards and their actions
+stay hidden. Saving acknowledgement reveals the list in the same popup. The
+background worker and download page also require the stored boolean before
+fetching or saving media.
 
 ## Merge video and audio on Linux
 
