@@ -34,6 +34,11 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
     media[kind] = { bytes, init: bytes.subarray(0, offsets[0]), segments };
     if (kind === 'video') assert.ok(segments.some(segment => segment.length > 2 * 1024 ** 2), 'real multi-MiB segment');
   }
+  const combinedPath = resolve(artifacts, 'owned-combined.mp4');
+  execFileSync('ffmpeg', ['-v', 'error', '-y', '-stream_loop', '3', '-i', resolve(artifacts, 'owned-video.mp4'),
+    '-stream_loop', '3', '-i', resolve(artifacts, 'owned-audio.mp4'), '-map', '0:v:0', '-map', '1:a:0', '-c', 'copy', combinedPath]);
+  const combined = await readFile(combinedPath);
+  assert.ok(combined.length > 64 * 1024 ** 2, 'whole MP4 exceeds the segment cap');
   let mode = 'pair';
   let release;
   let requested;
@@ -55,16 +60,34 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
     hls_cenc: { cdns: { owned: { url: `${base}unrelated-drm.m3u8` } } },
   } } };
   const dashConfig = { ...config, request: { files: { dash: { cdns: { owned: { url: `${base}clear.json` } } } } } };
+  const progressive = { mime: 'video/mp4', height: 1080, width: 1920, size: combined.length,
+    url: `${base}combined.mp4?sig=owned%2f+&x=&x=2` };
   const route = async route => {
     const url = route.request().url();
-    const selectedConfig = mode === 'dash' ? dashConfig : mode === 'drm-config' ?
+    const selectedConfig = mode.startsWith('progressive') ? { ...config, request: { files: {
+      ...(mode === 'progressive-mixed' ? config.request.files : {}),
+      progressive: [null, { ...progressive, url: 'https://unrelated.invalid/forbidden.mp4' },
+        { ...progressive, encrypted: true, url: `${base}protected.mp4` },
+        { ...progressive, ...(mode === 'progressive-limit' ? { size: 4 * 1024 ** 3 + 1 } : {}) },
+        { ...progressive, height: 720, size: undefined,
+          url: 'https://vod-progressive.akamaized.net/owned/unknown.mp4' }],
+    } } } : mode === 'dash' ? dashConfig : mode === 'drm-config' ?
       { ...config, request: { ...config.request, drm: { hls: { fairplay: true } } } } : mode === 'drm-master' ?
         { ...config, request: { ...config.request, files: { hls: { cdns: { owned: { url: `${base}drm/cbcs,master.m3u8` } } } } } } : config;
     if (url === 'https://player.vimeo.com/video/91') return route.fulfill({ contentType: 'text/html; charset=utf-8', body: `<script type="application/json">${JSON.stringify(selectedConfig)}</script>` });
     if (url === 'https://player.vimeo.com/video/91/config') return route.fulfill({ contentType: 'application/json', body: JSON.stringify(selectedConfig) });
+    if (url === 'https://vod-progressive.akamaized.net/owned/unknown.mp4') {
+      requests.push('unknown.mp4');
+      return route.fulfill({ contentType: 'video/mp4', body: combined });
+    }
     if (!url.startsWith(base)) return route.fallback();
     const name = url.slice(base.length);
     requests.push(name);
+    if (name === 'combined.mp4?sig=owned%2f+&x=&x=2' || name === 'unknown.mp4') {
+      if (mode === 'progressive-redirect') return route.fulfill({ status: 302,
+        headers: { location: 'https://unrelated.invalid/forbidden.mp4' } });
+      return route.fulfill({ contentType: 'video/mp4', body: combined });
+    }
     if (name === 'clear.json?base64_init=1') return route.fulfill({ contentType: 'application/json',
       body: JSON.stringify(Object.fromEntries(['video', 'audio'].map(kind => [kind, [{
         id: kind, height: kind === 'video' ? 1080 : undefined, codecs: kind === 'video' ? 'avc1.42c00a' : 'mp4a.40.2',
@@ -732,6 +755,48 @@ else: ${cancel ? "print('null')" : "raise RuntimeError('Native Save File dialog 
       assert.deepEqual(report[scenario].map(row => row.state), ['complete', scenario === 'cancel' ? 'cancelled' : 'failed']);
       assert.deepEqual(await readFile(report[scenario][0].path), media.video.bytes);
     }
+    for (const scenario of ['progressive', 'progressive-mixed', 'progressive-unknown', 'progressive-redirect']) {
+      await prepare(scenario);
+      const labels = await evaluate("[...document.querySelectorAll('#streams button')].map(button=>button.textContent)");
+      assert.equal(await evaluate("document.querySelectorAll('#streams article').length"), 1);
+      assert.match(labels[0], /MP4 · video \+ audio/);
+      assert.ok(labels[0].includes(`${combined.length.toLocaleString('en-US')} bytes`));
+      assert.match(labels[1], /size unknown/);
+      assert.equal(labels.includes('Audio only'), scenario === 'progressive-mixed');
+      if (scenario === 'progressive-mixed') assert.ok(labels.indexOf('Download 1080p') > 1);
+      await capture(`download-${scenario}-choices`);
+      before = (await native()).length;
+      const requestBefore = requests.length;
+      owner = await start(labels[scenario === 'progressive-unknown' ? 1 : 0]);
+      if (scenario === 'progressive-redirect') {
+        report[scenario] = await finish(owner, 'Download failed. No files completed.', scenario);
+        assert.equal((await native()).length, before);
+        assert.deepEqual(requests.slice(requestBefore), ['combined.mp4?sig=owned%2f+&x=&x=2']);
+        continue;
+      }
+      report[scenario] = await finish(owner, 'MP4 file completed.', scenario);
+      assert.equal((await native()).length - before, 1);
+      assert.deepEqual(requests.slice(requestBefore), [scenario === 'progressive-unknown' ? 'unknown.mp4' : 'combined.mp4?sig=owned%2f+&x=&x=2']);
+      assert.equal(report[scenario].length, 1);
+      const saved = report[scenario][0].path;
+      assert.deepEqual(await readFile(saved), combined);
+      assert.ok(saved.endsWith(`${filenameStem(config.video.title, '91')} [${scenario === 'progressive-unknown' ? 720 : 1080}p]${scenario === 'progressive-mixed' ? ' (1)' : ''}.mp4`));
+      const decoded = spawnSync('ffmpeg', ['-hide_banner', '-i', saved, '-map', '0:v:0',
+        '-map', '0:a:0', '-f', 'null', '-'], { encoding: 'utf8' });
+      await writeFile(resolve(artifacts, `${scenario}-decode.txt`), decoded.stderr ?? String(decoded.error));
+      assert.equal(decoded.status, 0, decoded.stderr);
+      assert.match(decoded.stderr, /Video:/);
+      assert.match(decoded.stderr, /Audio:/);
+    }
+    await prepare('progressive-limit');
+    before = (await native()).length;
+    const limitRequestBefore = requests.length;
+    const limitLabel = await evaluate("document.querySelector('#streams button').textContent");
+    owner = await start(limitLabel);
+    report.progressiveLimit = await finish(owner, 'Download failed. No files completed.', 'progressive-limit');
+    assert.match(report.progressiveLimit[0].text, /File exceeds 4 GiB limit/);
+    assert.equal((await native()).length, before);
+    assert.equal(requests.length, limitRequestBefore);
     for (const scenario of ['encrypted', 'redirect', 'origin']) {
       await prepare(scenario); before = (await native()).length;
       owner = await start('Download 1080p');

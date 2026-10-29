@@ -8,8 +8,8 @@ according to its download settings; each native save waits without a network tim
 
 ## Outcome and boundary
 
-Save selected Vimeo video and audio as two correct files, then show a safe Linux
-ffmpeg merge command. Vimeo-only, English, no extension-side mux, authentication
+Save a clear progressive MP4 as one video-and-audio file, or save selected video
+and audio as two files with a safe Linux ffmpeg command. Vimeo-only, English, no extension-side mux, authentication
 bypass, key/license retrieval or browser-store publication. CI uses owned fixtures;
 Bob performs the requested live checks in his browser.
 
@@ -57,6 +57,23 @@ serialisable discriminated union: `playlist` with its own media-playlist `url`,
 `{ role: 'initialization' | 'media', kind: 'url', url }`. Initialization is first,
 then media in declared order. Inline data stays bounded base64 text, not a byte
 buffer copied through popup polling. No locator is a permission grant.
+
+Progressive config entries use `Track.manifest: { protocol: 'progressive', url,
+protected? }` and `Track.download: { kind: 'file', url, size: number | null }`.
+The authenticated receipt binds the exact track and source, without a media fetch.
+The popup puts usable progressive qualities first on the same video card, labelled
+`MP4 · video + audio`, with declared bytes or `size unknown`. Separate candidate
+selection remains DASH-first then HLS; it never combines tracks across candidates.
+Combined files create no Audio only extraction or pair/Copy command.
+The owner fetches the direct file once per attempt into OPFS, then saves a local
+object URL through the existing native terminal path. HTTPS Vimeo CDN `.mp4`
+URLs only; redirects, credentials and referrers remain refused/omitted.
+The whole-file 4 GiB cap replaces the segment cap for this path. Transient retries
+truncate and rewind the output before restarting; declared size must match received
+bytes when present. No initialization or segment requests are invented.
+Progressive names alone use `<96-byte-safe-stem> [<height>p].mp4` (`original` when
+height is absent). Existing separate/merge filenames and native collision paths
+are unchanged.
 
 HLS variants and separate audio retain independent playlist URLs and audio group
 identity. DASH JSON stacks response/manifest/stream/resource bases with standard

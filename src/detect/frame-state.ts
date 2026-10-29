@@ -1,5 +1,6 @@
 import type { PageDiscovery } from './discover';
 import type { PlaybackCandidate } from './model';
+import { progressiveUrl } from './progressive.ts';
 
 export type FrameCandidate = PlaybackCandidate & { readonly frameId: number; readonly documentId: string };
 export type FrameResolver = (discovery: PageDiscovery, authoritativeFrameUrl: string) =>
@@ -34,6 +35,8 @@ function config(v: unknown): boolean {
     (!u.searchParams.has('h') || /^[a-zA-Z0-9]{1,128}$/.test(u.searchParams.get('h')!));
 }
 function manifest(v: unknown, alternative = false): boolean {
+  if (record(v) && v.protocol === 'progressive') return keys(v, v.protected === true ?
+    ['protocol', 'url', 'protected'] : ['protocol', 'url']) && text(v.url) && !!url(v.url);
   if (!record(v) || !keys(v, v.protected === true ? ['protocol', 'cdn', 'url', 'protected'] :
     ['protocol', 'cdn', 'url'])) return false;
   const u = url(v.url);
@@ -43,6 +46,8 @@ function manifest(v: unknown, alternative = false): boolean {
 function download(v: unknown): boolean {
   if (!record(v)) return false;
   if (v.kind === 'playlist') return keys(v, ['kind', 'url']) && !!url(v.url);
+  if (v.kind === 'file') return keys(v, ['kind', 'url', 'size']) && text(v.url) &&
+    progressiveUrl(v.url) && (v.size === null || (Number.isSafeInteger(v.size) && Number(v.size) > 0));
   if (v.kind === 'unavailable') return keys(v, ['kind', 'reason']) &&
     ['protected', 'missing-initialization', 'unknown', 'unsafe', 'unsupported'].includes(String(v.reason));
   return v.kind === 'resources' && keys(v, ['kind', 'resources']) && Array.isArray(v.resources) &&

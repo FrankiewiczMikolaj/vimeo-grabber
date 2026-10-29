@@ -13,17 +13,23 @@ The frame observer and worker resolver use this shared model for detection.
 - `video.title`: nonblank string, preserved verbatim; otherwise `null`.
 - `request.files.dash.cdns[name].url` and `.avc_url`, and
   `request.files.hls.cdns[name].url`: absolute HTTPS URLs without credentials.
-  Invalid entries are skipped individually. No progressive fallback is used.
+  Invalid entries are skipped individually.
 - Each protocol's valid `default_cdn` key comes first, followed by other CDN keys
   in object order; DASH precedes HLS. DASH `avc_url` (H.264) precedes generic `url`.
   Identical URLs within one protocol/CDN appear once; other alternatives remain.
+- `request.files.progressive[]` entries with `mime: 'video/mp4'` and absolute
+  HTTPS URLs produce canonical `combined` tracks. Width, height and fps retain
+  positive finite numbers; `size` retains positive safe-integer bytes, else null.
+  Downloadable URLs have `.mp4` paths on `vimeocdn.com`/subdomains or exact
+  `vod-progressive.akamaized.net`; no credentials, port, fragment or backslash.
+  Unsafe entries are unavailable, not arbitrary URL grants. No media is fetched.
 - URLs are returned verbatim, including escapes, repeated queries and empty values.
   Validation does not authorise an origin or prove a playable response. The
   metadata transport validates provenance, allowed origins and redirects.
 - `source` is a shallow copy of caller-supplied provenance. No identity or URL is
   derived from it. Signed config URLs must remain in memory, not diagnostics.
 - `status` is `protected` for positive root/video DRM or encryption declarations;
-  otherwise `found` when manifest references exist, or `unavailable`.
+  otherwise `found` when manifest references or progressive tracks exist, or `unavailable`.
   Empty/disabled DRM containers do not imply protection. `found` does not mean
   parsed tracks or successful access. No denial, codec, resolution or audio is inferred.
   Candidate-local descriptor/CDN protection is recorded as `ManifestReference.protected`.
@@ -31,13 +37,18 @@ The frame observer and worker resolver use this shared model for detection.
   declarations apply only where that candidate's exact URL also occurs under
   `files.hls_cenc.cdns`. Unrelated DRM capabilities or encrypted alternatives do not
   suppress clear HLS. Protected references are resolved without fetching a manifest.
-- `tracks` is empty until a manifest parser supplies metadata. Inputs are not mutated.
+- `tracks` holds progressive combined tracks; adaptive tracks still come from parsers.
+  Positive entry protection or `request.drm.progressive` blocks the direct file.
+  Inputs are not mutated; a combined file never invents an Audio only track.
 
 ## Shared types (`src/detect/model.ts`)
 
 `Protocol` is `dash | hls`. `DetectionSource` contains `frameUrl` and nullable
 `configUrl`. `ManifestReference` contains `protocol`, CDN key `cdn`, `url`, and
 optional `protected: true` for positively candidate-scoped config declarations.
+`ProgressiveReference` contains `protocol: 'progressive'`, `url` and optional
+`protected: true`; it has no invented CDN key, manifest or initialization.
+Track/candidate `manifest` accepts this direct-file provenance too.
 `NormalisedVideo` contains `id`, nullable `title`, `source`, `status`, `manifests`,
 and `tracks`. All fields and returned array types are readonly (not runtime frozen).
 `DetectionStatus` is `pending | found | unavailable | protected | unsupported`;

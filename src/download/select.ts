@@ -18,7 +18,10 @@ export function selection(candidate: PlaybackCandidate, trackId: string): readon
   const track = candidate.tracks.find(track => track.id === trackId);
   if (candidate.status !== 'found' || !track || track.download.kind === 'unavailable'
     || JSON.stringify(track.manifest) !== JSON.stringify(candidate.manifest)
-    || (track.mimeType && track.mimeType !== `${track.kind}/mp4`)) return [];
+    || (track.mimeType && track.mimeType !== `${track.kind === 'combined' ? 'video' : track.kind}/mp4`)) return [];
+  if (track.kind === 'combined') return track.manifest.protocol === 'progressive' &&
+    !track.manifest.protected && track.download.kind === 'file' &&
+    track.download.url === track.manifest.url ? [track] : [];
   if (track.kind === 'audio') return [track];
   const audio = track.kind === 'video' ? audioFor(candidate, track) : undefined;
   return audio ? [track, audio] : [];

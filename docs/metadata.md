@@ -23,6 +23,11 @@ It does not change production permissions or connect detected URLs to downloads.
   empty values and explicit option values remain unchanged. HLS and MPD URLs
   are untouched. The original manifest reference remains candidate/track provenance;
   the derived request URL cannot be supplied as a new reference using the old receipt.
+- `progressive(receipt, video)` returns snapshot-bound combined-file tracks, not
+  bytes. Exact source, track, URL and size must match the private receipt.
+  It accepts clear or positively protected progressive references on HTTPS
+  `vimeocdn.com`/subdomain or exact `vod-progressive.akamaized.net` `.mp4` paths only. Protected candidates remain blocked.
+  It performs no metadata/media request and does not expand manifest authorization.
 
 Inline data and source provenance are supplied by a trusted extension caller.
 A receipt is not proof of a Chrome sender's identity: do not expose these methods

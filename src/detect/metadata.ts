@@ -1,5 +1,6 @@
-import type { DetectionSource, ManifestReference, NormalisedVideo } from './model';
+import type { DetectionSource, ManifestReference, NormalisedVideo, Track } from './model';
 import { normalisePlayerConfig } from './normalise';
+import { progressiveUrl } from './progressive.ts';
 
 const METADATA_LIMIT = 1_048_576;
 const METADATA_TIMEOUT = 8_000;
@@ -60,6 +61,18 @@ export class MetadataTransport {
       } catch { /* Fetched bytes do not imply a usable config. */ }
     }
     return result;
+  }
+
+  progressive(receipt: MetadataResult | InlineMetadata, video: NormalisedVideo): readonly Track[] {
+    const owned = this.receipts.get(receipt);
+    if (!owned || owned.id !== video.id || owned.source.frameUrl !== video.source.frameUrl ||
+      owned.source.configUrl !== video.source.configUrl || owned.status !== video.status) return [];
+    return owned.tracks.filter(track => track.manifest.protocol === 'progressive' &&
+      track.kind === 'combined' && track.mimeType === 'video/mp4' &&
+      ((track.download.kind === 'file' && track.download.url === track.manifest.url) ||
+        (track.manifest.protected && track.download.kind === 'unavailable')) &&
+      progressiveUrl(track.manifest.url) &&
+      video.tracks.some(value => JSON.stringify(value) === JSON.stringify(track))).map(track => structuredClone(track));
   }
 
   async manifest(

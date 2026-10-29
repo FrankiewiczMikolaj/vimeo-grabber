@@ -21,6 +21,13 @@ reference. Only an identical candidate from the same source is deduplicated.
 A null manifest records a config-only unavailable outcome.
 There are no retry loops, child-playlist fetches or media requests. DASH `.json`,
 DASH `.mpd` and HLS `.m3u8` retain the supplied manifest references and queries.
+Progressive entries become combined tracks with a canonical
+`{ protocol: 'progressive', url, protected? }` reference, not a fake manifest or
+initialization segment. Receipt admission creates one candidate per direct URL
+without fetching media. Only `video/mp4` entries with HTTPS Vimeo CDN `.mp4`
+paths qualify. Positive finite dimensions and positive safe-integer byte sizes
+are retained; absent/invalid sizes stay null. Malformed siblings do not erase
+usable manifest or direct-file alternatives.
 
 Status and tracks belong to that candidate, with no video-level status precedence
 or first-success projection. Unknown track fields stay null. Failed, malformed or

@@ -1,5 +1,6 @@
-import type { DetectionSource, ManifestReference, NormalisedVideo, Protocol } from './model';
+import type { DetectionSource, ManifestReference, NormalisedVideo, Protocol, Track } from './model';
 import { hasProtection } from './protection.ts';
+import { progressiveUrl } from './progressive.ts';
 
 type Fields = Record<string, unknown>;
 const fields = (value: unknown): Fields =>
@@ -55,9 +56,30 @@ export function normalisePlayerConfig(config: unknown, source: DetectionSource):
       }
     }
   }
+  const tracks: Track[] = [];
+  for (const value of Array.isArray(files.progressive) ? files.progressive : []) {
+    const entry = fields(value);
+    if (!manifestUrl(entry.url) || entry.mime !== 'video/mp4' ||
+      tracks.some(track => track.manifest.url === entry.url)) continue;
+    const positive = (value: unknown) => typeof value === 'number' &&
+      Number.isFinite(value) && value > 0 ? value : null;
+    const size = Number.isSafeInteger(entry.size) && Number(entry.size) > 0 ? Number(entry.size) : null;
+    const reference = { protocol: 'progressive' as const, url: entry.url,
+      ...(hasProtection(entry) || hasProtection({ drm: fields(request.drm).progressive }) ?
+        { protected: true as const } : {}) };
+    tracks.push({
+      id: `progressive-${tracks.length}`, groupId: null, kind: 'combined', manifest: reference,
+      download: reference.protected ? { kind: 'unavailable', reason: 'protected' } :
+        !progressiveUrl(entry.url) ? { kind: 'unavailable', reason: 'unsafe' } :
+          { kind: 'file', url: entry.url, size },
+      codec: null, mimeType: 'video/mp4', bandwidth: null,
+      width: positive(entry.width), height: positive(entry.height), frameRate: positive(entry.fps),
+      language: null, channels: null,
+    });
+  }
   return {
     id, title: typeof video.title === 'string' && video.title.trim() ? video.title : null,
     source: { ...source }, status: hasProtection(root) || hasProtection(video) ? 'protected' :
-      manifests.length ? 'found' : 'unavailable', manifests, tracks: [],
+      manifests.length || tracks.length ? 'found' : 'unavailable', manifests, tracks,
   };
 }

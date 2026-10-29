@@ -97,6 +97,32 @@ export async function assemble(track: Track, writer: FileSystemWritableFileStrea
       }
     }
   }
+  if (track.download.kind === 'file') {
+    const file = track.download;
+    if (track.kind !== 'combined' || track.manifest.protocol !== 'progressive' ||
+      track.manifest.protected || file.url !== track.manifest.url) throw new Error('Track unavailable');
+    if (file.size !== null && file.size > limits.file) throw new Error('File exceeds 4 GiB limit');
+    total = file.size ?? 0;
+    await retry(async () => {
+      await writer.truncate(0);
+      await writer.seek(0);
+      bytes = 0;
+      const response = await request(file.url);
+      const declared = Number(response.headers.get('content-length'));
+      if (declared > limits.file) {
+        await response.body?.cancel();
+        throw new Error('File exceeds 4 GiB limit');
+      }
+      await consume(response, limits.file, async chunk => {
+        await writer.write(chunk as Uint8Array<ArrayBuffer>);
+        bytes += chunk.byteLength;
+        progress(bytes, bytes, total);
+      });
+      if (file.size !== null && bytes !== file.size) throw new Error('Media size limit exceeded');
+    });
+    progress(bytes, bytes, bytes);
+    return;
+  }
   let resources: readonly DownloadResource[];
   if (track.download.kind === 'playlist') {
     resources = await retry(async () => {
