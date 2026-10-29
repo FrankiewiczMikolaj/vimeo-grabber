@@ -15,7 +15,7 @@ const reference = (path, protocol = 'dash') => ({ protocol, cdn: 'owned', url: `
 const inline = (id, manifests) => ({ id, title: `Video ${id}`, source: { frameUrl, configUrl: null }, status: 'found', manifests, tracks: [] });
 const config = (id, suffix = '') => `https://player.vimeo.com/video/${id}/config${suffix}`;
 
-test('compiled discovery resolver uses finite metadata fallback and real Chromium permissions', { timeout: 60_000 }, async () => {
+test('compiled discovery resolver uses finite fallback under required host access', { timeout: 60_000 }, async () => {
   const root = resolve('artifacts/resolver');
   await mkdir(root, { recursive: true });
   const extension = await mkdtemp(`${root}/extension-`);
@@ -26,7 +26,7 @@ test('compiled discovery resolver uses finite metadata fallback and real Chromiu
   const dash = reference('master.json');
   const hls = reference('master.m3u8', 'hls');
   const mpd = reference('master.mpd');
-  const denied = { ...dash, url: 'https://denied.vimeocdn.com/master.json?sig=dummy' };
+  const offline = { ...dash, url: 'https://offline.vimeocdn.com/master.json?sig=dummy' };
   const bodies = new Map([
     [dash.url, ['application/json', JSON.stringify({ video: [{ id: 'v720', width: 1280, height: 720, bitrate: 2000000, codecs: 'avc1' }], audio: [{ id: 'a-fr', lang: 'fr', channels: 2 }] })]],
     [hls.url, ['application/vnd.apple.mpegurl', '#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",NAME="English",LANGUAGE="en",URI="audio.m3u8"\n#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360,AUDIO="audio"\nvideo.m3u8']],
@@ -52,8 +52,7 @@ test('compiled discovery resolver uses finite metadata fallback and real Chromiu
     await build({ configFile: false, logLevel: 'error', build: { outDir: extension, emptyOutDir: false,
       lib: { entry: resolve('src/detect/resolve.ts'), name: 'Resolver', formats: ['iife'], fileName: () => 'worker.js' } } });
     await writeFile(`${extension}/manifest.json`, JSON.stringify({ manifest_version: 3, name: 'Offline resolver proof', version: '1.0',
-      background: { service_worker: 'worker.js' }, host_permissions: ['https://player.vimeo.com/*', `${cdn}/*`, 'https://second.vimeocdn.com/*'],
-      optional_host_permissions: ['https://denied.vimeocdn.com/*'] }));
+      background: { service_worker: 'worker.js' }, host_permissions: ['<all_urls>'] }));
     context = await chromium.launchPersistentContext(profile, { channel: 'chromium', headless: true,
       args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`] });
     const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
@@ -92,13 +91,13 @@ test('compiled discovery resolver uses finite metadata fallback and real Chromiu
         responseHeaders: [{ name: 'Content-Type', value: body[0] }], body: Buffer.from(body[1]).toString('base64') });
     });
     await command('Fetch.enable', { patterns: [{ urlPattern: '*' }] });
-    const videos = [inline('900001', [hls, dash, denied, reference('protected.mpd'), reference('broken.json')]),
-      inline('900002', [reference('broken.json'), denied]), inline('900006', [mpd])];
+    const videos = [inline('900001', [hls, dash, offline, reference('protected.mpd'), reference('broken.json')]),
+      inline('900002', [reference('broken.json'), offline]), inline('900006', [mpd])];
     const configUrls = [config('900001'), config('900002', '?attempt=1'), config('900002', '?attempt=2'), config('900002', '?attempt=2')];
     const result = await worker.evaluate(({ discovery, frameUrl }) => Resolver.resolveDiscovery(discovery, frameUrl), { discovery: { videos, configUrls }, frameUrl });
     assert.deepEqual(result.map(item => item.status), [
-      'found', 'found', 'permission-needed', 'protected', 'unsupported',
-      'unsupported', 'permission-needed', 'found', 'found', 'unavailable', 'found',
+      'found', 'found', 'unavailable', 'protected', 'unsupported',
+      'unsupported', 'unavailable', 'found', 'found', 'unavailable', 'found',
     ]);
     assert.equal(new Set(result.map(item => item.id)).size, result.length);
     const tracks = result[1].tracks;
@@ -113,10 +112,8 @@ test('compiled discovery resolver uses finite metadata fallback and real Chromiu
     assert.equal(result[8].source.configUrl, config('900001'));
     assert.equal(result[10].source.configUrl, config('900002', '?attempt=2'));
     assert.deepEqual(result[10].tracks.map(track => track.manifest), [hls, hls]);
-    assert.deepEqual(result.map(item => item.permissionOrigins),
-      [[], [], ['https://denied.vimeocdn.com'], [], [], [], ['https://denied.vimeocdn.com'], [], [], [], []]);
-    assert.deepEqual(requests, [hls.url, `${dash.url}&base64_init=1`, reference('protected.mpd').url, `${reference('broken.json').url}&base64_init=1`,
-      `${reference('broken.json').url}&base64_init=1`, mpd.url, config('900001'), hls.url,
+    assert.deepEqual(requests, [hls.url, `${dash.url}&base64_init=1`, `${offline.url}&base64_init=1`, reference('protected.mpd').url, `${reference('broken.json').url}&base64_init=1`,
+      `${reference('broken.json').url}&base64_init=1`, `${offline.url}&base64_init=1`, mpd.url, config('900001'), hls.url,
       config('900002', '?attempt=1'), config('900002', '?attempt=2'), hls.url]);
     const repairStart = requests.length;
     const repaired = await worker.evaluate(({ configUrl, frameUrl }) => Resolver.resolveDiscovery(
@@ -147,7 +144,7 @@ test('compiled discovery resolver uses finite metadata fallback and real Chromiu
     await writeFile(`${root}/evidence.json`, JSON.stringify({ statuses: result.map(item => item.status),
       avc: repaired.map(candidate => ({ status: candidate.status, cdn: candidate.manifest.cdn,
         path: new URL(candidate.manifest.url).pathname, codec: candidate.tracks[0].codec })),
-      requests: requests.map(url => url.split('?')[0]), permissionOrigins: result.map(item => item.permissionOrigins), signedQueryDiagnostics: false }, null, 2));
+      requests: requests.map(url => url.split('?')[0]), signedQueryDiagnostics: false }, null, 2));
   } finally {
     await context?.close();
     await rm(profile, { recursive: true, force: true });

@@ -63,14 +63,25 @@ test('compiled broker validates real Chrome senders and rejects stale document c
       check(jobs.length === 0, 'invalid input never resolves');
       const video = (id, frameUrl) => ({ id, title: id, source: { frameUrl, configUrl: null }, status: 'found', manifests: [], tracks: [] });
       const resolved = (id, frameUrl) => [{ id, videoId: id, title: id, source: { frameUrl, configUrl: null },
-        manifest: null, status: 'permission-needed', tracks: [], permissionOrigins: ['https://owned.vimeocdn.com'] }];
+        manifest: null, status: 'unavailable', tracks: [] }];
       const inline = video('20', sender.url);
       inline.manifests = [{ protocol: 'hls', cdn: 'owned', url: 'https://owned.vimeocdn.com/master.m3u8?sig=dummy' }];
       inline.tracks = [{ id: 'audio', groupId: null, kind: 'audio', manifest: inline.manifests[0],
         download: { kind: 'playlist', url: 'https://owned.vimeocdn.com/audio.m3u8' },
         codec: null, mimeType: null, bandwidth: null, width: null, height: null, frameRate: null, language: 'en', channels: null }];
-      const valid = { ...message, discovery: { videos: [inline], configUrls: ['https://player.vimeo.com/video/20/config?h=dummy%2f'] } };
+      const valid = { ...message, discovery: { videos: [inline], configUrls: ['https://player.vimeo.com/video/20/config?h=abc123&sig=dummy%2f'] } };
       check(validateFrameDiscovery(valid, sender, globalThis.chrome.runtime.id)?.configUrls[0].endsWith('dummy%2f'), 'typed snapshot and signed query admitted');
+      const parent = { ...sender, origin: 'https://example.com', url: 'https://example.com/owned' };
+      check(validateFrameDiscovery({ ...valid, discovery: { ...valid.discovery, videos: [] } },
+        parent, globalThis.chrome.runtime.id), 'parent admits bounded config references');
+      check(!validateFrameDiscovery({ ...valid, discovery: { ...valid.discovery,
+        videos: [video('20', parent.url)] } }, parent, globalThis.chrome.runtime.id),
+        'parent cannot publish inline data');
+      for (const suffix of ['?h=bad%2fhash', '?h=a&h=b', '?h=', '?h=' + 'a'.repeat(129)]) {
+        check(!validateFrameDiscovery({ ...message, discovery: { videos: [],
+          configUrls: ['https://player.vimeo.com/video/20/config' + suffix] } },
+        parent, globalThis.chrome.runtime.id), 'malformed hash cannot reach resolver');
+      }
       inline.status = ['found'];
       check(!validateFrameDiscovery(valid, sender, globalThis.chrome.runtime.id), 'status must be a string');
       inline.status = 'found'; inline.tracks[0].manifest.url = 'https://evil.test/master.m3u8';
@@ -90,7 +101,6 @@ test('compiled broker validates real Chrome senders and rejects stale document c
         'same-video candidates from different documents survive');
       state.remove(1, 0, 'a');
       check(state.candidates(1)[0].source.frameUrl === second.url, 'surviving frame provenance');
-      check(state.candidates(1)[0].permissionOrigins[0] === 'https://owned.vimeocdn.com', 'exact permission retained');
       const other = { ...sender, tab: { id: 2 } }; state.activate(2, 0, 'a');
       const isolated = state.publish(message, other); jobs[3].resolve(resolved('77', sender.url)); await isolated;
       for (const action of ['activate', 'remove', 'clearTab']) {

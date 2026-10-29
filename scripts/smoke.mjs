@@ -13,8 +13,8 @@ import { downloadProof } from './download-proof.mjs';
 const sourceExtension = resolve(process.env.SMOKE_EXTENSION_DIR ?? 'dist');
 const artifacts = resolve(process.env.SMOKE_ARTIFACT_DIR ?? 'artifacts/headed');
 await mkdir(artifacts, { recursive: true });
-for (const name of ['permission-needed', 'denied', 'qualities', 'audio-footer', 'worker-rebuilt', 'revoked', 'removed', 'navigated',
-  'hls-first', 'dash-denied', 'dash-preferred', 'dash-revoked', 'dash-nested', 'dash-mpd', 'unavailable-states', 'tab-isolated', 'tab-restored', 'stale-response', 'failure']) {
+for (const name of ['qualities', 'audio-footer', 'worker-rebuilt', 'removed', 'navigated',
+  'dash-preferred', 'dash-nested', 'dash-mpd', 'unavailable-states', 'tab-isolated', 'tab-restored', 'stale-response', 'failure']) {
   await rm(resolve(artifacts, `${name}.png`), { force: true });
 }
 const diagnostics = { requests: [], unexpected: [], cleanup: false, entry: 'chrome.action.openPopup' };
@@ -26,7 +26,7 @@ let context;
 let failure;
 let command;
 let sequence = 0;
-// Native X11 key events operate Chrome's permission bubble, not a permission mock.
+// Native X11 input drives consent and download actions.
 function key(name) {
   execFileSync('python3', ['-c', `import ctypes,sys
 x=ctypes.CDLL('libX11.so.6'); t=ctypes.CDLL('libXtst.so.6')
@@ -88,16 +88,6 @@ async function waitCandidate(protocol) {
     throw new Error('No resolved ${protocol} candidate');
   })()`);
 }
-async function activatePermission() {
-  await evaluate(`(() => {
-    const button = document.querySelector('#streams .permission button');
-    button.scrollIntoView();
-    button.focus();
-    return true;
-  })()`);
-  // Native input does not await a CDP reply from the popup that Chrome closes.
-  key('Return');
-}
 async function fixtureResponse(promise) {
   let timer;
   try {
@@ -109,12 +99,12 @@ async function fixtureResponse(promise) {
 try {
   const manifest = JSON.parse(await readFile(`${extension}/manifest.json`, 'utf8'));
   assert.deepEqual(manifest.permissions, ['downloads', 'storage']);
-  assert.deepEqual(manifest.host_permissions, ['https://player.vimeo.com/*']);
+  assert.deepEqual(manifest.host_permissions, ['<all_urls>']);
   await mkdir(resolve(profile, 'Default'), { recursive: true });
   await writeFile(resolve(profile, 'Default/Preferences'), JSON.stringify({ download: {
     default_directory: resolve(artifacts, 'native-downloads'), prompt_for_download: false,
   } }));
-  assert.deepEqual(manifest.optional_host_permissions, ['https://*.vimeocdn.com/*']);
+  assert.equal(manifest.optional_host_permissions, undefined);
   context = await chromium.launchPersistentContext(profile, { channel: 'chromium', headless: false,
     args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`, '--enable-unsafe-extension-debugging', '--gtk-version=3'] });
   await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
@@ -170,6 +160,21 @@ try {
     diagnostics.requests.push(url);
     if (url === 'https://example.com/fixture') return route.fulfill({ contentType: 'text/html', body: '<title>Unrelated top page</title><iframe src="https://player.vimeo.com/video/20"></iframe>' });
     if (url === 'https://example.com/empty') return route.fulfill({ contentType: 'text/html', body: '<title>Empty owned page</title>' });
+    if (url === 'https://example.com/links') return route.fulfill({ contentType: 'text/html', body:
+      `<title>Owned private references</title><form><input value="private unrelated data"></form>
+      ${inline(ownedConfig(999, ['dash.json']))}
+      <iframe src="https://player.vimeo.com/video/37?h=abc123"></iframe>
+      <a id="private" href="https://vimeo.com/37/abc123?sig=dummy%2f+&x=&x=2">Private video</a>
+      <a id="duplicate" href="https://player.vimeo.com/video/37?h=abc123">Duplicate</a>
+      <a href="https://player.vimeo.com.evil.invalid/video/999">Hostile host</a>
+      <a href="https://player.vimeo.com/video/999?h=bad%2fhash">Hostile hash</a>
+      <a href="https://player.vimeo.com/video/999?h=a&h=b">Duplicate hash</a>
+      <a href="javascript:alert(1)">Not a reference</a>` });
+    if (url === 'https://player.vimeo.com/video/37/config?sig=dummy%2f+&x=&x=2&h=abc123' ||
+      url === 'https://player.vimeo.com/video/37/config?h=abc123') return route.fulfill({
+      contentType: 'application/json', body: JSON.stringify(ownedConfig(37, ['dash.mpd'])) });
+    if (url === 'https://player.vimeo.com/video/37?h=abc123') return route.fulfill({
+      contentType: 'text/html', body: '<title>Owned private player</title>' });
     if (url === 'https://player.vimeo.com/video/20') return route.fulfill({ contentType: 'text/html', body: `<title>Owned player</title><script type="application/json">${JSON.stringify(config)}</script>` });
     if (url === 'https://owned.vimeocdn.com/master.m3u8?sig=dummy') return route.fulfill({ contentType: 'application/vnd.apple.mpegurl', body: master });
     if (url === 'https://second.vimeocdn.com/master.m3u8?sig=dummy') return route.fulfill({ contentType: 'application/vnd.apple.mpegurl', body: master });
@@ -316,9 +321,9 @@ try {
   await capture('notice-reopened');
   await active.goto('https://example.com/fixture');
   await open();
-  await waitText('owned.vimeocdn.com');
+  await waitText('Download 1080p');
   assert.equal(await evaluate("document.querySelectorAll('#streams img').length"), 0);
-  await capture('permission-needed');
+  await capture('all-sites-iframe');
   await active.frames().find(frame => frame.url().startsWith('https://player.vimeo.com/'))
     .evaluate(() => {
       globalThis.history.pushState({}, '', '/video/20?h=owned');
@@ -341,45 +346,17 @@ try {
     throw new Error('Same-document navigation did not rebuild authoritative provenance: '+JSON.stringify(last));
   })()`);
   diagnostics.sameDocumentRebuilt = true;
-  // A native user gesture invokes chrome.permissions.request; Escape denies it.
-  await activatePermission();
-  await new Promise(r => setTimeout(r, 700));
-  key('Escape');
-  await open();
-  await waitText('denied');
-  await capture('denied');
-  await activatePermission();
-  await new Promise(r => setTimeout(r, 700));
-  key('Tab'); key('Return');
-  await open();
   await waitCandidate('hls');
   await waitText('Download 1080p');
   await evaluate("document.querySelector('#streams article').scrollIntoView(); true");
   await capture('qualities');
   await evaluate('window.scrollTo(0,document.body.scrollHeight); true');
   await capture('audio-footer');
-  // HLS has succeeded. A different exact origin must remain requestable.
-  await waitText('Allow https://second.vimeocdn.com');
-  await evaluate("document.querySelector('#streams .permission button').closest('article').scrollIntoView(); true");
-  await capture('hls-first');
-  assert.equal(await evaluate("document.querySelectorAll('#streams article').length"), 1);
-  await activatePermission();
-  await new Promise(r => setTimeout(r, 700)); key('Escape');
-  await open();
-  await waitText('Access to https://second.vimeocdn.com was not granted or was denied');
-  await waitText('Download 1080p');
-  await evaluate("document.querySelector('#streams .permission button').closest('article').scrollIntoView(); true");
-  await capture('dash-denied');
-  await activatePermission();
-  await new Promise(r => setTimeout(r, 700)); key('Tab'); key('Return');
-  await open();
   await waitCandidate('dash');
   const candidates = await evaluate(`(async () => {
     const [tab] = await chrome.tabs.query({active:true,currentWindow:true});
     return (await chrome.runtime.sendMessage({type:'popup-state',tabId:tab.id})).results;
   })()`);
-  assert.equal(await evaluate("chrome.permissions.contains({origins:['https://second.vimeocdn.com/*']})"), true);
-  assert.equal(await evaluate("chrome.permissions.contains({origins:['https://unseen.vimeocdn.com/*']})"), false);
   assert.ok(candidates.some(candidate => candidate.manifest?.protocol === 'hls' && candidate.status === 'found'));
   assert.ok(candidates.some(candidate => candidate.manifest?.cdn === 'sameOrigin' && candidate.status === 'found'));
   assert.deepEqual(candidates.filter(candidate => candidate.manifest?.cdn === 'separate').map(candidate => candidate.tracks.map(track => track.kind)),
@@ -428,7 +405,7 @@ try {
     const check = async () => {
       const [tab] = await chrome.tabs.query({active:true,currentWindow:true});
       const state = await chrome.runtime.sendMessage({type:'popup-state',tabId:tab.id});
-      if (new Set(state.results.map(candidate => candidate.frameId)).size === 2 &&
+      if (new Set(state.results.map(candidate => candidate.frameId)).size === 3 &&
         state.results.some(candidate => candidate.title === 'Recaptured owned video') &&
         !state.frames.some(frame => frame.status === 'pending')) return resolve(true);
       if (Date.now()>deadline) return reject(new Error('Second frame config was not recaptured'));
@@ -439,14 +416,6 @@ try {
   assert.equal(await evaluate("document.querySelectorAll('#streams article').length"), 1);
   await capture('one-video-two-frames');
   await badge(primaryTabId, '1', 'duplicate-cdns-frames-recaptures');
-  await evaluate("chrome.permissions.remove({origins:['https://second.vimeocdn.com/*']})");
-  await waitText('Allow https://second.vimeocdn.com');
-  await waitText('Download 1080p');
-  assert.equal(await evaluate("document.querySelectorAll('#streams dl, #streams .tracks, #streams details').length"), 0);
-  assert.equal(await evaluate("document.querySelectorAll('#streams article').length"), 1);
-  assert.equal(await evaluate("chrome.permissions.contains({origins:['https://owned.vimeocdn.com/*']})"), true);
-  await evaluate("document.querySelector('#streams .permission button').closest('article').scrollIntoView(); true");
-  await capture('dash-revoked');
   diagnostics.independentCandidates = candidates.map(candidate => ({
     videoId: candidate.videoId, protocol: candidate.manifest?.protocol, cdn: candidate.manifest?.cdn,
     status: candidate.status, trackKinds: candidate.tracks.map(track => track.kind),
@@ -481,8 +450,6 @@ try {
   await open();
   await waitText('Download 1080p');
   await capture('worker-rebuilt');
-  await waitText('Allow https://second.vimeocdn.com');
-  assert.equal(await evaluate("chrome.permissions.contains({origins:['https://owned.vimeocdn.com/*']})"), true);
   assert.equal(await evaluate("document.querySelectorAll('#streams img').length"), 0);
   assert.ok(diagnostics.requests.includes('https://owned.vimeocdn.com/master.m3u8?sig=dummy'));
   // One matrix combines independent IDs, nested frames, unavailable duplicates,
@@ -524,7 +491,8 @@ try {
     tracks: candidate.tracks.map(({ id, kind, codec, mimeType, bandwidth, width, height, frameRate, language, channels }) =>
       ({ id, kind, codec, mimeType, bandwidth, width, height, frameRate, language, channels })),
   }));
-  const jsonCandidate = matrixCandidates.find(candidate => candidate.videoId === '31' && candidate.status === 'found');
+  const jsonCandidate = matrixCandidates.find(candidate => candidate.videoId === '31' && candidate.status === 'found'
+    && candidate.source.frameUrl === 'https://player.vimeo.com/video/31');
   assert.equal(jsonCandidate.source.frameUrl, 'https://player.vimeo.com/video/31');
   assert.equal(jsonCandidate.manifest.url, 'https://owned.vimeocdn.com/dash.json');
   assert.deepEqual(jsonCandidate.tracks[0].download, { kind: 'resources', resources: [
@@ -603,25 +571,41 @@ try {
   await capture('stale-response');
   diagnostics.heldResponseReleasedAfterNavigation = true;
   await badge(primaryTabId, '1', 'old-response-rejected');
+  await active.goto('https://example.com/links');
+  await open();
+  await waitText('Owned 37');
+  await waitText('Download 1080p');
+  await waitCandidate('dash');
+  await evaluate(`(async () => {
+    const [tab] = await chrome.tabs.query({active:true,currentWindow:true});
+    const deadline = Date.now()+8000;
+    while (Date.now()<deadline) {
+      const state = await chrome.runtime.sendMessage({type:'popup-state',tabId:tab.id});
+      const sources = new Set(state.results.filter(candidate =>
+        candidate.videoId==='37' && candidate.status==='found').map(candidate=>candidate.source.frameUrl));
+      if (sources.has('https://example.com/links') &&
+        sources.has('https://player.vimeo.com/video/37?h=abc123')) return true;
+      await new Promise(resolve=>setTimeout(resolve,50));
+    }
+    throw new Error('Private parent and iframe sources did not resolve independently');
+  })()`);
+  assert.equal(await evaluate("document.querySelectorAll('#streams article').length"), 1);
+  assert.ok(diagnostics.requests.includes('https://player.vimeo.com/video/37/config?sig=dummy%2f+&x=&x=2&h=abc123'));
+  assert.equal(await evaluate("/Allow|metadata.only/i.test(document.body.innerText)"), false);
+  await capture('private-links');
+  await active.locator('iframe').evaluate(node => node.remove());
+  await waitText('Owned 37');
+  await active.locator('#private').evaluate(node => node.remove());
+  await waitText('Owned 37');
+  await badge(primaryTabId, '1', 'duplicate-private-link-survives');
+  await active.locator('#duplicate').evaluate(node => node.remove());
+  await waitText('No Vimeo');
+  await badge(primaryTabId, '', 'last-private-link-removed');
+  diagnostics.privateReferences = { pathHash: true, playerHash: true, exactQuery: true,
+    deduplicated: true, hostileReferencesIgnored: true, unrelatedInlineIgnored: true };
   await active.goto('https://example.com/fixture');
   await open();
   await waitText('Download 1080p');
-  // Real revocation API must invalidate qualities, not keep stale successful tracks.
-  await evaluate("chrome.permissions.remove({origins:['https://owned.vimeocdn.com/*']})");
-  await evaluate(`new Promise((resolve,reject) => {
-    const deadline = Date.now()+8000;
-    const check = async () => {
-      const [tab] = await chrome.tabs.query({active:true,currentWindow:true});
-      const state = await chrome.runtime.sendMessage({type:'popup-state',tabId:tab.id});
-      const revoked = state.results.filter(candidate =>
-        candidate.manifest && new URL(candidate.manifest.url).origin === 'https://owned.vimeocdn.com');
-      if (revoked.length && !state.frames.some(frame => frame.status === 'pending') &&
-        revoked.every(candidate => candidate.status === 'permission-needed' && !candidate.tracks.length)) return resolve(true);
-      if (Date.now()>deadline) return reject(new Error('Revoked-origin tracks did not clear'));
-      setTimeout(check,50);
-    }; check();
-  })`);
-  await capture('revoked');
   await active.locator('iframe').evaluate(frame => frame.remove());
   await waitText('No Vimeo');
   await badge(primaryTabId, '', 'last-frame-removed');
@@ -631,7 +615,7 @@ try {
     frame.src = 'https://player.vimeo.com/video/20';
     globalThis.document.body.append(frame);
   });
-  await waitText('owned.vimeocdn.com');
+  await waitText('Download 1080p');
   await active.locator('iframe').evaluate(frame => { frame.src = 'https://example.com/empty'; });
   await waitText('No Vimeo');
   await capture('navigated');
@@ -710,4 +694,4 @@ try {
 if (failure) { console.error(failure); process.exitCode = 1; }
 else if (process.env.SMOKE_LIFETIME_ONLY) console.log(`PASS: offline detection/notice setup and native paired/Audio only lifetime, exact bytes and reopened progress; ${artifacts}`);
 else if (process.env.SMOKE_RECOVERY_ONLY) console.log(`PASS: offline detection/notice, source-closure lifetime and per-file fetch/native cancel-and-retry, exact bytes/counts, preserved companions and owned error boundaries; ${artifacts}`);
-else console.log(`PASS: real action popup and per-tab badge text/color, first-use acknowledgement, quota failure, reopen/restart/update, separate fresh profile, HLS/DASH JSON/MPD, nested IDs, tab isolation, stale response, exact-origin grant/deny/revoke, worker rebuild, native downloads and merge command; ${artifacts}`);
+else console.log(`PASS: real action popup, required all-sites iframe/private links, per-tab badge, consent, HLS/DASH JSON/MPD, nested IDs, tab isolation, stale response, worker rebuild, native downloads and merge command; ${artifacts}`);

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { parseHls } from '../src/detect/hls.ts';
-import { audioFor, selection } from '../src/download/select.ts';
+import { selection } from '../src/download/select.ts';
 import { assemble, mediaPlaylist, limits } from '../src/download/assemble.ts';
 import { validateInitialization } from '../src/download/initialization.ts';
 import { Buffer } from 'node:buffer';
@@ -30,7 +30,6 @@ test('selection stays candidate/group-bound, prefers declared default then bitra
   assert.equal(selection({ ...candidate, tracks: candidate.tracks.filter(track => track.kind === 'video') }, 'variant:0').length, 0);
   assert.equal(selection({ ...candidate, tracks: candidate.tracks.map(track => ({ ...track, kind: 'combined' })) }, 'variant:0').length, 0);
   assert.equal(selection({ ...candidate, tracks: candidate.tracks.map(track => ({ ...track, mimeType: `${track.kind}/webm` })) }, 'variant:0').length, 0);
-  assert.equal(audioFor({ ...candidate, status: 'permission-needed' }), undefined);
   assert.deepEqual(selection(candidate, 'audio:2').map(track => track.kind), ['audio']);
 });
 

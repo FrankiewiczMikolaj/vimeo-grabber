@@ -6,8 +6,8 @@ Linux is the supported download/merge/test platform. No browser-store publicatio
 
 ## What this checkout does
 
-- Finds videos in HTTPS Vimeo pages and player frames, including embedded players
-  under unrelated sites. The popup shows one card per video, not technical track lists.
+- Finds Vimeo players and links automatically on other sites, including unlisted
+  ID-plus-hash references. The popup shows one card per video, not technical track lists.
 - Shows the tab's unique Vimeo video count in the toolbar badge without opening
   the popup. Multiple sources for one video count once; zero leaves no badge.
   Navigation clears the previous document's count.
@@ -49,19 +49,16 @@ unpacked installation requires rebuilding/replacing its files and reloading it i
 
 1. Read the rights notice and select **I understand and acknowledge**. If saving
    fails, the notice stays visible and the button can retry. The footer stays visible.
-2. Open a Vimeo page or a page containing a Vimeo player. Open the action popup.
-3. If offered, use the live **Allow** button for an encountered exact CDN origin.
-   Denial keeps the video visible without that origin's download options. Access
-   can be revoked in Chromium; the extension refreshes the affected results.
-4. Choose a supported quality to save separate video and matching audio, or
+2. Open a Vimeo page or a page containing a Vimeo player or link. Open the action popup.
+3. Choose a supported quality to save separate video and matching audio, or
    **Audio only** for one audio file. Metadata alone is not a successful download;
    an unavailable/protected/unsupported result must not be treated as a usable file.
-5. Keep the dedicated download tab open. Admitted downloads continue when the
+4. Keep the dedicated download tab open. Admitted downloads continue when the
    popup closes, tabs switch or the source tab closes. Reopen the popup to see
    current segment progress and **Open download** to return to the owner tab.
    Closing the download tab cancels its active work. **Cancel** stops queued/current
    files; **Cancel file** stops only its row. Completed files stay intact.
-6. Wait for native completion and the actual saved paths. Use a failed/cancelled
+5. Wait for native completion and the actual saved paths. Use a failed/cancelled
    row's **Retry** to restart that file from initialization with empty temporary
    storage. It never downloads the completed companion again. Incomplete native
    `.crdownload` files are partial, not playable successes or merge inputs.
@@ -104,26 +101,26 @@ Windows/macOS shell commands are not supported in this version.
 
 ## Permissions
 
-- Required `https://player.vimeo.com/*`: player-config metadata requests.
-- Static content scripts run only in matching HTTPS `vimeo.com`, `www.vimeo.com`
-  and `player.vimeo.com` frames, including child players. They do not read unrelated
-  containing pages. No `activeTab`, `tabs`, scripting or all-sites grant is used.
-- Optional `https://*.vimeocdn.com/*` declaration: the popup requests **only an
-  encountered exact HTTPS origin** on your Allow gesture, not the wildcard.
-  These live grants authorise metadata and selected download resources. Additional
-  ungranted resource origins and redirects are refused, not silently followed.
+- Required `<all_urls>`: install-time access lets content scripts find Vimeo players
+  and links on HTTP/HTTPS pages and lets the extension fetch Vimeo configs and
+  approved CDN metadata/media without per-origin prompts. On non-Vimeo pages,
+  scripts inspect only iframe `src` and link `href` references, not page text,
+  scripts, forms or input values. Vimeo frames retain config discovery.
+- Broad browser access is not an arbitrary fetch API: configs must use validated
+  Vimeo ID/hash endpoints; CDN requests require admitted config/track provenance.
+  Non-CDN resource origins and redirects are refused. No `activeTab`, `tabs` or
+  scripting permission is used.
 - `downloads`: starts and observes native saves and reads their actual completed paths.
 - `storage`: saves only `{ rightsAcknowledged: true }` in local extension storage.
 
-The required-host-access all-sites change is not part of this checkout. The current
-per-CDN Allow controls and denial/revocation behavior remain live.
 
 ## Privacy
 
 No telemetry, analytics or extension account. Detection requests player-config and
 manifest metadata; a selected download requests its media resources. Extension
-fetches omit credentials/referrers and reject redirects. Matching Vimeo page DOM
-and config data supply video discovery; this is not access to the surrounding site.
+fetches omit credentials/referrers and reject redirects. Detection reads Vimeo
+config data and minimal Vimeo iframe/link references on other sites. It does not
+collect unrelated browsing content or persist browsing history.
 
 Signed config/manifest URLs and detection candidates stay in memory, not extension
 storage or popup diagnostics. Acknowledgement is local to the browser profile;
@@ -146,8 +143,8 @@ completed file. Developer harness artifacts contain owned fixtures, not live tok
   lookahead to 320 MiB; initialization and segments are written in source order.
 - Transient network/read errors and HTTP 408/429/500/502/503/504 retry three times
   after the first attempt, with 200/400/600 ms backoff. Thirty seconds without
-  progress fails a track. Permission, quota, protection and cancellation do not
-  retry automatically. Manual Retry still requires current consent and grants.
+  progress fails a track. Quota, protection and cancellation do not retry
+  automatically. Manual Retry still requires current consent and approved sources.
 - There is no pre-download file-size metadata in the track model. No size estimate
   is invented. Progress uses observed bytes in MiB; unknown native totals say
   `unknown`. Native completion, not metadata detection, confirms saved files.
@@ -158,7 +155,7 @@ See [download contracts and proof](docs/M3-DOWNLOAD.md) and
 ## FAQ
 
 **Why are there no quality buttons?** The source may be protected, unsupported,
-unavailable, still resolving or missing a needed origin grant. A separate video
+unavailable or still resolving. A separate video
 and compatible audio must belong to the same source; in-band/combined audio does
 not create a pair. Audio only can remain available when no supported pair exists.
 

@@ -46,16 +46,17 @@ not a promise that the document remains live or resolution succeeds.
 `candidates(tab)` retains every live document's candidates, including identical
 video IDs and URLs in separate frames. It adds `frameId` and `documentId`, and
 scopes candidate `id` to that frame/document lifetime. Removing a frame removes
-only its candidates. No tracks, sources, statuses or permission origins are merged.
-Resolver outputs preserve their authoritative source and exact missing origins.
+only its candidates. No tracks, sources or statuses are merged.
+Resolver outputs preserve their authoritative document source.
 
 Admission limits: 32 videos, 64 config URLs, 32 manifests/video, 256 tracks/video,
 8192 characters/string, 262144 serialized characters and traversal budget,
-20000 visited values, depth 12. URLs use HTTPS without credentials or custom ports;
-config URLs target player.vimeo.com video config paths. Inline manifest alternatives
-may name unsupported HTTPS hosts so a valid later fallback survives admission.
-Track manifests remain CDN-scoped. Only MetadataTransport grants fetch authority:
-its receipts, CDN allowlist and exact-origin permission checks remain mandatory.
+20000 visited values, depth 12. Reference URLs use HTTPS without credentials or
+custom ports; config paths contain at most 20 ID digits and one optional
+alphanumeric hash of at most 128 characters. Authenticated HTTP/HTTPS parent
+documents may publish config references only, never inline videos. Vimeo documents
+retain inline discovery. Track manifests remain CDN-scoped; transport receipts
+and the CDN allowlist remain mandatory despite required all-sites browser access.
 
 `mise exec -- node --test test/frame-state.test.mjs` builds the core and loads it
 in an offline Chromium MV3 worker. A real content script proves Chrome sender
@@ -73,12 +74,6 @@ that authoritative URL back to content scripts for inline provenance; discovery
 still uses the current location for config fallback candidates. Worker restarts
 rebuild from content-script reconnects, without restoring old results.
 
-The popup requests an encountered exact origin in its click stack. Chrome closes
-the popup to display its native permission dialog. The worker keeps only a
-tab-scoped in-memory record that a request was attempted; reopening checks actual
-Chrome permission state and says “not granted or was denied” if still ungranted.
-It never infers that an abandoned or failed request was an explicit refusal.
-Grant/revocation events replay reports and invalidate earlier resolution results.
 
 The popup counts unique video IDs and renders one card per video. It chooses one
 whole separate DASH candidate before usable HLS, then Audio only or other results.
@@ -87,5 +82,3 @@ audio-only candidate cannot form a preferred pair.
 Cards show supported quality/Audio only actions or a download-unavailable reason.
 Representation lists and source/CDN/frame/config diagnostics are not rendered.
 Internal candidates retain every track field and provenance for download validation.
-Permission controls depend on each candidate's missing origin, never another
-candidate's success. Denial/revocation notices are shared only for that exact origin.

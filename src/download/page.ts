@@ -102,17 +102,12 @@ async function run() {
   // Initial admission fixes the source and tracks. Later source-tab changes do not revoke it.
   const stem = filenameStem(candidate.title, candidate.videoId);
   const paths = new Map<string, string>();
-  const origins = new Set<string>();
   async function authority(value?: string) {
     lifetime.signal.throwIfAborted();
     if (!await rightsAcknowledged()) throw new Error('Source rights acknowledgement required');
     const url = new URL(value ?? candidate.manifest!.url);
     if (url.protocol !== 'https:' || url.username || url.password || url.port || url.hash ||
-      !(url.hostname === 'vimeocdn.com' || url.hostname.endsWith('.vimeocdn.com'))) throw new Error('Exact-origin permission required');
-    origins.add(`${url.origin}/*`);
-    for (const origin of origins) {
-      if (!await chrome.permissions.contains({ origins: [origin] })) throw new Error('Exact-origin permission required');
-    }
+      !(url.hostname === 'vimeocdn.com' || url.hostname.endsWith('.vimeocdn.com'))) throw new Error('Unapproved media source');
   }
   await authority();
   const jobs = tracks.map(track => {
@@ -195,7 +190,7 @@ async function run() {
               error instanceof NativeSaveError && error.category === 'cancelled' ? 'cancelled' : 'failed';
             // Never show arbitrary exception text: it can contain signed source URLs.
             const reason = error instanceof DOMException && error.name === 'QuotaExceededError' ? 'temporary storage quota exceeded' :
-              error instanceof Error && /^(Cancelled|Save cancelled|Timed out after 30 seconds without progress|Source rights acknowledgement required|Exact-origin permission required|Protected \(DRM\), cannot download|Unsupported HLS encryption|Media network lost|Media HTTP \d{3}|Media request failed|Media size limit exceeded|File exceeds 4 GiB limit|Initialization limit exceeded|Native disk full|Native download [A-Z_]+|Native download interrupted|Native download could not start)$/.test(error.message)
+              error instanceof Error && /^(Cancelled|Save cancelled|Timed out after 30 seconds without progress|Source rights acknowledgement required|Unapproved media source|Protected \(DRM\), cannot download|Unsupported HLS encryption|Media network lost|Media HTTP \d{3}|Media request failed|Media size limit exceeded|File exceeds 4 GiB limit|Initialization limit exceeded|Native disk full|Native download [A-Z_]+|Native download interrupted|Native download could not start)$/.test(error.message)
                 ? error.message : 'temporary storage or assembly failed';
             detail.textContent = `${name}: ${segmentSummary} — ${row.dataset.state} (${reason}). Incomplete native output, if retained by Chromium, is partial (.crdownload), not a completed file.`;
           } finally {
@@ -276,5 +271,5 @@ async function run() {
   }
   await drain();
 }
-function unavailable() { status.textContent = 'Download unavailable: source, permission, storage or track is no longer valid.'; }
+function unavailable() { status.textContent = 'Download unavailable: source, consent, storage or track is no longer valid.'; }
 void run().catch(unavailable);

@@ -35,7 +35,6 @@ button {
 }
 button:focus-visible { outline: 3px solid #c56d00; outline-offset: 3px; }
 button:disabled { color: #37566a; background: #e0e8ed; cursor: wait; }
-.permission p { font-size: 13px; }
 footer {
   margin-top: 24px;
   padding-top: 16px;

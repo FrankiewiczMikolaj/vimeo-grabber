@@ -1,6 +1,10 @@
 import { observePage } from './observe';
+import { observeReferences } from './references';
 
-let observation = observePage(window);
+const observe = ['https://vimeo.com', 'https://www.vimeo.com', 'https://player.vimeo.com']
+  .includes(window.location.origin) ? observePage : observeReferences;
+
+let observation = observe(window);
 let frameUrl = window.location.href;
 let port: chrome.runtime.Port | undefined;
 let unsubscribe: (() => void) | undefined;
@@ -48,7 +52,7 @@ if ('navigation' in window && window.navigation instanceof EventTarget) {
     frameUrl = window.location.href;
     unsubscribe?.();
     observation.stop();
-    observation = observePage(window);
+    observation = observe(window);
     port?.disconnect();
     port = undefined;
     clearTimeout(reconnect);

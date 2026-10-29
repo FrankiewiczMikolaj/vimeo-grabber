@@ -19,7 +19,7 @@ The frame observer and worker resolver use this shared model for detection.
   Identical URLs within one protocol/CDN appear once; other alternatives remain.
 - URLs are returned verbatim, including escapes, repeated queries and empty values.
   Validation does not authorise an origin or prove a playable response. The
-  metadata transport validates provenance, allowed origins, permissions and redirects.
+  metadata transport validates provenance, allowed origins and redirects.
 - `source` is a shallow copy of caller-supplied provenance. No identity or URL is
   derived from it. Signed config URLs must remain in memory, not diagnostics.
 - `status` is `protected` for positive root/video DRM or encryption declarations;
@@ -40,8 +40,8 @@ The frame observer and worker resolver use this shared model for detection.
 optional `protected: true` for positively candidate-scoped config declarations.
 `NormalisedVideo` contains `id`, nullable `title`, `source`, `status`, `manifests`,
 and `tracks`. All fields and returned array types are readonly (not runtime frozen).
-`DetectionStatus` is `pending | found | unavailable | permission-needed | denied |
-protected | unsupported`; later stages own transitions beyond normalisation.
+`DetectionStatus` is `pending | found | unavailable | protected | unsupported`;
+later stages own transitions beyond normalisation.
 
 `Track` requires representation `id`, nullable `groupId`, explicit `kind`
 (`video | audio | combined`), originating `manifest`, explicit `download` reference, and nullable `codec`,

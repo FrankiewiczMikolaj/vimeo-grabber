@@ -18,9 +18,8 @@ Bob performs the requested live checks in his browser.
 1. **Independent candidates (#41).** Keep every DASH/HLS protocol/CDN/manifest
    alternative and its source provenance. Resolve candidates independently across
    config paths and live frames, not until the first video-level success. Keep
-   permission, denied, protected and failure state per candidate; exact-origin
-   grants are shared only where the origin actually matches. A working HLS result
-   must leave the second DASH origin request visible. Prefer DASH with separate
+   protected, unsupported and failure state per candidate. Required all-sites host
+   access replaces per-CDN permission negotiation. Prefer DASH with separate
    video/audio, without hiding HLS or mixing tracks from different candidates.
 2. **Download references (#42).** Extend Track with explicit manifest/playlist,
    inline-or-URL init and ordered media references, bound to its candidate. A
@@ -74,16 +73,16 @@ HLS. Child playlists remain download-time metadata; child-only DRM displays
 
 ## Permissions and proof
 
-Keep the current Vimeo frame boundary and exact encountered CDN grants. Add only
-permissions needed by a slice, explaining each change; no arbitrary URL-to-fetch
-messages, credentials, persisted signed URLs or wildcard permission requests.
-Download references are revalidated at use, including redirects and extra origins.
+Required `<all_urls>` access supports automatic Vimeo iframe/link discovery on
+HTTP/HTTPS pages. Non-Vimeo documents inspect URL references only; inline config
+inspection remains Vimeo-only. No arbitrary URL-to-fetch messages, credentials or
+persisted signed URLs. Revalidate admitted download references, origins and redirects.
 
 Owned fragmented-media fixtures decode to 1920x1080 video and matching audio.
 The native Chromium proof checks multi-MiB segments, held out-of-order responses,
 five concurrent requests, three retries after the initial attempt and exhaustion.
 It compares completed native file bytes with the source and decodes those files.
-It also covers HLS-first/second-origin DASH, deny/revoke, candidate identity,
+It also covers HLS/second-origin DASH, private references, candidate identity,
 malformed data, popup closure and partial completion.
 Assembly has a 4 GiB per-file cap, a 64 MiB per-media-segment cap and a 1 MiB
 initialization/playlist cap, with no per-read cap. Five disk-backed segment slots
@@ -101,7 +100,7 @@ completion. Object URLs remain live until completion or interruption. Native
 other native filesystem failures retain their bounded Chromium code.
 Initial admission authenticates the popup, live source candidate and selected tracks.
 The owner keeps that admitted snapshot in memory, independent of later source-tab
-closure or navigation and worker sleep. Consent, exact-origin permission and Cancel
+closure or navigation and worker sleep. Consent, approved CDN sources and Cancel
 remain checked while fetching and saving, without a native-save elapsed-time deadline.
 The popup discovers extension owner contexts without new permissions and reads only
 status and segment counts from authenticated owner responses. It never restarts a job.

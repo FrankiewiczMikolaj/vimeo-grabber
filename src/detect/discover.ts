@@ -29,12 +29,16 @@ function configUrl(value: string, base: string): string | null {
 }
 
 function fallback(value: string, base: string): string | null {
+  if (value.length > 8192 || value.includes('\\')) return null;
   const url = vimeoUrl(value, base);
   if (!url) return null;
   const match = url.hostname === 'player.vimeo.com'
     ? /^\/video\/([1-9]\d*)\/?$/.exec(url.pathname)
     : /^\/([1-9]\d*)(?:\/([a-zA-Z0-9]+))?\/?$/.exec(url.pathname);
   if (!match) return null;
+  if (match[1].length > 20 || (match[2]?.length ?? 0) > 128 ||
+    url.searchParams.getAll('h').length > 1 ||
+    (url.searchParams.has('h') && !/^[a-zA-Z0-9]{1,128}$/.test(url.searchParams.get('h')!))) return null;
   const result = new URL(`https://player.vimeo.com/video/${match[1]}/config${url.search}`);
   if (match[2] && !result.searchParams.has('h')) {
     result.search += `${result.search ? '&' : '?'}h=${encodeURIComponent(match[2])}`;
@@ -60,6 +64,18 @@ function jsonObject(text: string, start: number): unknown {
     }
   }
   return null;
+}
+
+/** Other sites expose URL references only, never scripts or page text. */
+export function discoverReferences(document: Document, frameUrl: string): PageDiscovery {
+  const configUrls = new Set<string>();
+  for (const node of Array.from(document.querySelectorAll('iframe[src], a[href]'))) {
+    const value = node.getAttribute(node.tagName === 'IFRAME' ? 'src' : 'href') ?? '';
+    const candidate = fallback(value, frameUrl);
+    if (candidate) configUrls.add(candidate);
+    if (configUrls.size === 64) break;
+  }
+  return { videos: [], configUrls: [...configUrls] };
 }
 
 /** Stateless DOM snapshot; callers own rescans, fetching, and frame aggregation. */

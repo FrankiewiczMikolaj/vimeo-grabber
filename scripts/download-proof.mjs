@@ -84,7 +84,7 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
         retryTimes.push(Date.now());
         if (attempt <= 3) return await route.fulfill({ status: 503, body: 'temporary' });
       }
-      if (name === 'audio-0.m4s' && (mode === 'lifetime' || ['partial', 'cancel', 'timeout', 'revoke'].includes(mode))) {
+      if (name === 'audio-0.m4s' && (mode === 'lifetime' || ['partial', 'cancel', 'timeout'].includes(mode))) {
         requested(); await held;
         if (mode === 'partial') return await route.fulfill({ status: 503, body: 'temporary' });
       }
@@ -98,11 +98,11 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
       mode === 'drm-session' ? `${master}#EXT-X-SESSION-KEY:METHOD=SAMPLE-AES,URI="skd://drm",KEYFORMAT="com.apple.streamingkeydelivery"\n` : master,
       contentType: 'application/vnd.apple.mpegurl' });
     const kind = name.startsWith('audio') ? 'audio' : 'video';
-    if (mode === 'redirect' && name.endsWith('-init.mp4')) return route.fulfill({ status: 302, headers: { location: 'https://unseen.vimeocdn.com/forbidden' } });
+    if (mode === 'redirect' && name.endsWith('-init.mp4')) return route.fulfill({ status: 302, headers: { location: 'https://unrelated.invalid/forbidden' } });
     if (name === 'video.m3u8' || name === 'audio.m3u8') {
       const encryption = mode === 'encrypted' ? '#EXT-X-KEY:METHOD=AES-128,URI="forbidden.key"\n' :
         mode === 'drm-child' ? '#EXT-X-KEY:METHOD=SAMPLE-AES,URI="skd://drm",KEYFORMAT="com.apple.streamingkeydelivery"\n' : '';
-      const playlist = `#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:2\n${encryption}#EXT-X-MAP:URI="${mode === 'origin' ? 'https://unseen.vimeocdn.com/forbidden' : `${kind}-init.mp4`}"\n${media[kind].segments.map((_, index) => `#EXTINF:1,\n${kind}-${index}.m4s\n`).join('')}#EXT-X-ENDLIST\n`;
+      const playlist = `#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:2\n${encryption}#EXT-X-MAP:URI="${mode === 'origin' ? 'https://unrelated.invalid/forbidden' : `${kind}-init.mp4`}"\n${media[kind].segments.map((_, index) => `#EXTINF:1,\n${kind}-${index}.m4s\n`).join('')}#EXT-X-ENDLIST\n`;
       return route.fulfill({ body: playlist, contentType: 'application/vnd.apple.mpegurl' });
     }
     if (/^(video|audio)-init\.mp4$/.test(name)) return route.fulfill({ body: media[kind].init, contentType: `${kind}/mp4` });
@@ -146,14 +146,6 @@ else: ${cancel ? "print('null')" : "raise RuntimeError('Native Save File dialog 
     await active.goto('https://player.vimeo.com/video/91');
     await open(active);
     await waitText(next === 'empty' ? 'Vimeo video 91' : next === 'long' ? '界' : "Owned '");
-    if (!await evaluate("chrome.permissions.contains({origins:['https://owned.vimeocdn.com/*']})")) {
-      await evaluate("document.querySelector('.permission button').focus(); true"); key('Return');
-      await delay(700);
-      if (!await bootstrap.evaluate(() => globalThis.chrome.permissions.contains({ origins: ['https://owned.vimeocdn.com/*'] }))) {
-        key('Tab'); key('Return');
-      }
-      await open(active);
-    }
     if (next === 'missing') await evaluate(`(async () => {
       const [tab] = await chrome.tabs.query({active:true,currentWindow:true});
       const deadline = Date.now()+8000;
@@ -686,7 +678,7 @@ else: ${cancel ? "print('null')" : "raise RuntimeError('Native Save File dialog 
     assert.notEqual(failedItems[0].error, 'USER_CANCELED');
     assert.match(report.nativeError[0].text, new RegExp(`Native download ${failedItems[0].error}`));
     await automatic();
-    for (const scenario of ['partial', 'cancel', 'timeout', 'revoke']) {
+    for (const scenario of ['partial', 'cancel', 'timeout']) {
       await prepare(scenario); before = (await native()).length;
       owner = await start('Download 1080p');
       await heldStarted;
@@ -696,7 +688,6 @@ else: ${cancel ? "print('null')" : "raise RuntimeError('Native Save File dialog 
       assert.match(await owner.locator('#status').innerText(), /in progress/);
       await owner.screenshot({ path: resolve(artifacts, `download-${scenario}-running.png`) });
       if (scenario === 'cancel') await owner.getByRole('button', { name: 'Cancel', exact: true }).click();
-      if (scenario === 'revoke') await bootstrap.evaluate(() => globalThis.chrome.permissions.remove({ origins: ['https://owned.vimeocdn.com/*'] }));
       if (scenario !== 'timeout') release();
       report[scenario] = await finish(owner, 'Partial failure. The completed file is kept; the companion failed.', scenario);
       if (scenario === 'partial') {

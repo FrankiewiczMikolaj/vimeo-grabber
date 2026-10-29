@@ -5,7 +5,7 @@ Pass decoded JSON, the original shared `ManifestReference`, and the authorised
 manifest response URL, which defaults to `manifest.url`. The transport rejects redirects.
 This pure API does not fetch media, evaluate scripts or validate permissions.
 It decodes inline base64 only to validate the reference. URL validation is not fetch authorization.
-The metadata transport independently checks origins, provenance, redirects and permissions.
+The metadata transport independently checks origins, provenance and redirects.
 
 ## Supported metadata
 

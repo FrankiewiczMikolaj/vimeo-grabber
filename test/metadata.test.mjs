@@ -8,7 +8,7 @@ import { URL } from 'node:url';
 import { chromium } from 'playwright';
 import { build } from 'vite';
 
-test('compiled metadata transport enforces real worker permissions and bounded provenance', { timeout: 60_000 }, async () => {
+test('compiled metadata transport enforces Vimeo authorization and bounded provenance', { timeout: 60_000 }, async () => {
   const root = resolve('artifacts/metadata');
   await mkdir(root, { recursive: true });
   const extension = await mkdtemp(`${root}/extension-`);
@@ -25,8 +25,7 @@ test('compiled metadata transport enforces real worker permissions and bounded p
     await writeFile(`${extension}/manifest.json`, JSON.stringify({
       manifest_version: 3, name: 'Owned metadata transport proof', version: '1.0',
       background: { service_worker: 'worker.js' },
-      host_permissions: ['https://player.vimeo.com/*', 'https://owned.vimeocdn.com/*'],
-      optional_host_permissions: ['https://denied.vimeocdn.com/*'],
+      host_permissions: ['<all_urls>'],
     }));
     context = await chromium.launchPersistentContext(profile, { channel: 'chromium', headless: true,
       args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`] });
@@ -45,7 +44,7 @@ test('compiled metadata transport enforces real worker permissions and bounded p
     let mode = 'ok';
     const manifest = 'https://owned.vimeocdn.com/manifest.mpd?sig=dummy%2Bsecret&x=1+2';
     const config = { video: { id: 900001 }, request: { files: { dash: { cdns: {
-      owned: { url: manifest }, denied: { url: 'https://denied.vimeocdn.com/manifest.mpd' },
+      owned: { url: manifest }, secondary: { url: 'https://secondary.vimeocdn.com/manifest.mpd' },
       media: { url: 'https://owned.vimeocdn.com/segment.m4s' },
       json: { url: 'https://owned.vimeocdn.com/manifest.json?sig=dummy%2f+%20&x=&x=2' },
     } } } } };
@@ -80,7 +79,7 @@ test('compiled metadata transport enforces real worker permissions and bounded p
     await worker.evaluate(() => {
       globalThis.transport = new Metadata.MetadataTransport();
       globalThis.source = { frameUrl: 'https://player.vimeo.com/video/900001',
-        configUrl: 'https://player.vimeo.com/video/900001/config?h=dummy%2Bsecret&x=1+2' };
+        configUrl: 'https://player.vimeo.com/video/900001/config?h=abc123&sig=dummy%2Bsecret&x=1+2' };
     });
     assert.equal(await worker.evaluate(() => typeof chrome.downloads), 'undefined');
     const load = () => worker.evaluate(async () => {
@@ -88,7 +87,7 @@ test('compiled metadata transport enforces real worker permissions and bounded p
       return receipt;
     });
     assert.equal((await load()).status, 'fetched');
-    assert.equal(seen[0].url, 'https://player.vimeo.com/video/900001/config?h=dummy%2Bsecret&x=1+2');
+    assert.equal(seen[0].url, 'https://player.vimeo.com/video/900001/config?h=abc123&sig=dummy%2Bsecret&x=1+2');
     await worker.evaluate(config => {
       globalThis.video = { id: '900001', title: null, status: 'found', tracks: [], source, manifests: Object.entries(config.request.files.dash.cdns)
         .map(([cdn, item]) => ({ cdn, protocol: 'dash', url: item.url })) };
@@ -101,7 +100,7 @@ test('compiled metadata transport enforces real worker permissions and bounded p
     assert.deepEqual(await worker.evaluate(() => transport.manifest(receipt, video, {
       ...video.manifests[3], url: `${video.manifests[3].url}&base64_init=1`,
     })), { status: 'failed', reason: 'source' });
-    assert.deepEqual(await fetchManifest(1), { status: 'permission-needed', origin: 'https://denied.vimeocdn.com' });
+    assert.equal((await fetchManifest(1)).status, 'fetched');
     const count = seen.length;
     assert.deepEqual(await fetchManifest(2), { status: 'failed', reason: 'source' });
     assert.deepEqual(await worker.evaluate(() => transport.manifest({ ...receipt }, video, video.manifests[0])), { status: 'failed', reason: 'source' });
@@ -111,8 +110,8 @@ test('compiled metadata transport enforces real worker permissions and bounded p
       'https://player.vimeo.com/video/900001/media', 'https://player.vimeo.com.evil.invalid/video/900001/config']) {
       assert.deepEqual(await worker.evaluate(url => transport.config({ ...source, configUrl: url }), url), { status: 'failed', reason: 'source' });
     }
-    assert.equal(seen.length, count, 'rejected sources and denied permissions must issue no request');
-    evidence.push('real optional-origin denial; forged receipt/reference; unsafe URL and media rejection; exact query preservation');
+    assert.equal(seen.length, count, 'rejected sources must issue no request despite all-sites access');
+    evidence.push('required all-sites access; forged receipt/reference; unsafe URL and media rejection; exact query preservation');
     const beforeInline = seen.length;
     assert.equal(await worker.evaluate(async () => {
       const inline = transport.inline({ ...video, source: { ...source, configUrl: null } });
@@ -135,25 +134,13 @@ test('compiled metadata transport enforces real worker permissions and bounded p
     mode = 'malformed';
     assert.equal((await load()).status, 'fetched', 'transport success is not parsing success');
     assert.deepEqual(await fetchManifest(0), { status: 'failed', reason: 'source' });
-    const workerUrl = worker.url();
-    await context.close();
-    await writeFile(`${extension}/manifest.json`, JSON.stringify({
-      manifest_version: 3, name: 'Owned permission denial proof', version: '1.0',
-      background: { service_worker: 'worker.js' },
-    }));
-    context = await chromium.launchPersistentContext(profile, { channel: 'chromium', headless: true,
-      args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`] });
-    const deniedWorker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
-    assert.deepEqual(await deniedWorker.evaluate(() => new Metadata.MetadataTransport().config({
-      frameUrl: 'https://player.vimeo.com/video/900001', configUrl: 'https://player.vimeo.com/video/900001/config',
-    })), { status: 'permission-needed', origin: 'https://player.vimeo.com' });
     for (const request of seen) {
-      assert.match(request.url, /^https:\/\/(player\.vimeo\.com\/video\/900001\/config|owned\.vimeocdn\.com\/manifest\.(mpd|json))\?/);
+      assert.match(request.url, /^https:\/\/(player\.vimeo\.com\/video\/900001\/config|(?:owned|secondary)\.vimeocdn\.com\/manifest\.(mpd|json))(?:\?|$)/);
       assert.equal(request.method, 'GET');
       assert.equal(Object.keys(request.headers).some(key => /^(cookie|authorization|referer)$/i.test(key)), false);
     }
-    evidence.push('malformed config remains fetched but cannot authorize manifests; real config permission denial; metadata-only GET without credentials');
-    await writeFile(`${root}/evidence.json`, JSON.stringify({ worker: workerUrl, evidence, requests: seen.length }, null, 2));
+    evidence.push('malformed config cannot authorize manifests; metadata GET without credentials');
+    await writeFile(`${root}/evidence.json`, JSON.stringify({ evidence, requests: seen.length }, null, 2));
   } finally {
     await context?.close();
     await rm(profile, { recursive: true, force: true });

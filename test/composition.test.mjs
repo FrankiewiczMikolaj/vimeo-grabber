@@ -9,7 +9,6 @@ test('admitted inline alternatives reach owned metadata without fetching unsuppo
   } });
   const { mkdtemp, writeFile, rm } = await import('node:fs/promises');
   const dir = await mkdtemp(`${process.cwd()}/.composition-`);
-  const originalChrome = globalThis.chrome;
   const originalFetch = globalThis.fetch;
   try {
     const output = (Array.isArray(bundle) ? bundle[0] : bundle).output;
@@ -24,7 +23,6 @@ test('admitted inline alternatives reach owned metadata without fetching unsuppo
         owned: { url: 'https://owned.vimeocdn.com/master.m3u8' } },
     } } } }, { frameUrl: sender.url, configUrl: null });
     const requests = [];
-    globalThis.chrome = { permissions: { contains: async () => true } };
     globalThis.fetch = async url => {
       requests.push(url);
       return new globalThis.Response('#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360\nvideo.m3u8', {
@@ -38,7 +36,6 @@ test('admitted inline alternatives reach owned metadata without fetching unsuppo
     assert.equal(state.candidates(7)[1].tracks[0].height, 360);
     assert.deepEqual(requests, ['https://owned.vimeocdn.com/master.m3u8']);
   } finally {
-    globalThis.chrome = originalChrome;
     globalThis.fetch = originalFetch;
     await rm(dir, { recursive: true, force: true });
   }

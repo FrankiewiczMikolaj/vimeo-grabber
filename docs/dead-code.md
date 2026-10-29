@@ -76,17 +76,17 @@ Baseline: main `be179903aba2cbab3c464ce343b69da25007e419`.
 - **All source:** read detect parsers/model/protection, discovery/observer/content,
   transport/resolver/frame state; popup and worker; download selection, init,
   assembly, filenames/page; Linux shell generation. The explicit owner exception
-  deletes technical UI, not internal data. No acknowledgement repair, permission
-  cutover, Save As or filename-behavior change is included.
-- **CSS and HTML:** remaining selectors match popup eyebrow/articles/permission
-  controls/footer and download-page rows/buttons. Both HTML scripts are live
-  build entries. The detection-only header is replaced with current capabilities.
-- **All four scripts:** smoke owns real action/permission/notice lifecycle;
+  deletes technical UI, not internal data. Earlier cleanup did not change
+  acknowledgement, Save As or filename behavior.
+- **CSS and HTML:** remaining selectors match popup eyebrow/articles/footer and
+  download-page rows/buttons. Both HTML scripts are live build entries.
+  The detection-only header is replaced with current capabilities.
+- **All four scripts:** smoke owns real action/notice lifecycle;
   download proof owns native saves/ffmpeg; lifetime proof challenges cancellation
   accounting; segment helper observes request terminal events. Failure-injection
   flags and evidence-directory options are documented executable proof paths.
 - **All twelve test files:** behavior coverage remains for parser boundaries,
-  provenance, permission admission, stale completion, observation and discovery,
+  provenance, source admission, stale completion, observation and discovery,
   candidate-bound selection, assembly limits, filenames and literal shell paths.
   The composition test protects rejection of unsupported hosts before fallback;
   it is not a mock echo. The only retired branch exercised the dead broker method.
@@ -122,13 +122,16 @@ No pre-download byte-size metadata exists in Track; none is invented. Current
 progress reports observed MiB and displays Chrome's negative unknown total as
 `unknown`, not a negative size. Size discovery is not part of this cleanup.
 
-The optional CDN permission/Allow flow is **live and unchanged**: manifest
-`optional_host_permissions`, popup origin discovery/request/poll/revocation,
-worker permission-attempt/replay, transport permission-needed results, download
-exact-origin checks and native deny/grant/revoke proof must remain together.
-Delete these only in the later atomic required-host-access all-sites cutover
-(issue #54 item 11). Badge PR #60 is not modified. Acknowledgement enforcement
-is a separate repair rebuilt from main after this cleanup merges.
+The required-host-access cutover removes the optional CDN permission flow together:
+manifest declaration, popup origin discovery/request/poll/revocation, worker attempt
+state and replay hooks, transport permission results, download grant checks and
+native deny/grant/revoke fixtures. Required `<all_urls>` replaces browser grant
+negotiation, not Vimeo-only endpoint, receipt, consent or media-source admission.
+The grant-era popup refresh message and its worker replay helper are also removed:
+no production caller remains after the permission UI cutover. Live document
+connections still publish their initial report and later observed changes.
+`pnpm deadcode` checks orphan files/exports; source searches check obsolete APIs,
+states and UI wording. Historical feature tickets remain records, not current contracts.
 
 ## Tool observations
 
