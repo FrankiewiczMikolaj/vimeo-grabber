@@ -59,9 +59,12 @@ unpacked installation requires rebuilding/replacing its files and reloading it i
 5. Keep the dedicated download tab open. Admitted downloads continue when the
    popup closes, tabs switch or the source tab closes. Reopen the popup to see
    current segment progress and **Open download** to return to the owner tab.
-   Closing the download tab cancels its active work. **Cancel** stops the job.
-6. Wait for native completion and the actual saved paths. A failed companion leaves
-   the completed file intact; it does not make an incomplete pair successful.
+   Closing the download tab cancels its active work. **Cancel** stops queued/current
+   files; **Cancel file** stops only its row. Completed files stay intact.
+6. Wait for native completion and the actual saved paths. Use a failed/cancelled
+   row's **Retry** to restart that file from initialization with empty temporary
+   storage. It never downloads the completed companion again. Incomplete native
+   `.crdownload` files are partial, not playable successes or merge inputs.
 
 Chromium uses its download settings and may add filename collision suffixes.
 Chrome can show **Save As** when **Ask where to save each file before downloading**
@@ -143,7 +146,8 @@ completed file. Developer harness artifacts contain owned fixtures, not live tok
   lookahead to 320 MiB; initialization and segments are written in source order.
 - Transient network/read errors and HTTP 408/429/500/502/503/504 retry three times
   after the first attempt, with 200/400/600 ms backoff. Thirty seconds without
-  progress fails a track. Permission, quota, protection and cancellation do not retry.
+  progress fails a track. Permission, quota, protection and cancellation do not
+  retry automatically. Manual Retry still requires current consent and grants.
 - There is no pre-download file-size metadata in the track model. No size estimate
   is invented. Progress uses observed bytes in MiB; unknown native totals say
   `unknown`. Native completion, not metadata detection, confirms saved files.

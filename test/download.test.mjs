@@ -5,6 +5,7 @@ import { audioFor, selection } from '../src/download/select.ts';
 import { assemble, mediaPlaylist, limits } from '../src/download/assemble.ts';
 import { validateInitialization } from '../src/download/initialization.ts';
 import { Buffer } from 'node:buffer';
+import { NativeSaveError } from '../src/download/native-error.ts';
 
 const { Response, ReadableStream, Blob, AbortController } = globalThis;
 const manifest = { protocol: 'hls', cdn: 'owned', url: 'https://owned.vimeocdn.com/master.m3u8' };
@@ -116,4 +117,16 @@ test('assembly accepts a read above 1 MiB and refuses oversized segments without
   await assert.rejects(assemble(track, writer, async () => {}, new AbortController().signal, () => {}, directory), /Media size limit/);
   assert.equal(requests, 1, 'size failures must not retry');
   assert.equal(files.size, 0);
+});
+
+test('native failure boundary separates disk exhaustion, filesystem failure and cancellation without leaking locators', () => {
+  // Synthetic FILE_NO_SPACE classification, not a filled disk or a mocked Chrome API.
+  assert.equal(new NativeSaveError('FILE_NO_SPACE').category, 'disk-full');
+  assert.equal(new NativeSaveError('FILE_ACCESS_DENIED').category, 'filesystem');
+  assert.equal(new NativeSaveError('USER_CANCELED').category, 'cancelled');
+  const signed = 'https://owned.vimeocdn.com/a?signature=private';
+  const failure = new NativeSaveError(signed);
+  assert.equal(failure.category, 'filesystem');
+  assert.equal(failure.message.includes(signed), false);
+  assert.equal(failure.message.includes('signature'), false);
 });

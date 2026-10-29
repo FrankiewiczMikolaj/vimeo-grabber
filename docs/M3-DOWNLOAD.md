@@ -97,7 +97,8 @@ The 30-second inactivity watchdog covers assembly network fetching only; it is
 disarmed before closing the assembled file or awaiting native saving. Native
 `downloads.onChanged` terminal events and an initial state read cover fast
 completion. Object URLs remain live until completion or interruption. Native
-`USER_CANCELED` displays “Save cancelled”; other native errors retain their code.
+`USER_CANCELED` displays “Save cancelled”; `FILE_NO_SPACE` displays “Native disk full”;
+other native filesystem failures retain their bounded Chromium code.
 Initial admission authenticates the popup, live source candidate and selected tracks.
 The owner keeps that admitted snapshot in memory, independent of later source-tab
 closure or navigation and worker sleep. Consent, exact-origin permission and Cancel
@@ -106,6 +107,19 @@ The popup discovers extension owner contexts without new permissions and reads o
 status and segment counts from authenticated owner responses. It never restarts a job.
 No browsing/media URL is persisted. Closing an owner removes its broker intent;
 the in-memory broker admits at most 16 outstanding owner intents.
+
+Each row has **Cancel file** and **Retry**, including Audio only. Cancel affects
+only that file; the page-level Cancel stops all queued/current files. Completed
+files have neither action enabled. Manual Retry starts from initialization with
+a new controller and empty OPFS attempt, never appends partial bytes, and never
+fetches or saves the completed companion again. Attempts run serially under the
+owner lock; Retry stays disabled until request/writer/native termination and
+owned temporary cleanup. Completion wins a native cancellation race, so a saved
+file cannot be retried accidentally. Queued/retrying, fetching, saving, cancelled,
+failed and complete states reach the reopened popup. Failed rows publish no path.
+HTTP status, network loss, OPFS quota and native filesystem/disk-full failures
+remain distinct without exception URLs. Chromium owns interrupted native partials;
+the row identifies any retained `.crdownload` as incomplete, never a merge input.
 Retire weaker tests rather than duplicating paths. Live Vimeo never gates CI.
 
 ### Linux merge command

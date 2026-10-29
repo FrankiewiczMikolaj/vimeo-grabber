@@ -48,14 +48,14 @@ export async function assemble(track: Track, writer: FileSystemWritableFileStrea
     let response: Response;
     try {
       response = await fetch(url, { credentials: 'omit', redirect: 'manual', referrerPolicy: 'no-referrer', signal: active });
-    } catch { active.throwIfAborted(); throw new Transient('Media request failed'); }
+    } catch { active.throwIfAborted(); throw new Transient('Media network lost'); }
     if ([408, 429, 500, 502, 503, 504].includes(response.status)) {
       await response.body?.cancel();
-      throw new Transient('Media request failed');
+      throw new Transient(`Media HTTP ${response.status}`);
     }
     if (!response.ok || !response.body || response.redirected || response.url !== url) {
       await response.body?.cancel();
-      throw new Error('Media request failed');
+      throw new Error(response.status >= 400 ? `Media HTTP ${response.status}` : 'Media request failed');
     }
     return response;
   }
@@ -66,7 +66,7 @@ export async function assemble(track: Track, writer: FileSystemWritableFileStrea
       while (true) {
         let result: ReadableStreamReadResult<Uint8Array>;
         try { result = await reader.read(); }
-        catch { active.throwIfAborted(); throw new Transient('Media request failed'); }
+        catch { active.throwIfAborted(); throw new Transient('Media network lost'); }
         if (result.done) break;
         size += result.value.byteLength;
         if (size > maximum) throw new Error('Media size limit exceeded');

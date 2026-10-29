@@ -145,3 +145,22 @@ Raw before/after tool output, scoped frame-state results, full native verificati
 screenshots and hosted-check metadata are retained with the job evidence and
 linked in the PR body. Empty Knip output is a successful scan, not a claim that
 all runtime, CSS or prose dead code can be proved absent automatically.
+
+## Per-file recovery cutover (#62)
+
+- Removed the page-wide irreversible abort controller and shared native ID.
+  Each queued file owns a fresh controller; the native ID now lives only inside
+  its save attempt. The owner lock still serializes OPFS use across pages.
+- Replaced the one-pass track loop and completed counter with persistent rows,
+  a serial pending-attempt drain and completed-path map. Completed rows cannot
+  enqueue again. Retry waits for all segment jobs/writers/native state and OPFS
+  cleanup; no compatibility path or append/resume implementation remains.
+- Replaced the plain Audio only success scenario with fetch/native cancel-and-retry
+  cases that retain the same exact one-file/byte assertions. Empty/Unicode naming,
+  global Cancel, native USER_CANCELED, retry exhaustion and long Save As remain
+  separate boundaries, not duplicate recovery checks.
+- `NativeSaveError` is reached by the owner's native terminal/start boundary.
+  Its unit case checks synthetic disk-full/filesystem/cancellation classification
+  and signed-locator redaction; it does not claim real disk exhaustion.
+- Knip follows the new native-error module through the page import. No permission,
+  dependency, worker admission or shell-command path changes in this cutover.

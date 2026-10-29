@@ -184,6 +184,34 @@ the observations. For a scoped run after building, use
 this runs detection/notice setup and lifetime proof, not the remaining download
 matrix. Use a fresh artifact directory for each invocation.
 
+For per-file recovery after building, use
+`SMOKE_RECOVERY_ONLY=1 SMOKE_ARTIFACT_DIR=artifacts/recovery-fresh pnpm smoke`.
+It runs detection/notice setup, source-closure lifetime checks and the recovery
+matrix, not the remaining download matrix. Use a fresh directory every time.
+The default full run includes both matrices.
+
+`recovery-proof.json` records video/audio/Audio only cancellation during fetch
+and actual native saving, followed by Retry on the same owner row. Native
+filename collisions and the real determining-filename listener force GTK Save As.
+The native case activates the production Cancel button through its DOM because
+GTK is modal; it does not mock Chrome downloads APIs or claim a physical click.
+Desktop frames retain the pending native dialog. Each retry must produce exactly
+two completed pair files or one Audio only file, with exact source bytes and no
+new requests for the completed companion. A second synthetic Retry event
+challenges the disabled-button guard. Network recovery also closes the source
+and observes failed/completed progress in the reopened popup.
+
+Owned route abort/403 responses prove distinct network/HTTP errors. One injected
+OPFS write rejects `QuotaExceededError`; this is not real quota exhaustion.
+The native error unit boundary injects the `FILE_NO_SPACE` code to prove disk-full
+classification and locator redaction; no shared disk is filled. The full native
+matrix separately uses a file as the destination directory to force a real
+filesystem failure. Retry without stored consent must fetch/save nothing.
+Every terminal attempt must remove its OPFS directory before Retry is enabled.
+Native interrupted files have no completed path; rows identify any retained
+`.crdownload` as partial. The screenshots and native-item audit distinguish
+the owned collision fixtures from successful outputs.
+
 Concurrency uses Chromium request lifetimes: `request` opens a slot;
 `requestfinished` (after body delivery) or `requestfailed` (including cancellation)
 closes it. A pending `route.fulfill()` or held fixture handler is not an outstanding

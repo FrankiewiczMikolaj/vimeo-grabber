@@ -40,6 +40,8 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
   let held;
   let heldStarted;
   const requests = [];
+  let recoveryHold;
+  let recoveryFault;
   const segments = segmentRequests(context, request => /^https:\/\/owned\.vimeocdn\.com\/download\/(?:video|audio)-\d+\.m4s$/.test(request.url()));
   let attempts = new Map();
   let completionOrder = [];
@@ -73,6 +75,11 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
     if (part) {
       const attempt = (attempts.get(name) ?? 0) + 1;
       attempts.set(name, attempt);
+      if (recoveryHold === part[1] && part[2] === '0') {
+        requested(); await held;
+        if (recoveryFault === 'network') return route.abort('internetdisconnected');
+        if (recoveryFault === 'http') return route.fulfill({ status: 403, body: 'owned failure' });
+      }
       if (mode === 'retry' && name === 'video-0.m4s') {
         retryTimes.push(Date.now());
         if (attempt <= 3) return await route.fulfill({ status: 503, body: 'temporary' });
@@ -104,7 +111,7 @@ export async function downloadProof({ context, active, bootstrap, open, evaluate
   await context.route('**/*', route);
   const native = () => bootstrap.evaluate(() => globalThis.chrome.downloads.search({}));
   // Xvfb has no window manager to focus GTK dialogs; click their actual Save button.
-  function acceptNativeSave() {
+  function acceptNativeSave(cancel = false) {
     return JSON.parse(execFileSync('python3', ['-c', `import ctypes,json
 x=ctypes.CDLL('libX11.so.6'); t=ctypes.CDLL('libXtst.so.6')
 x.XOpenDisplay.restype=ctypes.c_void_p; d=x.XOpenDisplay(None)
@@ -121,18 +128,18 @@ for window in windows[:n.value]:
  x.XGetGeometry(d,window,ctypes.byref(r),ctypes.byref(gx),ctypes.byref(gy),ctypes.byref(w),ctypes.byref(h),ctypes.byref(b),ctypes.byref(depth))
  t.XTestFakeMotionEvent.argtypes=[ctypes.c_void_p,ctypes.c_int,ctypes.c_int,ctypes.c_int,ctypes.c_ulong]
  t.XTestFakeButtonEvent.argtypes=[ctypes.c_void_p,ctypes.c_uint,ctypes.c_int,ctypes.c_ulong]
- t.XTestFakeMotionEvent(d,-1,gx.value+w.value-50,gy.value+h.value-23,0)
+ t.XTestFakeMotionEvent(d,-1,gx.value+w.value-${cancel ? 140 : 50},gy.value+h.value-23,0)
  t.XTestFakeButtonEvent(d,1,1,0); t.XTestFakeButtonEvent(d,1,0,0)
  x.XFlush.argtypes=[ctypes.c_void_p]; x.XFlush(d)
  print(json.dumps({'title':name.value.decode(),'width':w.value,'height':h.value}))
  break
-else: raise RuntimeError('Native Save File dialog not found')
+else: ${cancel ? "print('null')" : "raise RuntimeError('Native Save File dialog not found')"}
 `], { encoding: 'utf8' }));
   }
   async function prepare(next) {
     mode = next;
     config.video.title = next === 'empty' ? '' : next === 'long' ? '界'.repeat(300) :
-      next === 'dash' ? `${hostileTitle} - video 1080p (1)` : next === 'retry' ? `${hostileTitle} retry` : hostileTitle;
+      next === 'dash' ? `${hostileTitle} - video 1080p (1)` : next === 'retry' || next.startsWith('recovery-') ? `${hostileTitle} ${next}` : hostileTitle;
     segments.reset(); attempts = new Map(); completionOrder = [];
     heldStarted = new Promise(resolve => { requested = resolve; });
     held = new Promise(resolve => { release = resolve; });
@@ -171,7 +178,7 @@ else: raise RuntimeError('Native Save File dialog not found')
     assert.equal(await bootstrap.evaluate(() => globalThis.chrome.extension.getViews({ type: 'popup' }).length), 0);
     return owner;
   }
-  async function finish(owner, text, name) {
+  async function finish(owner, text, name, close = true) {
     try { await owner.getByText(text, { exact: true }).waitFor({ timeout: 40000 }); }
     catch (error) {
       await owner.screenshot({ path: resolve(artifacts, `download-${name}-failure.png`) });
@@ -253,7 +260,7 @@ else: raise RuntimeError('Native Save File dialog not found')
       try { await root.getDirectoryHandle('vimeo-download'); return false; }
       catch (error) { if (error.name === 'NotFoundError') return true; throw error; }
     }), true, 'owned temporary files removed');
-    await owner.close();
+    if (close) await owner.close();
     return rows;
   }
   const report = {};
@@ -413,6 +420,114 @@ else: raise RuntimeError('Native Save File dialog not found')
       report.lifetime = lifetime;
       if (process.env.SMOKE_LIFETIME_ONLY) return report;
     }
+    {
+      const recovery = [];
+      for (const stage of ['fetch', 'native', 'network', 'http', 'quota']) {
+        for (const target of stage === 'fetch' || stage === 'native' ? ['video', 'audio', 'audio-only'] : ['audio']) {
+          await prepare(`recovery-${stage}-${target}`);
+          recoveryHold = stage === 'native' ? undefined : target === 'video' ? 'video' : 'audio';
+          recoveryFault = stage === 'network' || stage === 'http' ? stage : undefined;
+          const before = await native();
+          if (stage === 'native') {
+            const filenames = (target === 'audio-only' ? ['audio'] : ['video', 'audio'])
+              .map(kind => trackFilename(filenameStem(config.video.title, '91'), kind, 1080));
+            const targetIndex = target === 'audio' ? 1 : 0;
+            await writeFile(resolve(directory, filenames[targetIndex]), 'owned filename collision for native prompt');
+            await automatic();
+            await bootstrap.evaluate(({ filenames, targetIndex }) => {
+              let count = 0;
+              globalThis.recoveryPending = undefined;
+              globalThis.recoveryPrompt = (item, suggest) => {
+                const index = count++;
+                if (index === targetIndex) globalThis.recoveryPending = item.id;
+                suggest({ filename: filenames[index], conflictAction: index === targetIndex ? 'prompt' : 'uniquify' });
+              };
+              globalThis.chrome.downloads.onDeterminingFilename.addListener(globalThis.recoveryPrompt);
+            }, { filenames, targetIndex });
+          }
+          const owner = await start(target === 'audio-only' ? 'Audio only' : 'Download 1080p');
+          const kind = target === 'video' ? 'video' : 'audio';
+          const row = owner.locator('#outcomes li').filter({ has: owner.getByRole('progressbar', { name: `${kind} segments`, exact: true }) });
+          if (stage === 'native') {
+            await row.locator('[aria-label="Cancel ' + kind + '"]').waitFor();
+            await owner.waitForFunction(kind => [...globalThis.document.querySelectorAll('#outcomes li')]
+              .some(row => row.dataset.state === 'saving' && row.querySelector('progress').getAttribute('aria-label') === `${kind} segments`), kind);
+            await bootstrap.waitForFunction(async () => (await globalThis.chrome.downloads.search({}))
+              .some(item => item.id === globalThis.recoveryPending && item.state === 'in_progress'));
+            execFileSync('ffmpeg', ['-v', 'error', '-f', 'x11grab', '-i', process.env.DISPLAY,
+              '-frames:v', '1', '-y', resolve(artifacts, `recovery-native-${target}-pending.png`)]);
+          } else await heldStarted;
+          if (stage === 'quota') {
+            await owner.evaluate(() => {
+              const write = globalThis.FileSystemWritableFileStream.prototype.write;
+              globalThis.FileSystemWritableFileStream.prototype.write = function () {
+                globalThis.FileSystemWritableFileStream.prototype.write = write;
+                return Promise.reject(new globalThis.DOMException('owned quota injection', 'QuotaExceededError'));
+              };
+            });
+          }
+          if (stage === 'fetch') await row.getByRole('button', { name: `Cancel ${kind}`, exact: true }).click();
+          // GTK is modal: activate the production owner handler in its DOM, not a Chrome API mock.
+          if (stage === 'native') await row.getByRole('button', { name: `Cancel ${kind}`, exact: true }).evaluate(button => button.click());
+          if (stage === 'native') acceptNativeSave(true); // Dismiss GTK if Chromium retained its cancelled dialog.
+          release();
+          const text = target === 'audio-only' ? 'Download failed. No files completed.' : 'Partial failure. The completed file is kept; the companion failed.';
+          const failed = await finish(owner, text, `recovery-${stage}-${target}-stopped`, false);
+          const expectedReason = { fetch: 'Cancelled', native: 'Cancelled', network: 'Media network lost', http: 'Media HTTP 403', quota: 'temporary storage quota exceeded' }[stage];
+          assert.ok(failed.some(row => row.text.includes(expectedReason)), expectedReason);
+          assert.equal(await owner.locator('#merge-command').count(), 0);
+          if (stage === 'native') await bootstrap.evaluate(() => globalThis.chrome.downloads.onDeterminingFilename.removeListener(globalThis.recoveryPrompt));
+          const companion = failed.find(row => row.state === 'complete');
+          const counts = new Map(attempts);
+          if (stage === 'http') {
+            const requestCount = requests.length;
+            const nativeCount = (await native()).length;
+            await bootstrap.evaluate(() => globalThis.chrome.storage.local.remove('rightsAcknowledged'));
+            await row.getByRole('button', { name: `Retry ${kind}`, exact: true }).click();
+            await owner.waitForFunction(() => globalThis.document.querySelector('#cancel').disabled);
+            assert.equal(requests.length, requestCount, 'retry without consent fetches nothing');
+            assert.equal((await native()).length, nativeCount, 'retry without consent saves nothing');
+            assert.match(await row.innerText(), /Source rights acknowledgement required/);
+            await bootstrap.evaluate(() => globalThis.chrome.storage.local.set({ rightsAcknowledged: true }));
+          }
+          if (stage === 'network') {
+            await active.close();
+            active = await context.newPage();
+            await active.goto('https://example.com/empty');
+            await open(active);
+            await waitText('— failed');
+            await capture('recovery-source-closed-failure');
+          }
+          recoveryHold = undefined; recoveryFault = undefined;
+          await row.getByRole('button', { name: `Retry ${kind}`, exact: true }).click();
+          // A synthetic second event challenges the disabled-button guard while the first attempt runs.
+          await row.getByRole('button', { name: `Retry ${kind}`, exact: true }).dispatchEvent('click');
+          const success = await finish(owner, target === 'audio-only' ? 'Audio file completed.' : 'Both files completed.', `recovery-${stage}-${target}-retried`, stage !== 'network');
+          if (stage === 'network') {
+            await open(active);
+            await waitText('audio segments: 6/6 — complete');
+            await capture('recovery-source-closed-retried');
+            await owner.close();
+          }
+          const items = (await native()).filter(item => !before.some(old => old.id === item.id));
+          assert.equal(items.filter(item => item.state === 'complete').length, target === 'audio-only' ? 1 : 2);
+          assert.equal(items.length, (target === 'audio-only' ? 1 : 2) + (stage === 'native' ? 1 : 0));
+          for (const saved of success) {
+            const savedKind = saved.path.endsWith('.m4a') ? 'audio' : 'video';
+            assert.deepEqual(await readFile(saved.path), media[savedKind].bytes, 'retry starts with exactly one initialization');
+          }
+          if (companion) {
+            assert.equal(success.find(row => row.path === companion.path)?.state, 'complete');
+            for (const [name, count] of counts) if (name.startsWith(kind === 'video' ? 'audio-' : 'video-')) assert.equal(attempts.get(name), count, 'completed companion never requested again');
+          }
+          recovery.push({ stage, target, faultInjection: stage === 'quota' ? 'one owned OPFS write rejects QuotaExceededError; not real quota exhaustion' :
+            stage === 'network' || stage === 'http' ? 'owned Chromium route failure' : null, failed, success, native: items, exactBytes: true, companionPreserved: Boolean(companion) });
+        }
+      }
+      report.recovery = recovery;
+      await writeFile(resolve(artifacts, 'recovery-proof.json'), JSON.stringify(recovery, null, 2));
+      if (process.env.SMOKE_RECOVERY_ONLY) return report;
+    }
     await bootstrap.evaluate(async () => {
       const root = await globalThis.navigator.storage.getDirectory();
       const directory = await root.getDirectoryHandle('vimeo-download', { create: true });
@@ -524,7 +639,7 @@ else: raise RuntimeError('Native Save File dialog not found')
     report.drmChild = await finish(owner, 'Download failed. No files completed.', 'drm-child');
     assert.ok(report.drmChild.every(row => row.text.includes('Protected (DRM), cannot download')));
     assert.equal((await native()).length, before);
-    for (const scenario of ['audio', 'empty', 'long']) {
+    for (const scenario of ['empty', 'long']) {
       await prepare(scenario); before = (await native()).length;
       owner = await start('Audio only');
       const rows = await finish(owner, 'Audio file completed.', `audio-${scenario}`);
@@ -544,10 +659,10 @@ else: raise RuntimeError('Native Save File dialog not found')
     });
     owner = await start('Download 1080p');
     report.nativeCancel = await finish(owner, 'Partial failure. The completed file is kept; the companion failed.', 'native-cancel');
-    assert.deepEqual(report.nativeCancel.map(row => row.state), ['complete', 'failed']);
+    assert.deepEqual(report.nativeCancel.map(row => row.state), ['complete', 'cancelled']);
     assert.deepEqual(await readFile(report.nativeCancel[0].path), media.video.bytes);
     assert.match(report.nativeCancel[1].text, /Save cancelled/);
-    const cancelled = (await native()).filter(item => item.state === 'interrupted');
+    const cancelled = (await native()).filter(item => item.state === 'interrupted' && !report.recovery.some(entry => entry.native.some(old => old.id === item.id)));
     assert.equal((await native()).length - before, 2);
     assert.equal(cancelled.length, 1);
     assert.equal(cancelled[0].error, 'USER_CANCELED');
@@ -584,7 +699,7 @@ else: raise RuntimeError('Native Save File dialog not found')
       release();
       if (scenario === 'timeout') assert.match(report[scenario][1].text, /Timed out after 30 seconds/);
       assert.equal((await native()).length - before, 1);
-      assert.deepEqual(report[scenario].map(row => row.state), ['complete', 'failed']);
+      assert.deepEqual(report[scenario].map(row => row.state), ['complete', scenario === 'cancel' ? 'cancelled' : 'failed']);
       assert.deepEqual(await readFile(report[scenario][0].path), media.video.bytes);
     }
     for (const scenario of ['encrypted', 'redirect', 'origin']) {

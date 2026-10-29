@@ -709,4 +709,5 @@ try {
 }
 if (failure) { console.error(failure); process.exitCode = 1; }
 else if (process.env.SMOKE_LIFETIME_ONLY) console.log(`PASS: offline detection/notice setup and native paired/Audio only lifetime, exact bytes and reopened progress; ${artifacts}`);
+else if (process.env.SMOKE_RECOVERY_ONLY) console.log(`PASS: offline detection/notice, source-closure lifetime and per-file fetch/native cancel-and-retry, exact bytes/counts, preserved companions and owned error boundaries; ${artifacts}`);
 else console.log(`PASS: real action popup and per-tab badge text/color, first-use acknowledgement, quota failure, reopen/restart/update, separate fresh profile, HLS/DASH JSON/MPD, nested IDs, tab isolation, stale response, exact-origin grant/deny/revoke, worker rebuild, native downloads and merge command; ${artifacts}`);
