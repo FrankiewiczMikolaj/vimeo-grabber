@@ -271,5 +271,5 @@ async function run() {
   }
   await drain();
 }
-function unavailable() { status.textContent = 'Download unavailable: source, permission, storage or track is no longer valid.'; }
+function unavailable() { status.textContent = 'Download unavailable: source, consent, storage or track is no longer valid.'; }
 void run().catch(unavailable);
