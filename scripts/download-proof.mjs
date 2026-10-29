@@ -329,7 +329,6 @@ else: ${cancel ? "print('null')" : "raise RuntimeError('Native Save File dialog 
     await acknowledge();
     await capture('rights-actions-revealed');
     // Pause the first page storage read, then revoke the genuinely minted token's consent.
-    const entry = await bootstrap.evaluate(() => globalThis.chrome.runtime.getURL('download.html'));
     await bootstrap.evaluate(() => globalThis.localStorage.setItem('rights-proof-pause', 'yes'));
     await context.addInitScript(() => {
       if (globalThis.location.pathname !== '/download.html' || globalThis.localStorage.getItem('rights-proof-pause') !== 'yes') return;
@@ -343,6 +342,43 @@ else: ${cancel ? "print('null')" : "raise RuntimeError('Native Save File dialog 
     });
     const owner = await start('Download 1080p');
     await owner.waitForFunction(() => typeof globalThis.releaseRightsRead === 'function');
+    // A genuine token is not bearer authority: another tab with the same URL
+    // must fail even while consent is valid and its original owner is paused.
+    const admittedToken = new URL(owner.url()).hash.slice(1);
+    const replay = await context.newPage();
+    await replay.goto(owner.url());
+    await replay.getByText('Download unavailable:', { exact: false }).waitFor();
+    assert.equal(await replay.evaluate(token => globalThis.chrome.runtime.sendMessage({
+      type: 'download-source', token,
+    }), admittedToken), null);
+    await replay.close();
+    const wrongSender = await bootstrap.evaluate(async token => {
+      const tabId = (await globalThis.chrome.tabs.query({ active: true, currentWindow: true }))[0].id;
+      const replies = [];
+      for (const message of [
+        { type: 'popup-state', tabId },
+        { type: 'download-start', tabId, candidateId: 'forged', trackId: 'forged' },
+        { type: 'download-source', token },
+      ]) {
+        try { replies.push((await globalThis.chrome.runtime.sendMessage(message)) ?? null); }
+        catch { replies.push(null); }
+      }
+      return replies;
+    }, admittedToken);
+    assert.deepEqual(wrongSender, [null, null, null]);
+    await open(active);
+    const invalidCandidate = await evaluate(`(async () => {
+      const [tab] = await chrome.tabs.query({active:true,currentWindow:true});
+      return chrome.runtime.sendMessage({type:'download-start',tabId:tab.id,
+        candidateId:'stale-document-candidate',trackId:'forged'});
+    })()`);
+    assert.equal(invalidCandidate, false);
+    assert.deepEqual(requests.slice(requestBefore), []);
+    assert.equal((await native()).length, nativeBefore);
+    assert.equal(context.pages().filter(page => page.url().includes('/download.html')).length, 1);
+    report.authorityRefusal = { wrongSender, invalidCandidate, replayedOwnerToken: 'refused',
+      requests: requests.slice(requestBefore), nativeSaves: (await native()).length - nativeBefore,
+      ownerPages: 1 };
     await bootstrap.evaluate(() => globalThis.chrome.storage.local.remove('rightsAcknowledged'));
     await owner.evaluate(() => globalThis.releaseRightsRead());
     await owner.getByText('Download unavailable:', { exact: false }).waitFor();
@@ -354,14 +390,10 @@ else: ${cancel ? "print('null')" : "raise RuntimeError('Native Save File dialog 
     await owner.getByText('Download unavailable:', { exact: false }).waitFor();
     await owner.screenshot({ path: resolve(artifacts, 'rights-direct-token-blocked.png') });
     await owner.close();
-    const direct = await context.newPage();
-    await direct.goto(`${entry}#unowned-token`);
-    await direct.getByText('Download unavailable:', { exact: false }).waitFor();
-    await direct.close();
     assert.deepEqual(requests.slice(requestBefore), [], 'refused actions must not even fetch child playlists or init');
     assert.equal((await native()).length, nativeBefore, 'refused actions must create no native saves');
     report.rightsRefusal = { outcomes, pendingAndUnreadablePopup: true, unreadableWorkerRefused: true,
-      genuineTokenRevokedBeforeEntry: true, workerRefusedPageAssertion: true, directUnownedTokenRefused: true,
+      genuineTokenRevokedBeforeEntry: true, workerRefusedPageAssertion: true,
       requests: requests.slice(requestBefore), nativeSaves: (await native()).length - nativeBefore };
     await open(active);
     await acknowledge();
