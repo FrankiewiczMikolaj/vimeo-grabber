@@ -1,6 +1,7 @@
 import { createFrameState, validateFrameDiscovery } from './detect/frame-state';
 import { resolveDiscovery } from './detect/resolve';
 import { selection } from './download/select';
+import { rightsAcknowledged } from './rights';
 
 const state = createFrameState(chrome.runtime.id, resolveDiscovery);
 const connections = new Map<string, chrome.runtime.Port>();
@@ -75,9 +76,12 @@ chrome.tabs.onUpdated.addListener((tabId, change) => {
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (sender.id !== chrome.runtime.id || sender.url !== `${chrome.runtime.getURL('download.html')}#${message?.token}`
     || message?.type !== 'download-source') return;
-  const intent = downloads.get(message.token);
-  const candidate = intent && state.candidates(intent.tabId).find(candidate => candidate.id === intent.candidateId);
-  respond(intent && candidate && intent.owner === sender.tab?.id ? { candidate, trackId: intent.trackId } : null);
+  void rightsAcknowledged().then(acknowledged => {
+    const intent = downloads.get(message.token);
+    const candidate = intent && state.candidates(intent.tabId).find(candidate => candidate.id === intent.candidateId);
+    respond(acknowledged && intent && candidate && intent.owner === sender.tab?.id ? { candidate, trackId: intent.trackId } : null);
+  });
+  return true;
 });
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   // Only our actual popup may read tab state or request a fresh report.
@@ -87,14 +91,17 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     respond({ frames: state.frames(message.tabId), results: state.candidates(message.tabId),
       attemptedOrigins: [...permissionAttempts.get(message.tabId) ?? []] });
   } else if (message.type === 'download-start') {
-    const candidate = state.candidates(message.tabId).find(candidate => candidate.id === message.candidateId);
-    if (!candidate || !selection(candidate, message.trackId).length || downloads.size >= 16) { respond(false); return; }
-    const token = crypto.randomUUID();
-    const intent = { tabId: message.tabId, candidateId: candidate.id, trackId: message.trackId, owner: undefined as number | undefined };
-    downloads.set(token, intent);
-    void chrome.tabs.create({ url: `${chrome.runtime.getURL('download.html')}#${token}` }).then(tab => {
-      intent.owner = tab.id; respond(true);
-    }, () => { downloads.delete(token); respond(false); });
+    void rightsAcknowledged().then(acknowledged => {
+      if (!acknowledged) { respond(false); return; }
+      const candidate = state.candidates(message.tabId).find(candidate => candidate.id === message.candidateId);
+      if (!candidate || !selection(candidate, message.trackId).length || downloads.size >= 16) { respond(false); return; }
+      const token = crypto.randomUUID();
+      const intent = { tabId: message.tabId, candidateId: candidate.id, trackId: message.trackId, owner: undefined as number | undefined };
+      downloads.set(token, intent);
+      void chrome.tabs.create({ url: `${chrome.runtime.getURL('download.html')}#${token}` }).then(tab => {
+        intent.owner = tab.id; respond(true);
+      }, () => { downloads.delete(token); respond(false); });
+    });
     return true;
   } else if (message.type === 'refresh') {
     replay(message.tabId);

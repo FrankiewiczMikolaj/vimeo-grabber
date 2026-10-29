@@ -68,9 +68,11 @@ own native save. Leave the download tab open while either dialog waits; the
 30-second network inactivity limit does not apply to native saving.
 Video saves use `<Title> - video <quality>.mp4`; audio, including Audio only,
 uses `<Title> - audio.m4a`. The safe title stem is limited to 96 UTF-8 bytes,
-with `vimeo-ID` fallback for an empty or missing title. The rights notice persists, but
-**download/audio/Copy actions do not yet enforce acknowledgement**; repair #44 is
-queued. Read and acknowledge the notice before using these actions.
+with `vimeo-ID` fallback for an empty or missing title. Before acknowledgement,
+the popup count and toolbar badge keep updating, but video cards and their actions
+stay hidden. Saving acknowledgement reveals the list in the same popup. The
+background worker and download page also require the stored boolean before
+fetching or saving media.
 
 ## Merge video and audio on Linux
 
@@ -167,8 +169,10 @@ downloading** setting can show a Save As dialog for each file. Native saving has
 no elapsed-time limit. Cancelling a native save shows **Save cancelled** and keeps
 any completed companion. Further naming changes (#68) remain queued.
 
-**Why can actions run before acknowledgement?** The notice is saved, but enforcement
-is a known unresolved issue (#44). This cleanup does not claim to fix that gate.
+**Why are download or Copy actions blocked?** A saved rights acknowledgement is
+required. Open the popup and acknowledge the notice. Missing, invalid or unreadable
+storage fails closed; retry acknowledgement if saving fails. Copy checks storage
+again even on an already open download page.
 
 **Can I use a protected/private video or another site?** No protection or access
 bypass is provided. Only supported Vimeo sources with the required access qualify.

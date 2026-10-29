@@ -4,6 +4,7 @@ import { selection } from './select';
 import { assemble } from './assemble';
 import { filenameStem, trackFilename } from './filename';
 import { mergeCommand } from '../shell/linux';
+import { rightsAcknowledged } from '../rights';
 
 const token = location.hash.slice(1);
 const status = document.querySelector<HTMLElement>('#status')!;
@@ -18,11 +19,13 @@ addEventListener('pagehide', () => {
 });
 
 async function source(): Promise<{ candidate: FrameCandidate; trackId: string } | null> {
+  if (!await rightsAcknowledged()) return null;
   return chrome.runtime.sendMessage({ type: 'download-source', token });
 }
 
 
 async function save(url: string, filename: string, authority: () => Promise<void>) {
+  await authority();
   // The extension targets ES2022, before Promise.withResolvers.
   return new Promise<chrome.downloads.DownloadItem>((resolve, reject) => {
     let failure: unknown;
@@ -160,6 +163,7 @@ async function run() {
       status.textContent = completed === tracks.length ? (tracks.length === 2 ? 'Both files completed.' : 'Audio file completed.') :
         completed ? 'Partial failure. The completed file is kept; the companion failed.' : 'Download failed. No files completed.';
       if (tracks.length === 2 && completed === 2 && !controller.signal.aborted) {
+        if (!await rightsAcknowledged()) return;
         const section = document.createElement('section');
         const command = document.createElement('pre');
         command.id = 'merge-command';
@@ -172,12 +176,22 @@ async function run() {
         feedback.setAttribute('role', 'status');
         copy.onclick = async () => {
           try {
+            if (!await rightsAcknowledged()) {
+              copy.disabled = true;
+              feedback.textContent = 'Rights acknowledgement required. Reopen the popup to acknowledge.';
+              return;
+            }
             await navigator.clipboard.writeText(command.textContent!);
             feedback.textContent = 'Command copied.';
           } catch {
             feedback.textContent = 'Copy failed. Select and copy the command manually.';
           }
         };
+        chrome.storage.onChanged.addListener((_changes, area) => {
+          if (area !== 'local') return;
+          copy.disabled = true;
+          void rightsAcknowledged().then(value => { copy.disabled = !value; });
+        });
         const guidance = document.createElement('p');
         guidance.textContent = 'Linux bash/zsh: check ffmpeg -version. If missing, install with sudo apt install ffmpeg. Run this command in your terminal. Existing output is not overwritten; source files are kept. If the output exists, change only the final output path in the command to an unused name, or rename the existing file. Keep both input paths unchanged. Use at your own risk and only for content you have rights to download.';
         section.append(command, copy, feedback, guidance);

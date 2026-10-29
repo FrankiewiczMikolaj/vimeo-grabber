@@ -2,6 +2,7 @@ import './popup.css';
 import type { FrameCandidate, FramePublication } from './detect/frame-state';
 import type { DetectionStatus } from './detect/model';
 import { audioFor, selection } from './download/select';
+import { rightsAcknowledged } from './rights';
 
 type PopupState = { frames: readonly FramePublication[]; results: readonly FrameCandidate[]; attemptedOrigins: readonly string[] };
 type PermissionState = {
@@ -17,6 +18,7 @@ let snapshot: PopupState | null = null;
 let polling = false;
 let revision = 0;
 let rendered = '';
+let acknowledged = false;
 
 const labels: Record<DetectionStatus, string> = {
   pending: 'Looking for download options…',
@@ -113,7 +115,7 @@ function renderPermission(origin: string, encountered: boolean): HTMLElement {
 
 function render() {
   if (!snapshot) return;
-  const next = JSON.stringify([snapshot, [...permissions]]);
+  const next = JSON.stringify([snapshot, [...permissions], acknowledged]);
   if (next === rendered) return;
   rendered = next;
   const pending = snapshot.frames.some(frame => frame.status === 'pending');
@@ -130,6 +132,11 @@ function render() {
     : pending ? 'Looking for Vimeo videos…'
       : failed ? 'This page could not be checked. Reload it to try again.'
         : 'No Vimeo videos detected. Open a Vimeo page or a page with a Vimeo player. Reload existing pages after installing the extension.';
+  videos.hidden = !acknowledged;
+  if (!acknowledged) {
+    videos.replaceChildren();
+    return;
+  }
   const rank = (candidate: FrameCandidate) => {
     const paired = candidate.tracks.some(track => track.kind === 'video' && selection(candidate, track.id).length === 2);
     if (paired) return candidate.manifest?.protocol === 'dash' ? 0 : 1;
@@ -212,7 +219,10 @@ async function showRightsNotice() {
     button.disabled = true;
     try {
       await chrome.storage.local.set({ rightsAcknowledged: true });
+      if (!await rightsAcknowledged()) throw new Error('Acknowledgement not stored');
+      acknowledged = true;
       notice.hidden = true;
+      render();
     } catch {
       message.textContent = 'Could not save your acknowledgement. Please try again. The notice will remain until it is saved.';
     } finally {
@@ -221,13 +231,25 @@ async function showRightsNotice() {
   });
   try {
     const stored = await chrome.storage.local.get('rightsAcknowledged');
-    notice.hidden = stored.rightsAcknowledged === true;
+    acknowledged = stored.rightsAcknowledged === true;
+    notice.hidden = acknowledged;
+    render();
   } catch {
     message.textContent = 'Could not read your acknowledgement. Please acknowledge to try saving it again.';
   }
 }
 
 void showRightsNotice();
+chrome.storage.onChanged.addListener((_changes, area) => {
+  if (area !== 'local') return;
+  acknowledged = false;
+  render();
+  void rightsAcknowledged().then(value => {
+    acknowledged = value;
+    document.querySelector<HTMLElement>('#rights-notice')!.hidden = value;
+    render();
+  });
+});
 
 async function start() {
   try {
