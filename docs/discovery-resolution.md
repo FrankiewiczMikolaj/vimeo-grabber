@@ -37,6 +37,12 @@ also emits a null-manifest `video` invalidation, including when manifests are om
 Transport admission refusal and HTTP 401/403 emit candidate- or source-scoped
 invalidations instead of appearing as partial captures. Other HTTP/network failures
 remain partial. Required browser host access does not replace source admission.
+Only explicit HTTP 401/403 adds the worker-produced `accessRefused: true` marker.
+Source admission, network/server errors and malformed metadata never create it.
+A successfully parsed config without streams carries `accessRefused: false` to
+replace an old refusal; usable fresh alternatives remove obsolete source refusal
+markers. This does not revoke positive protection on partial metadata. The popup
+prefers usable independent alternatives and offers no bypass for restricted access.
 Signed URLs and candidate IDs stay in memory, not diagnostics or rendered text.
 Download eligibility is separate from metadata status; the download page owns media fetching.
 

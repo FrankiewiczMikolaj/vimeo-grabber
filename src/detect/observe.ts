@@ -64,6 +64,9 @@ export function observePage(window: Window & typeof globalThis): PageObservation
   return {
     subscribe(listener) {
       if (stopped) return () => {};
+      remember(window.performance.getEntriesByType('resource'));
+      snapshot = discoverPage(document, window.location.href, [...resources]);
+      previous = JSON.stringify(snapshot);
       // A subscription owns its registration, even when callbacks are shared.
       const report = (value: PageDiscovery) => listener(value);
       listeners.add(report);

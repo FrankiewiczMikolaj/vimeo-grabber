@@ -505,6 +505,7 @@ try {
   ]);
   assert.equal(byId(33).status, 'protected');
   for (const id of [34, 35]) assert.equal(byId(id).status, 'unsupported');
+  assert.ok(matrixCandidates.every(candidate => !candidate.accessRefused), 'source admission/parser/DRM outcomes are not HTTP access refusal');
   for (const id of [33, 34, 35]) assert.deepEqual(byId(id).tracks, []);
   assert.equal(await evaluate(`[...document.querySelectorAll('#streams article')].find(card =>
     card.querySelector('h2').textContent === 'Owned 33').querySelectorAll('button').length`), 0);

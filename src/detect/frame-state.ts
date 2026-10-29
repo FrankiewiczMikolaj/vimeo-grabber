@@ -127,14 +127,17 @@ function retain(previous: readonly PlaybackCandidate[], fresh: readonly Playback
   const replacements = new Set(fresh.filter(c => c.status === 'found' || c.status === 'protected' ||
     c.invalidation === 'candidate').map(c => slot(c)));
   const titles = new Map(fresh.filter(c => c.title !== null).map(c => [sourceKey(c), c.title]));
+  const recovered = new Set(fresh.filter(c => c.status === 'found' || c.status === 'protected').map(sourceKey));
   const allowed = (c: PlaybackCandidate) => !videoBlocks.has(c.videoId) || c.status === 'protected';
-  const kept = previous.filter(c => allowed(c) && !sourceBlocks.has(sourceKey(c)) && !replacements.has(slot(c)));
+  const kept = previous.filter(c => allowed(c) && !sourceBlocks.has(sourceKey(c)) && !replacements.has(slot(c)) &&
+    !(c.accessRefused && recovered.has(sourceKey(c))));
   const byId = new Map(kept.map(c => [c.id, c]));
   for (const candidate of fresh) {
     if (!allowed(candidate)) continue;
     const old = byId.get(candidate.id);
     // A transport/parser failure is not a newer explicit protection/access decision.
-    if (old && candidate.status !== 'found' && candidate.status !== 'protected' && !candidate.invalidation) continue;
+    if (old && candidate.status !== 'found' && candidate.status !== 'protected' && !candidate.invalidation &&
+      !(old.accessRefused && candidate.accessRefused === false)) continue;
     byId.set(candidate.id, candidate);
   }
   // Hard frame-local bound, including signed URLs and track payloads. Prefer newer whole sources.

@@ -27,6 +27,8 @@ export function observeReferences(window: Window & typeof globalThis): PageObser
   return {
     subscribe(listener) {
       if (stopped) return () => {};
+      snapshot = discoverReferences(window.document, window.location.href);
+      previous = JSON.stringify(snapshot);
       listeners.add(listener);
       listener(snapshot);
       return () => { listeners.delete(listener); };

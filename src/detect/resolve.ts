@@ -20,14 +20,15 @@ export async function resolveDiscovery(
       (manifest?.protocol === 'hls' && hlsProtection('', [manifest.url]) === 'protected')
       ? 'protected' : 'unavailable', tracks: [],
   });
-  const saveConfig = (video: NormalisedVideo, invalidation?: PlaybackCandidate['invalidation']) => {
+  const saveConfig = (video: NormalisedVideo, invalidation?: PlaybackCandidate['invalidation'], accessRefused?: boolean) => {
     const result = candidate(video, null);
-    results.set(result.id, { ...result, ...(invalidation ? { invalidation } : {}) });
+    results.set(result.id, { ...result, ...(invalidation ? { invalidation } : {}),
+      ...(accessRefused !== undefined ? { accessRefused } : {}) });
   };
   const resolve = async (video: NormalisedVideo, receipt: InlineMetadata | MetadataResult) => {
     const direct = transport.progressive(receipt, video);
     if (video.status === 'protected') saveConfig(video, 'video');
-    else if (!video.manifests.length && !direct.length) saveConfig(video);
+    else if (!video.manifests.length && !direct.length) saveConfig(video, undefined, false);
     for (const track of direct) {
       const result = candidate(video, track.manifest);
       results.set(result.id, { ...result, status: result.status === 'protected' ? 'protected' : 'found', tracks: [track] });
@@ -42,6 +43,7 @@ export async function resolveDiscovery(
       const response = await transport.manifest(receipt, video, reference);
       if (response.status !== 'fetched') {
         results.set(result.id, { ...result,
+          ...(response.reason === 'access' ? { accessRefused: true as const } : {}),
           ...(['source', 'access'].includes(response.reason) ? { invalidation: 'candidate' as const } : {}) });
         continue;
       }
@@ -75,7 +77,8 @@ export async function resolveDiscovery(
       try { video = normalisePlayerConfig(JSON.parse(response.text), source); } catch { /* Other configs remain independent. */ }
       if (video?.id === id) await resolve(video, response);
       else saveConfig(empty);
-    } else saveConfig(empty, ['source', 'access'].includes(response.reason) ? 'source' : undefined);
+    } else saveConfig(empty, ['source', 'access'].includes(response.reason) ? 'source' : undefined,
+      response.reason === 'access' ? true : undefined);
   }
   return [...results.values()];
 }

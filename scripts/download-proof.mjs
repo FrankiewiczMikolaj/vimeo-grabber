@@ -380,6 +380,7 @@ else: ${cancel ? "print('null')" : "raise RuntimeError('Native Save File dialog 
       const replies = [];
       for (const message of [
         { type: 'popup-state', tabId },
+        { type: 'popup-refresh', tabId },
         { type: 'download-start', tabId, candidateId: 'forged', trackId: 'forged' },
         { type: 'download-source', token },
       ]) {
@@ -388,7 +389,7 @@ else: ${cancel ? "print('null')" : "raise RuntimeError('Native Save File dialog 
       }
       return replies;
     }, admittedToken);
-    assert.deepEqual(wrongSender, [null, null, null]);
+    assert.deepEqual(wrongSender, [null, null, null, null]);
     await open(active);
     const invalidCandidate = await evaluate(`(async () => {
       const [tab] = await chrome.tabs.query({active:true,currentWindow:true});

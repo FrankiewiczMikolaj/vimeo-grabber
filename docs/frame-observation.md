@@ -8,22 +8,28 @@ There is no caller-supplied URL that can authorise an unrelated document.
 
 ## Subscription and lifetime
 
-- `subscribe(listener)` synchronously reports the current `PageDiscovery` snapshot
-  and returns an unsubscribe function. Each registration has its own lifetime,
-  even when two registrations use the same callback. Treat snapshots as read-only.
+- `subscribe(listener)` synchronously rescans the live document and reports its
+  current `PageDiscovery`, even when unchanged. It returns an unsubscribe function.
+  Each registration has its own lifetime, even with a shared callback. Treat snapshots as read-only.
 - Script/iframe insertion, removal, text edits, and `src`/`type` changes schedule
   discovery. Mutation batches share a queued microtask; unrelated DOM edits do not
   trigger rescans. No polling or page-world hooks are installed.
 - Buffered and later resource timing entries supply recognised player config URLs.
   Discovery retains signed query bytes, repeated keys and empty values. Resource
   candidates remain in memory for this observation's lifetime, even if DOM changes.
-- Each scan uses the unchanged `discoverPage` contract. Identical ordered snapshots
-  do not report again. Alternative order is significant: moving distinct wrapper
+- Automatic scans use the unchanged `discoverPage` contract. Identical ordered snapshots
+  do not report again; explicit subscriptions still report them. Alternative order is significant: moving distinct wrapper
   scripts or iframes can change fallback priority and must report a new snapshot.
 - `stop()` disconnects the mutation and performance observers, drops listeners and
   remembered resources, and cancels queued reporting. Later subscriptions are inert.
   Unsubscribe removes only that subscription; the owner must stop the observation
   when its document is no longer needed. Create a new observation after navigation.
+
+The real popup's **Refresh** sends `popup-refresh` through the exact-popup sender
+guard. The worker sends `report` only to authenticated live ports for the requested
+tab. Content resubscribes without recreating the observation, document activation
+or retention state. Each report starts fresh metadata transport; generation checks
+discard superseded responses. No reload, media request or native save is involved.
 
 The module has no runtime entrypoint, Chrome messaging, frame identity, aggregation,
 fetching, permissions, or popup integration. Metadata transport is independent.
