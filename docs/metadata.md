@@ -3,9 +3,10 @@
 `src/detect/metadata.ts` is a worker-safe API, not a runtime message endpoint.
 It does not change production permissions or connect detected URLs to downloads.
 
-- `config(source)` accepts an authenticated HTTPS Vimeo frame and an HTTPS
-  `player.vimeo.com/video/<id>/config` URL. The returned config must have that ID
-  to authorise manifests. The frame may discover a different video through an iframe.
+- `config(source)` accepts an authenticated HTTP/HTTPS document and an HTTPS
+  `player.vimeo.com/video/<id>/config` URL, bounded to 20 ID digits and an optional
+  single alphanumeric `h` of at most 128 characters. The returned config ID must
+  match the endpoint to authorise manifests. Parent references keep the real source URL.
   A successful result contains fetched text, not a claim that quality extraction succeeded.
 - `inline(video)` admits the normalised video published by discovery, not raw config
   data. Its source must be an HTTPS Vimeo frame with null config URL and a numeric
@@ -27,10 +28,8 @@ Inline data and source provenance are supplied by a trusted extension caller.
 A receipt is not proof of a Chrome sender's identity: do not expose these methods
 as an arbitrary message-to-fetch bridge. The worker validates extension senders,
 frame/document identity and discovery envelopes before admitting inline data.
-Permission prompts and navigation-safe aggregation belong to the runtime.
-
-Every request uses the real `chrome.permissions.contains` for the exact origin.
-Missing access returns `permission-needed` with that origin; API failure is explicit.
+Navigation-safe aggregation belongs to the runtime. Required all-sites host access
+replaces per-origin permission prompts; browser capability does not authorise sources.
 Requests omit credentials/referrers, disable caching and reject all redirects rather
 than trusting an opaque redirect target. Each fetch/body read has an 8,000 ms deadline
 and a 1,048,576-byte decoded-response limit. Non-success HTTP and wrong content types
@@ -40,8 +39,8 @@ signed queries. No segments, keys, licenses, media or Downloads API are fetched.
 
 `mise exec -- node --test test/metadata.test.mjs` compiles this module into an owned
 MV3 service worker. CDP fulfils or fails every worker request offline. The proof uses
-actual Chromium permissions, including absent optional CDN and absent config grants;
-no permission API is replaced. It covers inline-without-config-HTTP, forged receipts,
+the built required-host access model; no Chrome API is replaced. It covers
+inline-without-config-HTTP, forged receipts,
 invalid URLs, query bytes, redirects, HTTP/type/size/timeout/network failures and
 malformed-config transport success. Redacted evidence is `artifacts/metadata/evidence.json`.
-Production sender validation, popup prompts and live Vimeo compatibility are not proven by this isolated transport test.
+Production sender validation and live Vimeo compatibility are not proven by this isolated transport test.

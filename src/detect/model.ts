@@ -1,6 +1,6 @@
 export type Protocol = 'dash' | 'hls';
 export type DetectionStatus = 'pending' | 'found' | 'unavailable' |
-  'permission-needed' | 'denied' | 'protected' | 'unsupported';
+  'protected' | 'unsupported';
 
 export interface DetectionSource {
   readonly frameUrl: string;
@@ -59,5 +59,4 @@ export interface PlaybackCandidate {
   readonly manifest: ManifestReference | null;
   readonly status: DetectionStatus;
   readonly tracks: readonly Track[];
-  readonly permissionOrigins: readonly string[];
 }

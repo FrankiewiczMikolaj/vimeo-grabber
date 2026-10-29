@@ -122,13 +122,13 @@ No pre-download byte-size metadata exists in Track; none is invented. Current
 progress reports observed MiB and displays Chrome's negative unknown total as
 `unknown`, not a negative size. Size discovery is not part of this cleanup.
 
-The optional CDN permission/Allow flow is **live and unchanged**: manifest
-`optional_host_permissions`, popup origin discovery/request/poll/revocation,
-worker permission-attempt/replay, transport permission-needed results, download
-exact-origin checks and native deny/grant/revoke proof must remain together.
-Delete these only in the later atomic required-host-access all-sites cutover
-(issue #54 item 11). Badge PR #60 is not modified. Acknowledgement enforcement
-is a separate repair rebuilt from main after this cleanup merges.
+The required-host-access cutover removes the optional CDN permission flow together:
+manifest declaration, popup origin discovery/request/poll/revocation, worker attempt
+state and replay hooks, transport permission results, download grant checks and
+native deny/grant/revoke fixtures. Required `<all_urls>` replaces browser grant
+negotiation, not Vimeo-only endpoint, receipt, consent or media-source admission.
+`pnpm deadcode` checks orphan files/exports; source searches check obsolete APIs,
+states and UI wording. Historical feature tickets remain records, not current contracts.
 
 ## Tool observations
 

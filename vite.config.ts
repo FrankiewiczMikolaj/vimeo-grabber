@@ -11,10 +11,9 @@ export default defineConfig({
     action: { default_popup: 'popup.html' },
     background: { service_worker: 'src/worker.ts', type: 'module' },
     permissions: ['downloads', 'storage'],
-    host_permissions: ['https://player.vimeo.com/*'],
-    optional_host_permissions: ['https://*.vimeocdn.com/*'],
+    host_permissions: ['<all_urls>'],
     content_scripts: [{
-      matches: ['https://vimeo.com/*', 'https://www.vimeo.com/*', 'https://player.vimeo.com/*'],
+      matches: ['<all_urls>'],
       js: ['src/detect/content.ts'],
       all_frames: true,
     }],

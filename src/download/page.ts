@@ -102,17 +102,12 @@ async function run() {
   // Initial admission fixes the source and tracks. Later source-tab changes do not revoke it.
   const stem = filenameStem(candidate.title, candidate.videoId);
   const paths = new Map<string, string>();
-  const origins = new Set<string>();
   async function authority(value?: string) {
     lifetime.signal.throwIfAborted();
     if (!await rightsAcknowledged()) throw new Error('Source rights acknowledgement required');
     const url = new URL(value ?? candidate.manifest!.url);
     if (url.protocol !== 'https:' || url.username || url.password || url.port || url.hash ||
-      !(url.hostname === 'vimeocdn.com' || url.hostname.endsWith('.vimeocdn.com'))) throw new Error('Exact-origin permission required');
-    origins.add(`${url.origin}/*`);
-    for (const origin of origins) {
-      if (!await chrome.permissions.contains({ origins: [origin] })) throw new Error('Exact-origin permission required');
-    }
+      !(url.hostname === 'vimeocdn.com' || url.hostname.endsWith('.vimeocdn.com'))) throw new Error('Unapproved media source');
   }
   await authority();
   const jobs = tracks.map(track => {

@@ -4,15 +4,9 @@ import type { DetectionStatus } from './detect/model';
 import { audioFor, selection } from './download/select';
 import { rightsAcknowledged } from './rights';
 
-type PopupState = { frames: readonly FramePublication[]; results: readonly FrameCandidate[]; attemptedOrigins: readonly string[] };
-type PermissionState = {
-  granted: boolean | null;
-  requesting: boolean;
-  notice: 'denied' | 'error' | 'revoked' | null;
-};
+type PopupState = { frames: readonly FramePublication[]; results: readonly FrameCandidate[] };
 const status = document.querySelector<HTMLParagraphElement>('#status')!;
 const videos = document.querySelector<HTMLElement>('#streams')!;
-const permissions = new Map<string, PermissionState>();
 const jobs = document.createElement('section');
 jobs.setAttribute('aria-label', 'Downloads');
 videos.before(jobs);
@@ -21,7 +15,6 @@ let downloads: Job[] = [];
 let tabId: number;
 let snapshot: PopupState | null = null;
 let polling = false;
-let revision = 0;
 let rendered = '';
 let acknowledged = false;
 
@@ -29,8 +22,6 @@ const labels: Record<DetectionStatus, string> = {
   pending: 'Looking for download options…',
   found: 'No supported separate downloads are available.',
   unavailable: 'No supported downloads are available.',
-  'permission-needed': 'Metadata access is needed to inspect qualities.',
-  denied: 'Metadata access was denied. Qualities are unavailable.',
   protected: 'Protected (DRM), cannot download.',
   unsupported: 'No supported download format was found.',
 };
@@ -41,86 +32,10 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, text: string) {
   return node;
 }
 
-// Permission requests must contain only an exact encountered HTTPS CDN origin.
-function cdnOrigin(value: string): string | null {
-  try {
-    const url = new URL(value);
-    return value === url.origin && url.protocol === 'https:' && !url.port &&
-      (url.hostname === 'vimeocdn.com' || url.hostname.endsWith('.vimeocdn.com'))
-      ? url.origin : null;
-  } catch { return null; }
-}
-
-function manifestOrigin(value: string): string | null {
-  try { return cdnOrigin(new URL(value).origin); } catch { return null; }
-}
-
-function originsFor(candidate: FrameCandidate): string[] {
-  return [...new Set([
-    ...candidate.permissionOrigins.map(cdnOrigin),
-    candidate.manifest ? manifestOrigin(candidate.manifest.url) : null,
-  ].filter((origin): origin is string => origin !== null))];
-}
-
-function permissionState(origin: string): PermissionState {
-  let state = permissions.get(origin);
-  if (!state) {
-    state = { granted: null, requesting: false, notice: null };
-    permissions.set(origin, state);
-  }
-  return state;
-}
-
-function renderPermission(origin: string, encountered: boolean): HTMLElement {
-  const section = document.createElement('div');
-  section.className = 'permission';
-  const state = permissionState(origin);
-  if (state.notice === 'denied') {
-    section.append(element('p', `Access to ${origin} was not granted or was denied. Qualities remain unavailable for this origin.`));
-  } else if (state.notice === 'error') {
-    section.append(element('p', `Access to ${origin} could not be requested. No access was granted.`));
-  } else if (state.notice === 'revoked') {
-    section.append(element('p', `Metadata access to ${origin} was revoked. Detection is refreshing; earlier metadata may be out of date.`));
-  }
-  if (!encountered || state.granted === true) return section;
-  section.append(element('p', `Allow metadata access to ${origin} to inspect qualities. No media files are fetched.`));
-  const button = element('button', state.requesting ? 'Waiting for permission…' : `Allow ${origin}`);
-  button.type = 'button';
-  button.disabled = state.requesting;
-  button.addEventListener('click', () => {
-    // Keep the request in this gesture's click stack, without awaiting messaging.
-    // Chrome closes the action popup for its native permission dialog.
-    void chrome.runtime.sendMessage({ type: 'permission-attempt', tabId, origin });
-    let request: Promise<boolean>;
-    try {
-      request = chrome.permissions.request({ origins: [`${origin}/*`] });
-    } catch {
-      state.notice = 'error';
-      render();
-      return;
-    }
-    state.requesting = true;
-    revision++;
-    render();
-    void request.then(granted => {
-      state.granted = granted;
-      state.notice = granted ? null : 'denied';
-    }, () => {
-      state.notice = 'error';
-    }).finally(() => {
-      state.requesting = false;
-      revision++;
-      render();
-      void refresh();
-    });
-  });
-  section.append(button);
-  return section;
-}
 
 function render() {
   if (!snapshot) return;
-  const next = JSON.stringify([snapshot, [...permissions], acknowledged, downloads]);
+  const next = JSON.stringify([snapshot, acknowledged, downloads]);
   if (next === rendered) return;
   rendered = next;
   const pending = snapshot.frames.some(frame => frame.status === 'pending');
@@ -178,9 +93,6 @@ function render() {
       });
       card.append(button);
     }
-    for (const origin of new Set(alternatives.flatMap(originsFor))) {
-      card.append(renderPermission(origin, alternatives.some(other => other.permissionOrigins.includes(origin))));
-    }
     return card;
   });
   videos.replaceChildren(...cards);
@@ -189,7 +101,6 @@ function render() {
 async function poll() {
   if (polling || tabId === undefined) return;
   polling = true;
-  const currentRevision = revision;
   try {
     const next: PopupState = await chrome.runtime.sendMessage({ type: 'popup-state', tabId });
     const owners = (await chrome.runtime.getContexts({ contextTypes: [chrome.runtime.ContextType.TAB] }))
@@ -200,18 +111,6 @@ async function poll() {
         return progress ? { tabId: owner.tabId, ...progress } as Job : null;
       } catch { return null; }
     }))).filter((job): job is Job => job !== null);
-    const origins = [...new Set(next.results.flatMap(originsFor))];
-    await Promise.all(origins.map(async origin => {
-      const granted = await chrome.permissions.contains({ origins: [`${origin}/*`] });
-      const state = permissionState(origin);
-      if (currentRevision !== revision || state.requesting) return;
-      if (state.granted !== null && granted !== state.granted) {
-        state.notice = granted ? null : 'revoked';
-      }
-      state.granted = granted;
-      if (!granted && state.notice === null && next.attemptedOrigins.includes(origin)) state.notice = 'denied';
-    }));
-    if (currentRevision !== revision) return;
     snapshot = next;
     render();
   } catch {
@@ -222,17 +121,6 @@ async function poll() {
   } finally { polling = false; }
 }
 
-async function refresh() {
-  try { await chrome.runtime.sendMessage({ type: 'refresh', tabId }); } catch { /* Poll reports worker failures. */ }
-  await poll();
-}
-
-function permissionChanged() {
-  revision++;
-  void refresh();
-}
-chrome.permissions.onAdded.addListener(permissionChanged);
-chrome.permissions.onRemoved.addListener(permissionChanged);
 
 async function showRightsNotice() {
   const notice = document.querySelector<HTMLElement>('#rights-notice')!;

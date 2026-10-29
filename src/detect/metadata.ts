@@ -5,8 +5,7 @@ const METADATA_LIMIT = 1_048_576;
 const METADATA_TIMEOUT = 8_000;
 export type MetadataResult =
   | { readonly status: 'fetched'; readonly text: string; readonly responseUrl: string }
-  | { readonly status: 'permission-needed'; readonly origin: string }
-  | { readonly status: 'failed'; readonly reason: 'source' | 'permission' | 'network' |
+  | { readonly status: 'failed'; readonly reason: 'source' | 'network' |
       'redirect' | 'http' | 'content-type' | 'size' | 'timeout' };
 export interface InlineMetadata {
   readonly video: NormalisedVideo;
@@ -24,10 +23,13 @@ function https(value: string): URL | null {
 
 function configIdentity(source: DetectionSource): string | null {
   const config = source.configUrl && https(source.configUrl);
-  const frame = https(source.frameUrl);
-  if (!frame || (source.configUrl !== null && (!config || config.hostname !== 'player.vimeo.com'))) return null;
-  const id = config ? /^\/video\/([1-9]\d*)\/config$/.exec(config.pathname)?.[1] : null;
-  if (!['vimeo.com', 'www.vimeo.com', 'player.vimeo.com'].includes(frame.hostname)) return null;
+  let frame: URL;
+  try { frame = new URL(source.frameUrl); } catch { return null; }
+  if (!['http:', 'https:'].includes(frame.protocol) || frame.username || frame.password ||
+    !config || config.hostname !== 'player.vimeo.com' || source.configUrl!.length > 8192 ||
+    config.searchParams.getAll('h').length > 1 ||
+    (config.searchParams.has('h') && !/^[a-zA-Z0-9]{1,128}$/.test(config.searchParams.get('h')!))) return null;
+  const id = /^\/video\/([1-9]\d{0,19})\/config$/.exec(config.pathname)?.[1];
   return id ?? null;
 }
 
@@ -88,12 +90,6 @@ export class MetadataTransport {
   }
 
   private async request(url: string, types: readonly string[]): Promise<MetadataResult> {
-    const origin = new URL(url).origin;
-    try {
-      if (!await chrome.permissions.contains({ origins: [`${origin}/*`] })) {
-        return { status: 'permission-needed', origin };
-      }
-    } catch { return fail('permission'); }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), METADATA_TIMEOUT);
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;

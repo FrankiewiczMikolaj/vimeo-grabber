@@ -29,7 +29,9 @@ function url(v: unknown): URL | null {
 }
 function config(v: unknown): boolean {
   const u = url(v);
-  return !!u && u.origin === 'https://player.vimeo.com' && /^\/video\/[1-9]\d*\/config$/.test(u.pathname);
+  return !!u && u.origin === 'https://player.vimeo.com' && /^\/video\/[1-9]\d{0,19}\/config$/.test(u.pathname)
+    && u.searchParams.getAll('h').length <= 1 &&
+    (!u.searchParams.has('h') || /^[a-zA-Z0-9]{1,128}$/.test(u.searchParams.get('h')!));
 }
 function manifest(v: unknown, alternative = false): boolean {
   if (!record(v) || !keys(v, v.protected === true ? ['protocol', 'cdn', 'url', 'protected'] :
@@ -57,7 +59,7 @@ function video(v: unknown, frameUrl: string): boolean {
     && record(v.source) && keys(v.source, ['frameUrl', 'configUrl'])
     && v.source.frameUrl === frameUrl && (v.source.configUrl === null || config(v.source.configUrl))
     && typeof v.status === 'string'
-    && ['pending', 'found', 'unavailable', 'permission-needed', 'denied', 'protected', 'unsupported'].includes(v.status)
+    && ['pending', 'found', 'unavailable', 'protected', 'unsupported'].includes(v.status)
     && Array.isArray(v.manifests) && v.manifests.length <= 32 && v.manifests.every(m => manifest(m, true))
     && Array.isArray(v.tracks) && v.tracks.length <= 256 && v.tracks.every(t => record(t)
       && keys(t, ['id', 'groupId', 'kind', 'manifest', 'download', 'codec', 'mimeType', 'bandwidth', 'width', 'height', 'frameRate', 'language', 'channels'])
@@ -88,16 +90,19 @@ function bounded(value: unknown): boolean {
 
 /** Chrome supplies sender; never pass a sender object taken from the message. */
 export function validateFrameDiscovery(message: unknown, sender: chrome.runtime.MessageSender, extensionId: string): PageDiscovery | null {
-  const u = url(sender.url);
+  let u: URL;
+  try { u = new URL(sender.url!); } catch { return null; }
   if (!extensionId || sender.id !== extensionId || !Number.isSafeInteger(sender.tab?.id)
     || sender.tab!.id! < 0 || !Number.isSafeInteger(sender.frameId) || sender.frameId! < 0
     || !text(sender.documentId) || !sender.documentId || sender.documentLifecycle !== 'active'
-    || !u || !origins.includes(u.origin) || sender.origin !== u.origin) return null;
+    || !['http:', 'https:'].includes(u.protocol) || sender.origin !== u.origin) return null;
   if (!bounded(message) || !record(message) || !keys(message, ['type', 'discovery']) || message.type !== 'frame-discovery'
     || !record(message.discovery) || !keys(message.discovery, ['videos', 'configUrls'])) return null;
   const d = message.discovery;
   if (!Array.isArray(d.videos) || d.videos.length > 32 || !Array.isArray(d.configUrls)
     || d.configUrls.length > 64) return null;
+  // Non-Vimeo documents may report validated references, never inline page data.
+  if (!origins.includes(u.origin) && d.videos.length) return null;
   // Bound traversal before stringification. Chrome messages are JSON data, not page objects.
   if (!d.configUrls.every(config) || !d.videos.every(v => video(v, sender.url!))) return null;
   if (JSON.stringify(d).length > 262144) return null;

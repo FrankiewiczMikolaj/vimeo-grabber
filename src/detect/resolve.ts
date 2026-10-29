@@ -18,12 +18,11 @@ export async function resolveDiscovery(
     videoId: video.id, title: video.title, source: video.source, manifest,
     status: video.status === 'protected' || manifest?.protected ||
       (manifest?.protocol === 'hls' && hlsProtection('', [manifest.url]) === 'protected')
-      ? 'protected' : 'unavailable', tracks: [], permissionOrigins: [],
+      ? 'protected' : 'unavailable', tracks: [],
   });
-  const saveConfig = (video: NormalisedVideo, response?: MetadataResult) => {
+  const saveConfig = (video: NormalisedVideo) => {
     const result = candidate(video, null);
-    results.set(result.id, response?.status === 'permission-needed'
-      ? { ...result, status: response.status, permissionOrigins: [response.origin] } : result);
+    results.set(result.id, result);
   };
   const resolve = async (video: NormalisedVideo, receipt: InlineMetadata | MetadataResult) => {
     if (!video.manifests.length) saveConfig(video);
@@ -35,10 +34,6 @@ export async function resolveDiscovery(
         continue;
       }
       const response = await transport.manifest(receipt, video, reference);
-      if (response.status === 'permission-needed') {
-        results.set(result.id, { ...result, status: response.status, permissionOrigins: [response.origin] });
-        continue;
-      }
       if (response.status !== 'fetched') {
         results.set(result.id, result);
         continue;
@@ -73,7 +68,7 @@ export async function resolveDiscovery(
       try { video = normalisePlayerConfig(JSON.parse(response.text), source); } catch { /* Other configs remain independent. */ }
       if (video?.id === id) await resolve(video, response);
       else saveConfig(empty);
-    } else saveConfig(empty, response);
+    } else saveConfig(empty);
   }
   return [...results.values()];
 }

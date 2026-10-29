@@ -3,15 +3,15 @@
 `pnpm verify` builds the unpacked MV3 extension and runs an offline detection and
 download smoke through the actual Chromium action popup. Owned HTML, metadata and
 generated fragmented MP4 stand in for Vimeo responses. The popup offers supported
-download actions for videos from matching Vimeo frames, including a player under
-an unrelated top page. A real quality-button gesture opens the dedicated owner page
+download actions for Vimeo players and private links on other sites.
+A real quality-button gesture opens the dedicated owner page
 and saves native downloads. Technical track lists and source diagnostics are absent.
 
 ## Run
 
 Use Node 24+, the pinned pnpm version, Playwright 1.64.1 and its installed
 Chromium revision 1248. Linux execution needs `xvfb-run`, Python 3, libX11 and
-libXtst for native permission-dialog key input; Playwright's Chromium dependencies
+libXtst for native consent/action key input; Playwright's Chromium dependencies
 provide the X11 libraries. GTK 3 (`libgtk-3-0t64` on Ubuntu 24.04) supplies actual
 Save As dialogs; the harness selects `--gtk-version=3`. FFmpeg with libx264, AAC
 and x11grab generates/decodes owned media and captures native desktop frames.
@@ -36,21 +36,19 @@ extension execution context. This bootstrap runs no popup script or detection
 polling. It focuses the owned page and uses `chrome.action.openPopup()` to create
 the actual action target. That target is a CDP child session, not a Playwright
 Page. It must be an actual popup view; direct navigation to popup.html is not a
-substitute. Chrome closes this popup when it shows the native permission dialog;
-the harness reopens the action after each decision.
+substitute.
 
 This is action API activation, not a physical toolbar click or keyboard action.
-It grants no `activeTab` access. Production content scripts run in matching HTTPS
-Vimeo frames only. Unrelated top pages do not gain a content script or host grant.
+It grants no `activeTab` access. Required all-sites content scripts inspect only
+iframe/link references on HTTP/HTTPS parents; inline config discovery is Vimeo-only.
 The worker authenticates live documents and returns only the active tab's state.
 
 All allowed external responses must come from owned offline fixtures. Abort and
 reject unexpected requests. Detection must fetch only config and manifest metadata.
 The download matrix fetches only its generated initialization/media fixtures, never
 keys or licenses. It does not replace fetch, downloads, permissions or worker APIs.
-Optional CDN permission requests must use the real Chrome API after a real popup gesture and
-contain only an encountered exact HTTPS origin. Never grant the declared CDN
-wildcard or add a production permission bypass for a test.
+Required all-sites access is installed with the real manifest. No permission API
+or production source-admission check is bypassed for fixtures.
 
 The harness reads real `chrome.action.getBadgeText` and
 `chrome.action.getBadgeBackgroundColor` values per tab. `diagnostics.json` retains
@@ -92,30 +90,25 @@ storage failures are local proof faults, not claims of an OS storage failure.
 
 ## Offline detection matrix
 
-The original HLS action, native deny/grant/revoke, same-document update, frame
-removal/navigation and execution-context-loss checks remain in the default smoke.
-The same granted exact origin serves the additional owned DASH JSON and MPD
-fixtures. Data-level parser tests check representation, group, codec, MIME type,
-bandwidth, dimensions, frame rate, language and channels. The harness checks
-candidate/track identity and exact ordered download references through worker state,
-not popup technical cards; those cards and source diagnostics must not exist in the DOM.
-
-HLS succeeds before a second DASH origin is granted. Native Return activates
-the focused permission button; Escape denies and Tab then Return grants Chrome's
-dialog. The second grant resolves all CDN entries on that origin, including a
-separate DASH pair, malformed JSON and protected MPD. HLS remains usable after
-denial and revocation; only the separate DASH pair receives preference. Every
-track must retain its own candidate's manifest.
+HLS/DASH actions, same-document update, frame removal/navigation and execution-
+context-loss checks remain in the default smoke. Required access replaces native
+per-CDN deny/grant/revoke scenarios. Private-link fixtures exercise Vimeo path hashes,
+player `h` hashes, exact signed query bytes, repeated-reference deduplication and
+last-reference removal. Hostile hosts, malformed/duplicate hashes, unrelated inline
+scripts and form values must not produce a video or request.
+Parser checks cover representation, group, codec, MIME type, bandwidth, dimensions,
+frame rate, language and channels. The harness checks candidate/track identity and
+ordered download references through worker state, not popup technical cards.
+Both CDN origins resolve without a prompt. Separate DASH is preferred without
+erasing usable HLS; every track retains its own candidate's manifest.
 
 The popup groups candidates by normalized Vimeo video ID within the active tab.
 It selects one whole downloadable separate DASH candidate before clear HLS, without
-mixing tracks between sources. Alternative candidates remain in worker state and
-their exact-origin permission controls remain in the single card. The action proof
-combines two CDN origins, two player frames and a re-captured config, asserts one
-card, then revokes the DASH origin and asserts one usable HLS card. The matrix
-also asserts exactly two entries after removing all but two distinct video IDs.
-`one-video-two-frames.png`, `dash-revoked.png` and `two-video-ids.png` retain these
-surfaces; protected-only entries expose no download buttons.
+mixing tracks between sources. Alternative candidates remain in worker state.
+The action proof combines two CDN origins, two player frames and a re-captured
+config and asserts one card. The matrix also asserts exactly two entries after
+removing all but two distinct video IDs. `one-video-two-frames.png` and
+`two-video-ids.png` retain these surfaces; protected-only entries expose no buttons.
 The AVC repair fixture supplies generic `url` and H.264 `avc_url` for each DASH
 CDN. It includes disabled DRM containers and returns inline base64 init only for
 `base64_init=1`. The compiled resolver and action proof check AVC preference,
@@ -253,12 +246,11 @@ do not appear as pages in the trace. Inspect traces before sharing: they can
 contain local paths, owned page contents and dummy query values. Do not record
 live signed metadata URLs.
 
-Screenshots: `permission-needed.png`, `denied.png`, `qualities.png`,
-`audio-footer.png`, `worker-rebuilt.png`, `revoked.png`, `removed.png` and
-`navigated.png` cover the existing scenarios. `dash-nested.png`, `dash-mpd.png`,
+Screenshots: `all-sites-iframe.png`, `private-links.png`, `qualities.png`,
+`audio-footer.png`, `worker-rebuilt.png`, `removed.png` and `navigated.png` cover
+automatic detection and lifecycle scenarios. `dash-nested.png`, `dash-mpd.png`,
 `unavailable-states.png`, `tab-isolated.png`, `tab-restored.png` and
-`stale-response.png` cover the additional matrix. `hls-first.png`, `dash-denied.png`,
-`dash-preferred.png` and `dash-revoked.png` cover the independent second origin.
+`stale-response.png` cover the matrix; `dash-preferred.png` covers both CDN origins.
 `diagnostics.json` records query-redacted request URLs, exact matrix fields and
 popup text; `trace.zip` contains owned page interactions and dummy queries.
 Neither permissions nor requests are mocked.
