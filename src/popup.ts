@@ -74,9 +74,15 @@ function render() {
     return candidate.status === 'found' ? 3 : 4;
   };
   const cards = [...groups.values()].map(alternatives => {
-    const progressive = alternatives.flatMap(candidate => candidate.tracks
-      .filter(track => track.kind === 'combined' && selection(candidate, track.id).length === 1)
-      .map(track => ({ candidate, track })));
+    const direct = new Map<string, { candidate: FrameCandidate; track: FrameCandidate['tracks'][number] }>();
+    for (const candidate of alternatives) {
+      for (const track of candidate.tracks) {
+        if (track.kind === 'combined' && selection(candidate, track.id).length === 1 && !direct.has(track.manifest.url)) {
+          direct.set(track.manifest.url, { candidate, track });
+        }
+      }
+    }
+    const progressive = [...direct.values()];
     const candidate = alternatives.reduce((best, next) => rank(next) < rank(best) ? next : best);
     const card = document.createElement('article');
     card.append(element('h2', candidate.title?.trim() ? candidate.title : `Vimeo video ${candidate.videoId}`));

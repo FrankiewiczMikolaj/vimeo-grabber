@@ -762,6 +762,8 @@ else: ${cancel ? "print('null')" : "raise RuntimeError('Native Save File dialog 
       assert.match(labels[0], /MP4 · video \+ audio/);
       assert.ok(labels[0].includes(`${combined.length.toLocaleString('en-US')} bytes`));
       assert.match(labels[1], /size unknown/);
+      assert.equal(labels.filter(label => label.includes('MP4 · video + audio')).length, 2,
+        'the same direct file from inline and fetched config has only one action');
       assert.equal(labels.includes('Audio only'), scenario === 'progressive-mixed');
       if (scenario === 'progressive-mixed') assert.ok(labels.indexOf('Download 1080p') > 1);
       await capture(`download-${scenario}-choices`);

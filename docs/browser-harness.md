@@ -180,6 +180,8 @@ maps. It asserts one direct request and native item without initialization,
 segment, merge or Copy actions. Choice frames retain progressive order, unknown
 size and mixed alternatives. Unsafe/protected siblings remain non-actionable;
 direct redirects save nothing, and declared size above 4 GiB fails before fetching.
+Repeated inline/fetched copies of the same direct URL expose one action, retaining
+one whole admitted candidate rather than combining authority or metadata.
 A held companion proves progress after video completes. Network failure, Cancel
 and a real 30-second idle timeout must preserve the completed video and report
 partial failure. Encrypted playlists, redirects and non-CDN resource origins
