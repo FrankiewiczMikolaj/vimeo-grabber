@@ -37,8 +37,9 @@ Navigation-safe aggregation belongs to the runtime. Required all-sites host acce
 replaces per-origin permission prompts; browser capability does not authorise sources.
 Requests omit credentials/referrers, disable caching and reject all redirects rather
 than trusting an opaque redirect target. Each fetch/body read has an 8,000 ms deadline
-and a 1,048,576-byte decoded-response limit. Non-success HTTP and wrong content types
-fail. Supplied query bytes pass to fetch without rebuilding search parameters.
+and a 1,048,576-byte decoded-response limit. HTTP 401/403 return `access`, distinct
+from other non-success `http` outcomes and `source` admission refusals. Wrong
+content types fail. Supplied query bytes pass to fetch without rebuilding parameters.
 URLs/text live only in memory; failures contain fixed codes, not exception text or
 signed queries. No segments, keys, licenses, media or Downloads API are fetched.
 

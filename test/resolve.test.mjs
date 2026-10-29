@@ -134,7 +134,10 @@ test('compiled discovery resolver uses finite fallback under required host acces
     const protectedStart = requests.length;
     const protectedConfig = await worker.evaluate(({ configUrl, frameUrl }) => Resolver.resolveDiscovery(
       { videos: [], configUrls: [configUrl] }, frameUrl), { configUrl: config('900009'), frameUrl });
-    assert.deepEqual(protectedConfig.map(candidate => [candidate.status, candidate.tracks]), Array(4).fill(['protected', []]));
+    assert.ok(protectedConfig.every(candidate => candidate.status === 'protected' &&
+      candidate.tracks.every(track => track.download.kind === 'unavailable')));
+    assert.ok(protectedConfig.some(candidate => candidate.manifest === null && candidate.invalidation === 'video'),
+      'video-wide protection remains explicit even when manifests disappear on the next capture');
     assert.deepEqual(requests.slice(protectedStart), [config('900009')], 'explicit protected configs do not fetch manifests');
     assert.equal(diagnostics.some(text => /dummy|sig=/.test(text)), false);
     assert.equal(await worker.evaluate(() => typeof chrome.downloads), 'undefined');

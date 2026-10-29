@@ -6,7 +6,7 @@ const METADATA_LIMIT = 1_048_576;
 const METADATA_TIMEOUT = 8_000;
 export type MetadataResult =
   | { readonly status: 'fetched'; readonly text: string; readonly responseUrl: string }
-  | { readonly status: 'failed'; readonly reason: 'source' | 'network' |
+  | { readonly status: 'failed'; readonly reason: 'source' | 'access' | 'network' |
       'redirect' | 'http' | 'content-type' | 'size' | 'timeout' };
 export interface InlineMetadata {
   readonly video: NormalisedVideo;
@@ -113,6 +113,7 @@ export class MetadataTransport {
       });
       if (response.type === 'opaqueredirect' || response.redirected ||
         (response.status >= 300 && response.status < 400)) return fail('redirect');
+      if (response.status === 401 || response.status === 403) return fail('access');
       if (!response.ok) return fail('http');
       if (!types.includes((response.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase())) {
         return fail('content-type');

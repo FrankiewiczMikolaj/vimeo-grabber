@@ -5,6 +5,7 @@
     "src/detect/content.ts",
     "src/popup.ts",
     "scripts/smoke.mjs",
+    "scripts/retention-proof.mjs",
     ".omp/extensions/limen.ts",
     ".pi/extensions/limen.ts"
   ],

@@ -184,3 +184,18 @@ all runtime, CSS or prose dead code can be proved absent automatically.
 - `pnpm deadcode` reports no findings after this cutover. A scoped search of
   `src`, `test`, README and docs finds no active ignored-progressive contract;
   the new native proof uses the existing FFmpeg binary, with no added dependency.
+
+## Live partial-config retention cutover (#54 item 10)
+
+- Removed publication's empty-pending/whole-replacement path. Live source references
+  now prune before bounded whole-candidate retention; no second cache or persisted
+  config history exists. Activation/removal/clearTab still own lifetime teardown.
+- Replaced the fixed protected-candidate count assertion with the behavioral
+  video-wide invalidation contract. HTTP fixtures now distinguish access refusal
+  from server failure; the old generic-403-as-partial expectation is gone.
+- `retain`, `slot`, `sourceKey` and `referenced` are private publication helpers.
+  `invalidation` is produced by the resolver and consumed by frame retention, not
+  accepted from page messages. Existing candidate/download snapshots stay detached.
+- The package smoke lane invokes `retention-proof.mjs` sequentially after the native
+  download proof. Both shell-wrapped roots are explicit Knip entries; no exclusions
+  or dependency changes were added. Scoped ESLint and Knip pass with no findings.

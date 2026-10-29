@@ -2,7 +2,8 @@
 
 `src/detect/resolve.ts` exports `resolveDiscovery(discovery: PageDiscovery,
 frameUrl: string)`. It returns readonly `PlaybackCandidate[]`. Each candidate has
-`id`, `videoId`, `title`, `source`, `manifest`, `status`, and `tracks`.
+`id`, `videoId`, `title`, `source`, `manifest`, `status`, `tracks`, and optional
+worker-only `invalidation` (`candidate`, `source`, or `video`).
 The extension caller must first authenticate the Chrome sender and its frame URL. This module is not a
 runtime entrypoint, message validator, permission prompt or tab/frame store.
 
@@ -29,10 +30,13 @@ paths qualify. Positive finite dimensions and positive safe-integer byte sizes
 are retained; absent/invalid sizes stay null. Malformed siblings do not erase
 usable manifest or direct-file alternatives.
 
-Status and tracks belong to that candidate, with no video-level status precedence
-or first-success projection. Unknown track fields stay null. Failed, malformed or
-protected candidates cannot erase a usable sibling. Required browser host access
-does not replace the transport's source admission.
+Status and tracks belong to that candidate. Unknown track fields stay null.
+Failed or malformed partial metadata cannot erase a usable sibling. Explicit
+candidate protection invalidates its former clear alternative. Root/video protection
+also emits a null-manifest `video` invalidation, including when manifests are omitted.
+Transport admission refusal and HTTP 401/403 emit candidate- or source-scoped
+invalidations instead of appearing as partial captures. Other HTTP/network failures
+remain partial. Required browser host access does not replace source admission.
 Signed URLs and candidate IDs stay in memory, not diagnostics or rendered text.
 Download eligibility is separate from metadata status; the download page owns media fetching.
 

@@ -114,6 +114,48 @@ export function validateFrameDiscovery(message: unknown, sender: chrome.runtime.
   return structuredClone(d) as unknown as PageDiscovery;
 }
 
+const sourceKey = (candidate: PlaybackCandidate) => JSON.stringify([candidate.videoId, candidate.source.configUrl]);
+// Replace signed-query history as whole alternatives, never merge tracks within a source.
+function slot(candidate: PlaybackCandidate, manifest = candidate.manifest): string {
+  const url = manifest ? new URL(manifest.url) : null;
+  return JSON.stringify([sourceKey(candidate), manifest?.protocol,
+    manifest && 'cdn' in manifest ? manifest.cdn : null, url?.origin, url?.pathname]);
+}
+function retain(previous: readonly PlaybackCandidate[], fresh: readonly PlaybackCandidate[]): readonly PlaybackCandidate[] {
+  const videoBlocks = new Set(fresh.filter(c => c.invalidation === 'video').map(c => c.videoId));
+  const sourceBlocks = new Set(fresh.filter(c => c.invalidation === 'source').map(sourceKey));
+  const replacements = new Set(fresh.filter(c => c.status === 'found' || c.status === 'protected' ||
+    c.invalidation === 'candidate').map(c => slot(c)));
+  const titles = new Map(fresh.filter(c => c.title !== null).map(c => [sourceKey(c), c.title]));
+  const allowed = (c: PlaybackCandidate) => !videoBlocks.has(c.videoId) || c.status === 'protected';
+  const kept = previous.filter(c => allowed(c) && !sourceBlocks.has(sourceKey(c)) && !replacements.has(slot(c)));
+  const byId = new Map(kept.map(c => [c.id, c]));
+  for (const candidate of fresh) {
+    if (!allowed(candidate)) continue;
+    const old = byId.get(candidate.id);
+    // A transport/parser failure is not a newer explicit protection/access decision.
+    if (old && candidate.status !== 'found' && candidate.status !== 'protected' && !candidate.invalidation) continue;
+    byId.set(candidate.id, candidate);
+  }
+  // Hard frame-local bound, including signed URLs and track payloads. Prefer newer whole sources.
+  let bytes = 0;
+  const bounded: PlaybackCandidate[] = [];
+  for (const candidate of [...byId.values()].reverse()) {
+    const value = { ...candidate, title: titles.get(sourceKey(candidate)) ?? candidate.title };
+    const size = JSON.stringify(value).length;
+    if (bounded.length === 256 || bytes + size > 2_097_152) continue;
+    bytes += size;
+    bounded.push(value);
+  }
+  return bounded.reverse();
+}
+
+function referenced(candidate: PlaybackCandidate, discovery: PageDiscovery): boolean {
+  return candidate.source.configUrl !== null
+    ? discovery.configUrls.includes(candidate.source.configUrl)
+    : discovery.videos.some(video => video.id === candidate.videoId);
+}
+
 /** In-memory only. Runtime owns authoritative document activation and invalidation. */
 export function createFrameState(extensionId: string, resolve: FrameResolver) {
   const tabs = new Map<number, Map<number, FramePublication>>();
@@ -156,12 +198,17 @@ export function createFrameState(extensionId: string, resolve: FrameResolver) {
       const frameId = sender.frameId!;
       const frames = tabs.get(tabId);
       if (!frames || frames.get(frameId)?.documentId !== sender.documentId) return false;
-      const pending: FramePublication = { tabId, frameId, documentId: sender.documentId!, status: 'pending', results: [] };
+      const previous = frames.get(frameId)!.results.filter(candidate => referenced(candidate, discovery) &&
+        !discovery.videos.some(video => video.id === candidate.videoId && (video.status === 'protected' ||
+          (video.source.configUrl === candidate.source.configUrl &&
+            (video.manifests.some(manifest => manifest.protected && slot(candidate) === slot(candidate, manifest)) ||
+              video.tracks.some(track => track.manifest.protected && slot(candidate) === slot(candidate, track.manifest)))))));
+      const pending: FramePublication = { tabId, frameId, documentId: sender.documentId!, status: 'pending', results: previous };
       frames.set(frameId, pending);
       try {
         const results = await resolve(discovery, sender.url!);
         if (tabs.get(tabId)?.get(frameId) === pending) {
-          frames.set(frameId, { ...pending, status: 'ready', results: structuredClone(results) });
+          frames.set(frameId, { ...pending, status: 'ready', results: retain(previous, structuredClone(results)) });
         }
       } catch {
         // Do not retain exception messages: they can contain signed URLs.

@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit",
     "deadcode": "knip",
     "unit": "node --test test/*.test.mjs",
-    "smoke": "xvfb-run -a env SMOKE_HEADED=1 node scripts/smoke.mjs",
+    "smoke": "xvfb-run -a env SMOKE_HEADED=1 node scripts/smoke.mjs && xvfb-run -a node scripts/retention-proof.mjs",
     "verify": "pnpm lint && pnpm typecheck && pnpm deadcode && pnpm build && pnpm unit && pnpm smoke"
   },
   "devDependencies": {
