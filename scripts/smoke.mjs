@@ -215,6 +215,30 @@ try {
   const id = new URL(worker.url()).host;
   let bootstrap = await context.newPage();
   await bootstrap.goto(`chrome-extension://${id}/manifest.json`);
+  // CDP evaluation is privileged harness input. Challenge the renderer's actual
+  // extension CSP with script elements instead of treating CDP eval as a bypass.
+  diagnostics.shippedCsp = await bootstrap.evaluate(async () => {
+    const document = globalThis.document;
+    const violations = [];
+    const receive = event => violations.push({ directive: event.effectiveDirective,
+      blocked: event.blockedURI, policy: event.originalPolicy });
+    document.addEventListener('securitypolicyviolation', receive);
+    const inline = document.createElement('script');
+    inline.textContent = 'globalThis.untrustedScriptRan = true';
+    document.documentElement.append(inline);
+    const remote = document.createElement('script');
+    remote.src = 'https://unrelated.invalid/security-review.js';
+    const rejected = new Promise(resolve => { remote.onerror = resolve; });
+    document.documentElement.append(remote);
+    await rejected;
+    await new Promise(resolve => setTimeout(resolve, 100));
+    inline.remove(); remote.remove();
+    document.removeEventListener('securitypolicyviolation', receive);
+    return { ran: globalThis.untrustedScriptRan === true, violations };
+  });
+  assert.equal(diagnostics.shippedCsp.ran, false);
+  assert.ok(diagnostics.shippedCsp.violations.some(v => v.blocked === 'inline'));
+  assert.ok(diagnostics.shippedCsp.violations.some(v => v.blocked === 'https://unrelated.invalid/security-review.js'));
   let active = context.pages()[0];
   await active.goto('https://example.com/fixture');
   let session = await context.newCDPSession(bootstrap);

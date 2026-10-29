@@ -130,6 +130,10 @@ a later owner cleans orphan data. Chromium still keeps its normal download histo
 and saved files, including completed paths. Cancelling does not delete an already
 completed file. Developer harness artifacts contain owned fixtures, not live tokens.
 
+The [all-sites security review](docs/security-review.md) records the inspected
+build, shipped code-loading policy, message/source authority and offline proof
+limits. Broad host access is capability, not permission to fetch arbitrary URLs.
+
 ## Limits
 
 - Vimeo only; English UI; Linux merge/test support. Live Vimeo config shapes can
