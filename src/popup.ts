@@ -13,6 +13,11 @@ type PermissionState = {
 const status = document.querySelector<HTMLParagraphElement>('#status')!;
 const videos = document.querySelector<HTMLElement>('#streams')!;
 const permissions = new Map<string, PermissionState>();
+const jobs = document.createElement('section');
+jobs.setAttribute('aria-label', 'Downloads');
+videos.before(jobs);
+type Job = { tabId: number; status: string; tracks: string[] };
+let downloads: Job[] = [];
 let tabId: number;
 let snapshot: PopupState | null = null;
 let polling = false;
@@ -115,7 +120,7 @@ function renderPermission(origin: string, encountered: boolean): HTMLElement {
 
 function render() {
   if (!snapshot) return;
-  const next = JSON.stringify([snapshot, [...permissions], acknowledged]);
+  const next = JSON.stringify([snapshot, [...permissions], acknowledged, downloads]);
   if (next === rendered) return;
   rendered = next;
   const pending = snapshot.frames.some(frame => frame.status === 'pending');
@@ -133,6 +138,16 @@ function render() {
       : failed ? 'This page could not be checked. Reload it to try again.'
         : 'No Vimeo videos detected. Open a Vimeo page or a page with a Vimeo player. Reload existing pages after installing the extension.';
   videos.hidden = !acknowledged;
+  jobs.hidden = !acknowledged;
+  jobs.replaceChildren(...(acknowledged ? downloads.map(job => {
+    const card = document.createElement('article');
+    card.append(element('h2', 'Download'), element('p', job.status));
+    for (const track of job.tracks) card.append(element('p', track));
+    const button = element('button', 'Open download');
+    button.onclick = () => { void chrome.tabs.update(job.tabId, { active: true }); window.close(); };
+    card.append(button);
+    return card;
+  }) : []));
   if (!acknowledged) {
     videos.replaceChildren();
     return;
@@ -177,6 +192,14 @@ async function poll() {
   const currentRevision = revision;
   try {
     const next: PopupState = await chrome.runtime.sendMessage({ type: 'popup-state', tabId });
+    const owners = (await chrome.runtime.getContexts({ contextTypes: [chrome.runtime.ContextType.TAB] }))
+      .filter(owner => owner.documentUrl?.startsWith(`${chrome.runtime.getURL('download.html')}#`));
+    downloads = (await Promise.all(owners.map(async owner => {
+      try {
+        const progress = await chrome.runtime.sendMessage({ type: 'download-progress', token: new URL(owner.documentUrl!).hash.slice(1) });
+        return progress ? { tabId: owner.tabId, ...progress } as Job : null;
+      } catch { return null; }
+    }))).filter((job): job is Job => job !== null);
     const origins = [...new Set(next.results.flatMap(originsFor))];
     await Promise.all(origins.map(async origin => {
       const granted = await chrome.permissions.contains({ origins: [`${origin}/*`] });

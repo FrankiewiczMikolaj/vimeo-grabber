@@ -56,8 +56,10 @@ unpacked installation requires rebuilding/replacing its files and reloading it i
 4. Choose a supported quality to save separate video and matching audio, or
    **Audio only** for one audio file. Metadata alone is not a successful download;
    an unavailable/protected/unsupported result must not be treated as a usable file.
-5. Keep the dedicated download tab open. Closing the popup does not stop assembly;
-   closing the download tab cancels its active work. **Cancel** stops the job.
+5. Keep the dedicated download tab open. Admitted downloads continue when the
+   popup closes, tabs switch or the source tab closes. Reopen the popup to see
+   current segment progress and **Open download** to return to the owner tab.
+   Closing the download tab cancels its active work. **Cancel** stops the job.
 6. Wait for native completion and the actual saved paths. A failed companion leaves
    the completed file intact; it does not make an incomplete pair successful.
 

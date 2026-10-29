@@ -167,11 +167,22 @@ succeeding on attempt four; another exhausts all four attempts. Recorded request
 times must show backoff. FFmpeg decodes both completed outputs and extracts a
 1920x1080 frame from the saved video. Audio only produces exactly one audio file.
 A held companion proves progress after video completes, then network failure,
-Cancel, a real 30-second idle timeout, permission revocation and document replacement
-must preserve the completed video and report partial failure. Encrypted playlists,
+Cancel, a real 30-second idle timeout and permission revocation must preserve the
+completed video and report partial failure. Encrypted playlists,
 redirects and ungranted resource origins produce no native download. Missing-URI
 audio cannot expose a quality-pair button. Every finished owner must remove its
 owned temporary directory. No unrelated audio, keys or licenses may be requested.
+
+The lifetime matrix replaces the old source-document invalidation assertion.
+For paired and Audio only jobs it holds owned audio media, observes actual popup
+closure, switches tabs, reopens the real popup, closes the source tab and reopens
+again. Popup segment counts must reflect both held and completed states. Each
+native output must exactly match its owned source, with exactly two/one saves:
+reopening must not create a job. `lifetime-proof.json` and `lifetime-*.png` retain
+the observations. For a scoped run after building, use
+`SMOKE_LIFETIME_ONLY=1 SMOKE_ARTIFACT_DIR=artifacts/lifetime-fresh pnpm smoke`;
+this runs detection/notice setup and lifetime proof, not the remaining download
+matrix. Use a fresh artifact directory for each invocation.
 
 Concurrency uses Chromium request lifetimes: `request` opens a slot;
 `requestfinished` (after body delivery) or `requestfailed` (including cancellation)
