@@ -101,8 +101,9 @@ five concurrent requests, three retries after the initial attempt and exhaustion
 It compares completed native file bytes with the source and decodes those files.
 It also covers HLS/second-origin DASH, private references, candidate identity,
 malformed data, popup closure and partial completion.
-Assembly has a 4 GiB per-file cap, a 64 MiB per-media-segment cap and a 1 MiB
-initialization/playlist cap, with no per-read cap. Five disk-backed segment slots
+Adaptive assembly has a 4 GiB per-file cap, a 64 MiB per-media-segment cap and a
+1 MiB initialization/playlist cap, with no per-read cap. Direct progressive files
+use the whole-file cap instead of the segment cap. Five disk-backed segment slots
 bound lookahead to 320 MiB beyond the output file. Initialization is validated
 and written first; each batch is appended in source order before the next starts.
 Only network/read failures and HTTP 408/429/500/502/503/504 retry, after

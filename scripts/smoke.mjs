@@ -669,7 +669,7 @@ try {
   await capture('notice-restarted');
   assert.deepEqual(await evaluate('chrome.storage.local.get(null)'), { rightsAcknowledged: true });
   const previousVersion = manifest.version;
-  manifest.version = '0.3.1';
+  manifest.version = previousVersion.replace(/\d+$/, patch => String(Number(patch) + 1));
   assert.notEqual(manifest.version, previousVersion);
   await writeFile(resolve(extension, 'manifest.json'), JSON.stringify(manifest));
   // Install the changed unpacked package in the running profile, not a page reload.

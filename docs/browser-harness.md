@@ -73,7 +73,7 @@ production handler. Local storage must then contain only `rightsAcknowledged: tr
 Screenshots retain fresh, failed-save, acknowledged and reopened surfaces.
 
 After the detection/download matrix, Chromium closes and restarts with the same
-profile. The harness then changes the copied unpacked manifest from 0.3.0 to 0.3.1
+profile. The harness then increments the copied unpacked manifest's patch version
 and installs that package through browser-level CDP `Extensions.loadUnpacked`.
 It checks the loaded version, unchanged extension ID and acknowledgement. This is
 a real unpacked-package update, not a simulated version read or a popup reload;

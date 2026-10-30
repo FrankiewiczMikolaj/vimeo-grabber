@@ -1,4 +1,4 @@
-# CI and pull-request extension zips
+# CI and identified extension packages
 
 The `CI` workflow runs on pull requests and pushes to `main` on Ubuntu 24.04.
 Its stable check name is **Verify extension** (job key `verify`). Use that check
@@ -45,16 +45,32 @@ Use a fresh output path: remove an older `vimeo-grabber.zip` before packaging
 locally so removed build files cannot remain in the archive. CI uses a clean
 checkout. `manifest.json` is at the archive root, not under `dist/`.
 
-## Download and install a PR build
+## Download and install an identified build
 
-After **Verify extension** passes, open the pull request's `CI` run and download
-`vimeo-grabber-pr-<PR number>` from **Artifacts**. Artifacts expire after 14 days.
-GitHub's artifact download wraps `vimeo-grabber.zip` in another zip; extract the
-wrapper first, then extract the extension zip into a directory. In Chromium,
-open `chrome://extensions`, enable Developer mode, select **Load unpacked**, and
-choose the directory containing `manifest.json`.
+After **Verify extension** passes, open the `CI` run for the intended commit:
 
-Main pushes verify and package the extension but do not upload a PR artifact.
-These zips are test builds, not releases, store packages, or attestations.
-Fork PRs do not need repository secrets or write permissions. CI intentionally
-uses `pull_request`, not `pull_request_target`, to run contributed code.
+- PR: `vimeo-grabber-pr-<PR number>-<github.sha>`; the SHA identifies GitHub's
+  tested synthetic merge commit, not the PR branch head.
+- Main: `vimeo-grabber-main-<full main commit SHA>`.
+
+Artifacts expire after 14 days. Record the run URL, source commit and artifact
+name before testing. GitHub's artifact download wraps `vimeo-grabber.zip` in
+another zip; extract the wrapper first, then extract the extension zip into a
+fresh directory. `manifest.json`, `popup.html`, `download.html` and generated
+assets belong at that directory's root, not inside another `dist/` directory.
+In Chromium, open `chrome://extensions`, enable Developer mode, select
+**Load unpacked**, and choose the directory containing `manifest.json`.
+The prepared version is **0.4.0**; confirm it on the extension's details page.
+
+These are test builds, not releases, store packages or attestations. Fork PRs
+need no repository secrets or write permissions. CI intentionally uses
+`pull_request`, not `pull_request_target`, to run contributed code.
+
+## Final M3 approval
+
+A PR package is not the final main build. After owner merge, the coordinator
+must supply the actual successful main run/artifact link and full source SHA
+through [#53](https://github.com/FrankiewiczMikolaj/vimeo-grabber/issues/53).
+Mikołaj checks that exact package using [TESTING](../TESTING.md) and explicitly
+approves it before any tag, release or M3 closure. Until then, publication and
+final own-machine acceptance remain pending.
